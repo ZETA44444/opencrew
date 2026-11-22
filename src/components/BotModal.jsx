@@ -110,7 +110,7 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
               </select>
             </label>
             <label>Modelo
-              <input list="models" value={f.model} onChange={(e) => set({ model: e.target.value })} disabled={f.provider === 'demo'} />
+              <input list="models" value={f.provider === 'auto' ? 'elige solo en cada tarea' : f.model} onChange={(e) => set({ model: e.target.value })} disabled={f.provider === 'demo' || f.provider === 'auto'} />
               <datalist id="models">{provider?.models.map((m) => <option key={m} value={m} />)}</datalist>
             </label>
           </div>

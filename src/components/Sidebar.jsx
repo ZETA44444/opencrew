@@ -104,6 +104,7 @@ export default function Sidebar({ bots, groups = [], waiting = [], skillsCount =
 
 export function shortModel(b) {
   if (b.provider === 'demo') return 'demo';
+  if (b.provider === 'auto') return '⚡ auto';
   return b.model.replace(/^claude-/, '').replace(/^gemini-/, 'gem-').replace(/-preview.*$/, '').slice(0, 14);
 }
 

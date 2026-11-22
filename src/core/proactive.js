@@ -1,6 +1,7 @@
 // Proactive main bot: when you open the app, the ★ bot proposes a few things it could do for you.
 import { getDb, save, now } from './store.js';
 import { callModel } from './providers.js';
+import { routeModel } from './router.js';
 import { broadcast } from './events.js';
 
 const EVERY_MS = 12 * 60 * 60 * 1000; // at most one proposal round every 12 h (costs one small model call)
@@ -42,8 +43,9 @@ export async function refreshSuggestions({ force = false } = {}) {
   running = true;
   broadcast({ type: 'suggestions', loading: true });
   try {
+    const auto = bot.provider === 'auto' ? routeModel([{ role: 'user', content: 'propón tareas' }]) : null;
     const res = await callModel({
-      providerId: bot.provider, model: bot.model, tools: [],
+      providerId: auto?.provider || bot.provider, model: auto?.model || bot.model, tools: [],
       system: `Eres ${bot.name}, ${bot.title}, el bot principal de un equipo de bots de IA. PROPUESTAS_JSON: propón tareas útiles y concretas que el equipo podría hacer ahora por el usuario.`,
       messages: [{
         role: 'user',

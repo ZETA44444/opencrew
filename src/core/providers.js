@@ -24,6 +24,7 @@ export const PROVIDERS = [
   { id: 'ollama', label: 'Ollama (local, gratis)', kind: 'openai', noKey: true,
     baseUrl: 'http://localhost:11434/v1',
     models: ['llama3.2', 'qwen3'] },
+  { id: 'auto', label: 'Automático (el más barato que sirva)', kind: 'auto', noKey: true, models: ['auto'] },
   { id: 'demo', label: 'Demo (sin clave)', kind: 'demo', noKey: true, models: ['demo'] },
 ];
 
@@ -478,6 +479,7 @@ export async function callModel({ providerId, model, system, messages, tools, on
     case 'gemini': return callGemini(args);
     case 'openai': return callOpenAI(args);
     case 'demo': return callDemo(args);
+    case 'auto': return callDemo(args); // only reached when you have no keys at all (the agent routes first)
     default: throw new Error(`Tipo de proveedor no soportado: ${provider.kind}`);
   }
 }

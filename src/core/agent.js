@@ -7,6 +7,7 @@ import { notify } from './notify.js';
 import { needsApproval, requestApproval } from './approvals.js';
 import { recordUsage, checkBudget, monthCost } from './usage.js';
 import { recordModelResult } from './health.js';
+import { routeModel } from './router.js';
 
 const MAX_STEPS = 8;
 export const busy = new Set();
@@ -141,12 +142,13 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
       if (signal.aborted) throw stopped();
       partial = '';
       checkBudget(bot); // stop before spending more than the bot's monthly limit
+      let stepLabel = label;
       const thinking = step({ kind: 'model', label: `Pensando (${label})`, status: 'running' });
       const t0 = Date.now();
       emit({ type: 'draft', botId: threadId, speaker: botId, runId, text: '' }); // new model call → fresh live bubble
       let firstToken = true;
       const onText = (delta) => {
-        if (firstToken) { firstToken = false; update(thinking, { label: `Escribiendo (${label})` }); }
+        if (firstToken) { firstToken = false; update(thinking, { label: `Escribiendo (${stepLabel})` }); }
         partial += delta;
         emit({ type: 'delta', botId: threadId, speaker: botId, runId, text: delta });
       };
@@ -154,6 +156,15 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
       const decide = i === 0 && depth === 0 && !group && delegationMode(bot) === 'coordinator' && tools.some((t) => t.name === 'delegate_to_bot');
       const callArgs = { system: systemPrompt(bot, group), messages: convo, signal, tools: decide ? [...tools, ANSWER_MYSELF] : tools, forceTool: decide };
       let used = sticky || { provider: bot.provider, model: bot.model };
+      // «Automático»: pick the cheapest model good enough for this step.
+      if (!sticky && bot.provider === 'auto') {
+        const route = routeModel(convo, i);
+        if (route) {
+          used = { provider: route.provider, model: route.model };
+          stepLabel = `automático → ${route.provider}/${route.model} · ${route.reason}`;
+          update(thinking, { label: `Pensando (${stepLabel})` });
+        } else used = { provider: 'demo', model: 'demo' };
+      }
       let res;
       try {
         try {
@@ -169,7 +180,7 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
         // Overloaded / rate-limited / retired model: try other models automatically.
         if (bot.autoFallback === false || !shouldFallBack(e)) throw e;
         let lastErr = e;
-        for (const alt of fallbackModels(bot.provider, bot.model, { otherProvidersOnly: [401, 403].includes(e.status) })) {
+        for (const alt of fallbackModels(used.provider, used.model, { otherProvidersOnly: [401, 403].includes(e.status) })) {
           if (signal.aborted) throw stopped();
           step({ kind: 'note', label: `${used.model} no responde (${lastErr.status || 'sin conexión'}) → probando ${alt.provider}/${alt.model}`, status: 'done' });
           used = alt;
@@ -185,7 +196,7 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
       }
       lastModel = `${used.provider}/${used.model}`;
       if (used.provider !== 'demo') recordModelResult(used.provider, used.model, null);
-      update(thinking, { status: 'done', label: `Pensando (${lastModel === `${bot.provider}/${bot.model}` ? label : lastModel})`, ms: Date.now() - t0 });
+      update(thinking, { status: 'done', label: `Pensando (${bot.provider === 'auto' && lastModel === `${used.provider}/${used.model}` && !sticky ? stepLabel : lastModel === `${bot.provider}/${bot.model}` ? label : lastModel})`, ms: Date.now() - t0 });
       if (res.usage) {
         spent.input += res.usage.input || 0;
         spent.output += res.usage.output || 0;
