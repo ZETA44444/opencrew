@@ -13,6 +13,9 @@ export const SENSITIVE = {
   generate_image: 'Generar una imagen (gasta créditos de tu clave)',
   github_create_issue: 'Crear un issue en GitHub',
   github_comment: 'Publicar un comentario en GitHub',
+  gmail_send: 'Enviar un correo desde tu Gmail',
+  gmail_create_draft: 'Guardar un borrador en tu Gmail',
+  calendar_create_event: 'Crear un evento en tu calendario',
   set_bot_limit: 'Cambiar el límite de gasto de un bot',
 };
 

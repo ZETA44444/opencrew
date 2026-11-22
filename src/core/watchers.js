@@ -4,9 +4,10 @@ import { getDb, getBot, newId, now, save } from './store.js';
 import { broadcast } from './events.js';
 import { runAgent, busy } from './agent.js';
 import { notify } from './notify.js';
+import { gmailList, googleConnected } from './google.js';
 
 export const watchers = () => (getDb().watchers ??= []);
-const MIN_EVERY = { github: 5, web: 15, rss: 10 };
+const MIN_EVERY = { github: 5, web: 15, rss: 10, gmail: 5 };
 
 // ---------- sources: each returns a list of { id, title, url, text } (newest first) ----------
 async function githubItems(cfg) {
@@ -63,6 +64,13 @@ async function webCheck(cfg, state) {
   return { changed: false, state: { hash: h, text: text.slice(0, 20_000) }, items: [] };
 }
 
+// Gmail: new emails matching a search (no AI used to check).
+async function gmailItems(cfg) {
+  if (!googleConnected()) throw new Error('Google no está conectado (Apps conectadas)');
+  const list = await gmailList(cfg.query || 'in:inbox', 20);
+  return list.map((m) => ({ id: m.id, author: m.from, isMail: true, title: `${m.subject} — ${m.from}`, url: `https://mail.google.com/mail/u/0/#all/${m.threadId}`, text: `[id ${m.id}] ${m.snippet}` }));
+}
+
 // ---------- run one check ----------
 export async function checkWatcher(w, { force = false } = {}) {
   const bot = getBot(w.botId);
@@ -78,7 +86,7 @@ export async function checkWatcher(w, { force = false } = {}) {
       news = r.items;
       if (!news.length) w.state = webState;
     } else {
-      const items = w.type === 'github' ? await githubItems(w.config) : await rssItems(w.config);
+      const items = w.type === 'github' ? await githubItems(w.config) : w.type === 'gmail' ? await gmailItems(w.config) : await rssItems(w.config);
       const seen = new Set(w.state.seen || []);
       const first = !w.state.seen; // first check only learns what already exists
       news = first ? [] : items.filter((it) => !seen.has(it.id));
@@ -117,7 +125,7 @@ export function applyFilters(w, news) {
     if (inc.length && !inc.some((t) => hay.includes(t))) return false;
     if (exc.length && exc.some((t) => hay.includes(t))) return false;
     if (labels.length && !(n.labels || []).some((l) => labels.includes(l.toLowerCase()))) return false;
-    if (authors.length && !authors.some((a) => String(n.author || '').toLowerCase() === a)) return false;
+    if (authors.length && !authors.some((a) => (n.isMail ? String(n.author || '').toLowerCase().includes(a) : String(n.author || '').toLowerCase() === a))) return false;
     return true;
   });
 }

@@ -253,7 +253,7 @@ export default function App() {
         />
       )}
       {modal?.type === 'usage' && <UsageModal bots={state.bots} onClose={() => setModal(null)} />}
-      {modal?.type === 'connectors' && <ConnectorsModal connectors={state.connectors} services={state.services} onClose={() => setModal(null)} />}
+      {modal?.type === 'connectors' && <ConnectorsModal connectors={state.connectors} services={state.services} bots={state.bots} onClose={() => setModal(null)} />}
       {modal?.type === 'skills' && <SkillsModal skills={state.skills} onClose={() => setModal(null)} />}
       {modal?.type === 'settings' && (
         <SettingsModal providers={state.providers} settings={state.settings} services={state.services} sensitiveTools={state.sensitiveTools} onClose={() => setModal(null)} onSaved={refresh} />

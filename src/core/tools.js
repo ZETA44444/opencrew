@@ -8,6 +8,7 @@ import { runJavaScript, formatRun } from './sandbox.js';
 import { generateImage } from './images.js';
 import { connectorTools, callConnectorTool, findConnectorTool } from './mcp.js';
 import { githubTools, runGithubTool, describeGithub } from './github.js';
+import { googleTools, runGoogleTool, describeGoogle, isGoogleTool } from './google.js';
 import { TREASURER_TOOLS, TREASURER_TOOL_NAMES } from './treasurer.js';
 
 const PALETTE = ['#7dd3fc', '#fca5a5', '#86efac', '#fcd34d', '#c4b5fd', '#f9a8d4', '#fdba74', '#e5e5e5'];
@@ -402,12 +403,13 @@ export function toolsFor(bot, depth) {
     .filter((n) => !(n === 'delegate_to_bot' && depth >= 2)) // avoid infinite delegation chains
     .map((name) => ({ name, description: ALL_TOOLS[name].description, parameters: ALL_TOOLS[name].parameters }))
     // Tools from connected apps (MCP), unless this bot has them switched off.
-    .concat(bot.connectors === false ? [] : [...githubTools(), ...connectorTools()]);
+    .concat(bot.connectors === false ? [] : [...githubTools(), ...googleTools(bot), ...connectorTools()]);
 }
 
 export async function runTool(call, ctx) {
   if (call.name.startsWith('mcp_')) return callConnectorTool(call.name, call.args || {});
   if (call.name.startsWith('github_')) return runGithubTool(call.name, call.args || {});
+  if (isGoogleTool(call.name)) return runGoogleTool(call.name, call.args || {}, ctx?.bot);
   const tool = ALL_TOOLS[call.name];
   if (!tool) return `Herramienta desconocida: ${call.name}`;
   return String(await tool.run(call.args || {}, ctx));
@@ -416,6 +418,7 @@ export async function runTool(call, ctx) {
 export function describeCall(call) {
   const a = call.args || {};
   if (call.name.startsWith('github_')) return describeGithub(call.name, a);
+  if (isGoogleTool(call.name)) return describeGoogle(call.name, a);
   if (call.name.startsWith('mcp_')) {
     const hit = findConnectorTool(call.name);
     return hit ? `${hit.c.name}: ${hit.t.name}` : call.name;

@@ -97,11 +97,13 @@ const WATCH_TYPES = {
   github: { label: 'GitHub', hint: 'Avisa con issues, pull requests, versiones o commits nuevos' },
   web: { label: 'Una página web', hint: 'Avisa cuando cambia el contenido de una web' },
   rss: { label: 'Un RSS / blog', hint: 'Avisa con cada artículo nuevo de un feed' },
+  gmail: { label: 'Gmail', hint: 'Avisa con cada correo nuevo que coincida con la búsqueda (necesita Google conectado en Apps conectadas)' },
 };
 const GH_EVENTS = { issues: 'Issues nuevos', pulls: 'Pull requests nuevos', releases: 'Versiones nuevas', commits: 'Commits nuevos' };
 
 function describeWatch(w) {
   if (w.type === 'github') return `${GH_EVENTS[w.config?.event || 'issues']} en ${w.config?.repo}`;
+  if (w.type === 'gmail') return `Correos: ${w.config?.query || 'in:inbox'}`;
   return w.config?.url;
 }
 
@@ -115,9 +117,9 @@ function Watchers({ bot, watchers, refresh }) {
   const [err, setErr] = useState('');
   const save = async () => {
     setErr('');
-    const config = form.type === 'github' ? { repo: form.repo, event: form.event } : { url: form.url };
+    const config = form.type === 'github' ? { repo: form.repo, event: form.event } : form.type === 'gmail' ? { query: form.query || 'in:inbox' } : { url: form.url };
     try {
-      const filters = { include: form.include, exclude: form.exclude, ...(form.type === 'github' && { labels: form.labels, author: form.author }) };
+      const filters = { include: form.include, exclude: form.exclude, ...(form.type === 'github' && { labels: form.labels, author: form.author }), ...(form.type === 'gmail' && { author: form.author }) };
       await api.saveWatcher({ botId: bot.id, name: form.name, type: form.type, config, everyMin: Number(form.everyMin), prompt: form.prompt, filters });
       setForm(null); refresh();
     } catch (e) { setErr(e.message); }
@@ -149,7 +151,7 @@ function Watchers({ bot, watchers, refresh }) {
       {form ? (
         <div className="card form">
           <input placeholder="Nombre (p. ej. Bugs nuevos)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value, everyMin: e.target.value === 'web' ? 30 : e.target.value === 'rss' ? 15 : 10 })}>
+          <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value, everyMin: e.target.value === 'web' ? 30 : e.target.value === 'rss' ? 15 : e.target.value === 'gmail' ? 5 : 10 })}>
             {Object.entries(WATCH_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
           <div className="muted small">{WATCH_TYPES[form.type].hint}</div>
@@ -160,6 +162,8 @@ function Watchers({ bot, watchers, refresh }) {
                 {Object.entries(GH_EVENTS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
+          ) : form.type === 'gmail' ? (
+            <input placeholder="Búsqueda de Gmail (p. ej. is:unread from:cliente.com)" value={form.query} onChange={(e) => setForm({ ...form, query: e.target.value })} />
           ) : (
             <input placeholder={form.type === 'rss' ? 'https://blog.com/feed' : 'https://web.com/precios'} value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} />
           )}
@@ -172,6 +176,7 @@ function Watchers({ bot, watchers, refresh }) {
             <summary className="muted small">Filtros (opcional)</summary>
             <input placeholder="Solo si contiene… (palabras separadas por comas)" value={form.include} onChange={(e) => setForm({ ...form, include: e.target.value })} />
             <input placeholder="Ignorar si contiene…" value={form.exclude} onChange={(e) => setForm({ ...form, exclude: e.target.value })} />
+            {form.type === 'gmail' && <input placeholder="Solo de (correo o dominio, separados por comas)" value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} />}
             {form.type === 'github' && (
               <div className="card-row">
                 <input placeholder="Solo etiquetas (bug, urgente)" value={form.labels} onChange={(e) => setForm({ ...form, labels: e.target.value })} />
@@ -182,12 +187,12 @@ function Watchers({ bot, watchers, refresh }) {
           <textarea rows={2} placeholder="Qué debe hacer el bot con las novedades (p. ej. «resúmelas y dime si alguna es urgente»)" value={form.prompt} onChange={(e) => setForm({ ...form, prompt: e.target.value })} />
           {err && <div className="small run-error">{err}</div>}
           <div className="card-actions">
-            <button className="btn small primary" disabled={!form.name || !(form.repo || form.url)} onClick={save}>Guardar</button>
+            <button className="btn small primary" disabled={!form.name || !(form.repo || form.url || form.type === 'gmail')} onClick={save}>Guardar</button>
             <button className="btn small ghost" onClick={() => setForm(null)}>Cancelar</button>
           </div>
         </div>
       ) : (
-        <button className="btn full" onClick={() => setForm({ name: '', type: 'github', repo: '', event: 'issues', url: '', everyMin: 10, prompt: '', include: '', exclude: '', labels: '', author: '' })}>+ Nuevo vigilante</button>
+        <button className="btn full" onClick={() => setForm({ name: '', type: 'github', repo: '', event: 'issues', url: '', query: 'is:unread in:inbox', everyMin: 10, prompt: '', include: '', exclude: '', labels: '', author: '' })}>+ Nuevo vigilante</button>
       )}
     </div>
   );

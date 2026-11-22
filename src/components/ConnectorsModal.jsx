@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 
-export default function ConnectorsModal({ connectors, services = {}, onClose }) {
+export default function ConnectorsModal({ connectors, services = {}, bots = [], onClose }) {
   const [form, setForm] = useState(null);
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
@@ -29,6 +29,27 @@ export default function ConnectorsModal({ connectors, services = {}, onClose }) 
     }
   };
   const testGithub = async () => { setGhErr(''); try { setGhUser(await api.githubWhoAmI()); } catch (e) { setGhErr(e.message); } };
+
+  const g = services.google || {};
+  const [gErr, setGErr] = useState('');
+  const [gBusy, setGBusy] = useState(false);
+  const [gAdv, setGAdv] = useState(false);
+  const [gClient, setGClient] = useState(g.clientId || '');
+  const connectG = async () => {
+    setGErr(''); setGBusy(true);
+    try {
+      const r = await api.connectGoogle();
+      if (r.missing.length) setGErr(`Falta aceptar algún permiso (${r.missing.join(', ')}). Pulsa «Reconectar» y marca todas las casillas.`);
+    } catch (e) {
+      setGErr(/origin|redirect_uri|invalid_client|idpiframe/i.test(e.message) ? `${e.message}. Revisa que este sitio (${location.origin}) esté en «Orígenes de JavaScript autorizados» de tu Client ID.` : e.message);
+    } finally { setGBusy(false); }
+  };
+  const toggleBot = (id, on) => {
+    const all = bots.map((b) => b.id);
+    const cur = g.botIds || all;
+    const next = on ? [...new Set([...cur, id])] : cur.filter((x) => x !== id);
+    api.updateGoogle({ botIds: next.length === all.length ? null : next });
+  };
 
   const refresh = async (id) => { setBusy(id); await api.refreshConnector(id); setBusy(''); };
 
@@ -66,6 +87,47 @@ export default function ConnectorsModal({ connectors, services = {}, onClose }) 
               </label>
             )}
             {ghErr && <div className="small run-error">{ghErr}</div>}
+          </div>
+
+          <div className="key-row">
+            <div className="key-head">
+              <strong>Gmail y Google Calendar</strong>
+              {g.connected ? (g.expired ? <span className="pill err">sesión caducada</span> : <span className="pill ok">conectado{g.email ? ` · ${g.email}` : ''}</span>) : <span className="pill">sin conectar</span>}
+            </div>
+            <div className="muted small">
+              Inicia sesión con Google y tus bots podrán buscar y leer tus correos y ver tu agenda. Todo pasa directamente entre este navegador y Google.
+              La sesión dura 1 hora; después pulsa «Reconectar».
+            </div>
+            <div className="card-actions">
+              <button className="btn small primary" disabled={gBusy} onClick={connectG}>{gBusy ? 'Abriendo Google…' : g.connected ? 'Reconectar' : 'Conectar con Google'}</button>
+              {g.connected && <button className="btn small ghost" onClick={() => api.disconnectGoogle()}>Desconectar</button>}
+              <button className="btn small ghost" onClick={() => setGAdv(!gAdv)}>{gAdv ? 'Ocultar opciones' : 'Opciones'}</button>
+            </div>
+            {g.connected && (
+              <>
+                <label className="check small">
+                  <input type="checkbox" checked={!!g.write} onChange={(e) => api.updateGoogle({ write: e.target.checked })} />
+                  Permitir enviar correos, guardar borradores y crear eventos (siempre te pedirán permiso antes)
+                </label>
+                <div className="small muted">Bots que pueden usar tu correo y tu agenda:</div>
+                <div className="chip-checks">
+                  {bots.map((b) => (
+                    <label key={b.id} className="check small">
+                      <input type="checkbox" checked={!g.botIds || g.botIds.includes(b.id)} onChange={(e) => toggleBot(b.id, e.target.checked)} /> {b.name}
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+            {gAdv && (
+              <label className="small">Client ID de Google propio (solo si usas OpenCrew en otra web)
+                <div className="key-input">
+                  <input placeholder="…apps.googleusercontent.com (vacío = el de OpenCrew)" value={gClient} onChange={(e) => setGClient(e.target.value)} />
+                  <button className="btn small" onClick={() => api.updateGoogle({ clientId: gClient.trim() || undefined })}>Guardar</button>
+                </div>
+              </label>
+            )}
+            {gErr && <div className="small run-error">{gErr}</div>}
           </div>
 
           <div className="section-title">Servidores MCP</div>

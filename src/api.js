@@ -8,6 +8,7 @@ import { computeNext, runRoutine, startScheduler, missed, resolveMissed } from '
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
 import { searchBackend } from './core/search.js';
 import { githubWhoAmI } from './core/github.js';
+import { connectGoogle, disconnectGoogle, updateGoogle, googleStatus } from './core/google.js';
 import { usageRows, priceFor, setPrice, clearUsage, monthCost } from './core/usage.js';
 import { healthRows, clearHealth } from './core/health.js';
 import { proposalsFor, resolveProposal } from './core/automemory.js';
@@ -79,7 +80,7 @@ export const api = {
       busy: [...busy],
       tools: TOOL_NAMES,
       settings: db().settings,
-      services: { tavily: !!db().keys.tavily, github: !!db().keys.github, githubWrite: !!db().settings.githubWrite, searchBackend: searchBackend() },
+      services: { tavily: !!db().keys.tavily, github: !!db().keys.github, githubWrite: !!db().settings.githubWrite, google: googleStatus(), searchBackend: searchBackend() },
     });
   },
 
@@ -278,6 +279,9 @@ export const api = {
 
   // ---------- GitHub ----------
   githubWhoAmI,
+  connectGoogle,
+  disconnectGoogle,
+  updateGoogle,
 
   // ---------- connected apps (MCP) ----------
   addConnector,

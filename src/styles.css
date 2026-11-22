@@ -507,3 +507,5 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .toast { text-align: left; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 14px; background: var(--bg-2); border: 1px solid var(--line-2); box-shadow: 0 8px 30px rgba(0,0,0,.45); color: var(--text); animation: toast-in .2s ease-out; }
 .toast span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 @keyframes toast-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.chip-checks { display: flex; flex-wrap: wrap; gap: 4px 14px; }

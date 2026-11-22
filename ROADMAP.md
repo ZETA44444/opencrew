@@ -52,11 +52,8 @@ Reglas para cada tarea:
 
 - [x] Conectores MCP remotos (pegar la URL de un servidor MCP)
 - [x] GitHub (con token personal): issues, PRs, repos
-- [ ] ⏸ Gmail y Google Calendar (con tu propio Client ID de Google) — **necesita que hagas esto primero**:
-  1. Entra en https://console.cloud.google.com, crea un proyecto y activa **Gmail API** y **Google Calendar API**.
-  2. En «Pantalla de consentimiento de OAuth» elige *Externo*, pon un nombre y añade tu correo como usuario de prueba.
-  3. En «Credenciales» → «Crear credenciales» → **ID de cliente de OAuth** → tipo *Aplicación web*. En «Orígenes de JavaScript autorizados» añade `https://zeta44444.github.io` (y `http://localhost:5173` si lo usas en local).
-  4. Copia el **Client ID** (acaba en `.apps.googleusercontent.com`; no es secreto) y pásamelo. Con eso implemento el inicio de sesión con Google y las herramientas de correo y calendario.
+- [x] Gmail y Google Calendar (inicio de sesión con Google en el navegador): buscar y leer correos, borradores, enviar, ver la agenda y crear eventos. Enviar y crear piden permiso; puedes elegir qué bots tienen acceso. También hay vigilante de Gmail.
+  - Mientras la app esté en modo «Prueba» en Google Cloud, solo pueden entrar los correos añadidos como **usuarios de prueba**, y Google mostrará el aviso «app no verificada» (pulsa *Continuar*). La sesión dura 1 hora.
 - [ ] ⏸ Notion — **la API de Notion no admite conexiones directas desde el navegador** (bloquea CORS). Dos caminos:
   - Usar un servidor MCP de Notion que permita navegador y conectarlo en «Apps conectadas» (ya funciona).
   - O esperar a la Fase 7 (servidor opcional), que hará de puente con tu token de integración de Notion.
