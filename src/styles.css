@@ -473,3 +473,6 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .memprop { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .memprop-text { flex: 1; min-width: 160px; font-size: 13px; }
 .memprop select { font-size: 12px; padding: 4px 6px; border-radius: 8px; }
+
+.watchers { margin-bottom: 18px; }
+.card.form .card-row input { min-width: 0; flex: 1; }

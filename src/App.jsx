@@ -86,7 +86,7 @@ export default function App() {
         if (s.depth === 0 && thread === selectedRef.current) setPinnedSteps(null);
       } else if (ev.type === 'status') {
         setState((st) => st && { ...st, busy: ev.busy ? [...new Set([...st.busy, ev.botId])] : st.busy.filter((b) => b !== ev.botId) });
-      } else if (ev.type === 'bots' || ev.type === 'routines' || ev.type === 'skills' || ev.type === 'suggestions' || ev.type === 'connectors' || ev.type === 'approvals') {
+      } else if (ev.type === 'bots' || ev.type === 'routines' || ev.type === 'skills' || ev.type === 'suggestions' || ev.type === 'connectors' || ev.type === 'approvals' || ev.type === 'watchers') {
         refresh();
       } else if (ev.type === 'memoryProposals') {
         if (ev.botId === selectedRef.current) api.memoryProposals(ev.botId).then(setMemProposals);

@@ -11,6 +11,7 @@ import { githubWhoAmI } from './core/github.js';
 import { usageRows, priceFor, setPrice, clearUsage, monthCost } from './core/usage.js';
 import { healthRows, clearHealth } from './core/health.js';
 import { proposalsFor, resolveProposal } from './core/automemory.js';
+import { startWatchers, saveWatcher, deleteWatcher, checkWatcher, watchers } from './core/watchers.js';
 import { pendingApprovals, resolveApproval, revokeAlways, setApprovalsEnabled, SENSITIVE } from './core/approvals.js';
 import { addConnector, refreshConnector, updateConnector, removeConnector } from './core/mcp.js';
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
@@ -49,6 +50,7 @@ function boot() {
   subscribe((ev) => { if (ev.type === 'status' && !ev.busy) setTimeout(() => drain(ev.botId), 300); });
   for (const botId of Object.keys(db().queues || {})) setTimeout(() => drain(botId), 1000);
   startScheduler();
+  startWatchers();
   refreshAllModels().then(() => broadcast({ type: 'bots' }));
   setTimeout(() => refreshSuggestions(), 1500); // proactive main bot
 }
@@ -63,6 +65,7 @@ export const api = {
       providers: publicProviders(),
       routines: db().routines,
       groups: db().groups,
+      watchers: watchers().map(({ state, ...w }) => ({ ...w, ready: !!(state?.seen || state?.hash) })),
       projects: db().projects,
       globalMemory: db().globalMemory,
       skills: db().skills,
@@ -164,6 +167,7 @@ export const api = {
     for (const g of d.groups) g.memberIds = g.memberIds.filter((m) => m !== id);
     for (const p of d.projects) p.botIds = p.botIds.filter((m) => m !== id);
     d.routines = d.routines.filter((r) => r.botId !== id);
+    d.watchers = (d.watchers || []).filter((w) => w.botId !== id);
     save();
     broadcast({ type: 'bots' });
     return { ok: true };
@@ -412,6 +416,9 @@ export const api = {
   },
 
   resolveMissed,
+  async saveWatcher(w) { saveWatcher(w); },
+  async deleteWatcher(id) { deleteWatcher(id); },
+  async checkWatcher(id) { const w = watchers().find((x) => x.id === id); if (w) await checkWatcher(w, { force: true }); },
 
   async runRoutine(id) {
     const r = db().routines.find((x) => x.id === id);

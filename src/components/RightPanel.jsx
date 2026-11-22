@@ -18,7 +18,13 @@ export default function RightPanel({ bot, state, steps, pinned, onUnpin, artifac
       </div>
       <div className="panel-body">
         {current === 'progress' && <Progress steps={steps} pinned={pinned} onUnpin={onUnpin} />}
-        {current === 'routines' && <Routines bot={bot} routines={state.routines.filter((r) => r.botId === bot.id)} runs={state.runs} refresh={refresh} />}
+        {current === 'routines' && (
+          <>
+            <Watchers bot={bot} watchers={(state.watchers || []).filter((w) => w.botId === bot.id)} refresh={refresh} />
+            <div className="section-title">⏱ Rutinas por horario</div>
+            <Routines bot={bot} routines={state.routines.filter((r) => r.botId === bot.id)} runs={state.runs} refresh={refresh} />
+          </>
+        )}
         {current === 'memory' && <Memory bot={bot} bots={state.bots} globalMemory={state.globalMemory || []} projects={(state.projects || []).filter((p) => p.botIds.includes(bot.id))} refresh={refresh} />}
         {current === 'artifacts' && <Artifacts bot={bot} tick={artifactsTick} onOpen={onOpenArtifact} />}
       </div>
@@ -83,6 +89,89 @@ function RunHistory({ runs }) {
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+const WATCH_TYPES = {
+  github: { label: 'GitHub', hint: 'Avisa con issues, pull requests, versiones o commits nuevos' },
+  web: { label: 'Una página web', hint: 'Avisa cuando cambia el contenido de una web' },
+  rss: { label: 'Un RSS / blog', hint: 'Avisa con cada artículo nuevo de un feed' },
+};
+const GH_EVENTS = { issues: 'Issues nuevos', pulls: 'Pull requests nuevos', releases: 'Versiones nuevas', commits: 'Commits nuevos' };
+
+function describeWatch(w) {
+  if (w.type === 'github') return `${GH_EVENTS[w.config?.event || 'issues']} en ${w.config?.repo}`;
+  return w.config?.url;
+}
+
+function Watchers({ bot, watchers, refresh }) {
+  const [form, setForm] = useState(null);
+  const [checking, setChecking] = useState(null);
+  const [err, setErr] = useState('');
+  const save = async () => {
+    setErr('');
+    const config = form.type === 'github' ? { repo: form.repo, event: form.event } : { url: form.url };
+    try {
+      await api.saveWatcher({ botId: bot.id, name: form.name, type: form.type, config, everyMin: Number(form.everyMin), prompt: form.prompt });
+      setForm(null); refresh();
+    } catch (e) { setErr(e.message); }
+  };
+  return (
+    <div className="routines watchers">
+      <div className="section-title" style={{ marginTop: 0 }}>🔔 Vigilantes (sin gastar tokens)</div>
+      {watchers.length === 0 && !form && <p className="muted small">Comprueban solos si hay algo nuevo <b>sin usar la IA</b>, y solo despiertan a {bot.name} cuando hay novedades.</p>}
+      {watchers.map((w) => (
+        <div key={w.id} className="card">
+          <div className="card-row">
+            <strong>{w.name}</strong>
+            <label className="switch">
+              <input type="checkbox" checked={w.enabled} onChange={(e) => api.saveWatcher({ id: w.id, enabled: e.target.checked }).then(refresh)} />
+              <span />
+            </label>
+          </div>
+          <div className="muted small conn-url">{WATCH_TYPES[w.type]?.label}: {describeWatch(w)} · cada {w.everyMin} min</div>
+          <div className="muted small">{w.lastCheckAt ? `Última comprobación: ${new Date(w.lastCheckAt).toLocaleTimeString()}` : 'Aún no se ha comprobado'}{w.ready ? '' : ' · aprendiendo lo que ya existe'}</div>
+          {w.lastFiredAt && <div className="small run-ok">Última novedad: {new Date(w.lastFiredAt).toLocaleString()} ({w.history?.[0]?.count || 0})</div>}
+          {w.lastError && <div className="small run-error">{w.lastError}</div>}
+          <div className="card-actions">
+            <button className="btn small" disabled={checking === w.id} onClick={async () => { setChecking(w.id); await api.checkWatcher(w.id); setChecking(null); refresh(); }}>{checking === w.id ? 'Comprobando…' : 'Comprobar ahora'}</button>
+            <button className="btn small ghost" onClick={() => confirm('¿Borrar vigilante?') && api.deleteWatcher(w.id).then(refresh)}>Borrar</button>
+          </div>
+        </div>
+      ))}
+      {form ? (
+        <div className="card form">
+          <input placeholder="Nombre (p. ej. Bugs nuevos)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value, everyMin: e.target.value === 'web' ? 30 : e.target.value === 'rss' ? 15 : 10 })}>
+            {Object.entries(WATCH_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+          <div className="muted small">{WATCH_TYPES[form.type].hint}</div>
+          {form.type === 'github' ? (
+            <div className="card-row">
+              <input placeholder="usuario/repo" value={form.repo} onChange={(e) => setForm({ ...form, repo: e.target.value })} />
+              <select value={form.event} onChange={(e) => setForm({ ...form, event: e.target.value })}>
+                {Object.entries(GH_EVENTS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+          ) : (
+            <input placeholder={form.type === 'rss' ? 'https://blog.com/feed' : 'https://web.com/precios'} value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} />
+          )}
+          <div className="card-row">
+            <span className="muted small">Comprobar cada</span>
+            <input type="number" min="5" value={form.everyMin} onChange={(e) => setForm({ ...form, everyMin: e.target.value })} style={{ width: 70 }} />
+            <span className="muted small">min</span>
+          </div>
+          <textarea rows={2} placeholder="Qué debe hacer el bot con las novedades (p. ej. «resúmelas y dime si alguna es urgente»)" value={form.prompt} onChange={(e) => setForm({ ...form, prompt: e.target.value })} />
+          {err && <div className="small run-error">{err}</div>}
+          <div className="card-actions">
+            <button className="btn small primary" disabled={!form.name || !(form.repo || form.url)} onClick={save}>Guardar</button>
+            <button className="btn small ghost" onClick={() => setForm(null)}>Cancelar</button>
+          </div>
+        </div>
+      ) : (
+        <button className="btn full" onClick={() => setForm({ name: '', type: 'github', repo: '', event: 'issues', url: '', everyMin: 10, prompt: '' })}>+ Nuevo vigilante</button>
+      )}
     </div>
   );
 }
