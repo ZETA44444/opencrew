@@ -3,6 +3,7 @@
 import { getDb, getBot, newId, now, save } from './store.js';
 import { runAgent } from './agent.js';
 import { broadcast } from './events.js';
+import { notify } from './notify.js';
 
 const running = new Set();
 
@@ -44,6 +45,7 @@ export async function runRoutine(routine) {
     run.summary = reply.content.slice(0, 1500);
     run.replyId = reply.id;
     run.model = reply.model;
+    notify({ kind: 'routine', threadId: routine.botId, title: `${run.status === 'ok' ? '✓' : '⚠️'} ${bot.name} · ${routine.name}`, body: reply.content });
   } catch (e) {
     run.status = 'error';
     run.summary = e.message;

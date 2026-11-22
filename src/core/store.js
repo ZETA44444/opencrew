@@ -36,6 +36,7 @@ function fill(d) {
   d.artifacts ??= {}; d.settings ??= {}; d.groups ??= []; d.skills ??= [];
   d.settings.webReader ??= true;
   d.settings.proactive ??= true;
+  d.settings.notifications ??= { routines: true, replies: true };
   return d;
 }
 

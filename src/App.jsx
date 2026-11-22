@@ -41,6 +41,13 @@ export default function App() {
     api.queue(selectedId).then(setQueued).catch(console.error);
   }, [selectedId]);
 
+  // Clicking a notification opens that chat.
+  useEffect(() => {
+    const open = (e) => { setSelectedId(e.detail); setNavOpen(false); };
+    window.addEventListener('oc-open-thread', open);
+    return () => window.removeEventListener('oc-open-thread', open);
+  }, []);
+
   // Live events from the in-browser agent engine.
   useEffect(() => {
     const unsubscribe = api.subscribe((raw) => {

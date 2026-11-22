@@ -7,6 +7,7 @@ import { broadcast, subscribe } from './core/events.js';
 import { computeNext, runRoutine, startScheduler } from './core/routines.js';
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
+import { askPermission, notifyPermission, notify } from './core/notify.js';
 
 const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown'];
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled'];
@@ -186,6 +187,11 @@ export const api = {
     broadcast({ type: 'bots' });
     return { ok: true };
   },
+
+  // ---------- notifications ----------
+  notifyPermission,
+  askNotifyPermission: askPermission,
+  testNotification: () => notify({ kind: 'routine', threadId: 'test', title: 'OpenCrew', body: 'Las notificaciones funcionan ✓' }),
 
   // ---------- proactive main bot ----------
   refreshSuggestions: () => refreshSuggestions({ force: true }),

@@ -3,6 +3,7 @@ import { getBot, getDb, messagesOf, newId, now, save } from './store.js';
 import { callModel, providerById } from './providers.js';
 import { toolsFor, runTool, describeCall } from './tools.js';
 import { broadcast } from './events.js';
+import { notify } from './notify.js';
 
 const MAX_STEPS = 8;
 export const busy = new Set();
@@ -133,6 +134,10 @@ export async function runAgent({ botId, input, from = null, source = 'user', dep
   if (thread.length > 500) thread.splice(0, thread.length - 500);
   save();
   emit({ type: 'message', botId: threadId, message: reply });
+  // Let you know when a bot answers while you're in another tab (routines notify on their own).
+  if (depth === 0 && source !== 'routine' && typeof document !== 'undefined' && document.hidden) {
+    notify({ kind: 'reply', threadId, title: group ? `${bot.name} en ${group.name}` : bot.name, body: final });
+  }
   return reply;
 }
 

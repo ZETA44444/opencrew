@@ -8,6 +8,9 @@ export default function SettingsModal({ providers, settings, onClose, onSaved })
   const [saving, setSaving] = useState(false);
   const [webReader, setWebReader] = useState(settings?.webReader !== false);
   const [proactive, setProactive] = useState(settings?.proactive !== false);
+  const [notif, setNotif] = useState(settings?.notifications || { routines: true, replies: true });
+  const [perm, setPerm] = useState(api.notifyPermission());
+  const setNotifOpt = (k, v) => { const n = { ...notif, [k]: v }; setNotif(n); api.updateSettings({ notifications: n }); };
   const [backupMsg, setBackupMsg] = useState('');
   const fileRef = useRef(null);
   const [storage, setStorage] = useState(null);
@@ -115,6 +118,22 @@ export default function SettingsModal({ providers, settings, onClose, onSaved })
             Al abrir la app, el bot principal (★) propone tareas que puede hacer por ti
           </label>
           <div className="muted small">Usa una llamada corta a su modelo como mucho cada 12 horas.</div>
+
+          <div className="section-title">Notificaciones</div>
+          {perm === 'unsupported' ? <div className="muted small">Este navegador no admite notificaciones.</div> : (
+            <>
+              <div className="settings-actions">
+                {perm === 'granted'
+                  ? <><span className="pill ok">activadas</span><button className="btn small" onClick={() => api.testNotification()}>Probar</button></>
+                  : perm === 'denied'
+                    ? <span className="muted small">Bloqueadas. Actívalas en los permisos del sitio de tu navegador (icono del candado).</span>
+                    : <button className="btn small" onClick={async () => setPerm(await api.askNotifyPermission())}>Activar notificaciones</button>}
+              </div>
+              <label className="check"><input type="checkbox" checked={notif.routines !== false} onChange={(e) => setNotifOpt('routines', e.target.checked)} /> Cuando termina una rutina</label>
+              <label className="check"><input type="checkbox" checked={!!notif.replies} onChange={(e) => setNotifOpt('replies', e.target.checked)} /> Cuando un bot responde y estás en otra pestaña</label>
+              <div className="muted small">Solo llegan mientras OpenCrew está abierta (aunque sea en segundo plano).</div>
+            </>
+          )}
 
           <div className="section-title">Copia de seguridad</div>
           <div className="muted small">Tus bots, chats y rutinas viven en este navegador. Descarga una copia para no perderlos o para pasarlos a otro ordenador.</div>
