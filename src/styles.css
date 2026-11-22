@@ -457,3 +457,12 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 
 .proj-mem { margin-bottom: 14px; }
 .proj-mem .section-title { display: flex; align-items: center; gap: 6px; margin-top: 0; }
+
+.mem-item.col { flex-direction: column; align-items: stretch; }
+.mem-row { display: flex; align-items: center; gap: 8px; }
+.mem-row > span:first-child { flex: 1; line-height: 1.4; }
+.vis-btn { font-size: 11px; color: var(--text-3); border: 1px solid var(--line-2); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.vis-btn.limited { color: var(--warn); border-color: #fbbf2455; }
+.vis-list { display: flex; flex-direction: column; gap: 4px; padding: 8px 2px 2px; }
+.vis-list label.check { display: flex; align-items: center; gap: 6px; }
+.reads-shared { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }

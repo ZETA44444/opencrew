@@ -111,18 +111,25 @@ const ALL_TOOLS = {
     },
   },
   save_memory: {
-    description: 'Guarda un dato importante para recordarlo siempre. Si estás en un proyecto, por defecto lo guarda en la memoria del proyecto y lo sabrán todos sus bots; usa scope "bot" para algo que solo debas saber tú.',
+    description: 'Guarda un dato importante para recordarlo siempre. Si estás en un proyecto, por defecto va a la memoria del proyecto (la saben sus bots). scope "bot" = solo tú (datos sensibles, p. ej. de pagos); scope "global" = todo el equipo (datos generales del usuario: nombre, idioma, zona horaria).',
     parameters: {
       type: 'object',
       properties: {
         fact: { type: 'string', description: 'El dato a recordar, en una frase' },
-        scope: { type: 'string', description: '"project" (lo sabe todo el proyecto, por defecto si estás en uno) o "bot" (solo tú)' },
+        scope: { type: 'string', description: '"project" (por defecto si estás en un proyecto), "bot" (solo tú) o "global" (todo el equipo)' },
       },
       required: ['fact'],
     },
     async run({ fact, scope }, ctx) {
       const text = String(fact).slice(0, 500);
       const projects = (getDb().projects || []).filter((p) => p.botIds.includes(ctx.bot.id));
+      if (scope === 'global') {
+        const g = getDb().globalMemory;
+        if (!g.some((m) => m.text === text)) g.push({ text, by: ctx.bot.name, at: now() });
+        save();
+        broadcast({ type: 'bots' });
+        return `Guardado en la memoria global: "${text}". Lo sabe todo el equipo.`;
+      }
       if (scope !== 'bot' && projects.length) {
         for (const p of projects) {
           p.memory ??= [];

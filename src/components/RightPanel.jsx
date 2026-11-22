@@ -19,7 +19,7 @@ export default function RightPanel({ bot, state, steps, pinned, onUnpin, artifac
       <div className="panel-body">
         {current === 'progress' && <Progress steps={steps} pinned={pinned} onUnpin={onUnpin} />}
         {current === 'routines' && <Routines bot={bot} routines={state.routines.filter((r) => r.botId === bot.id)} runs={state.runs} refresh={refresh} />}
-        {current === 'memory' && <Memory bot={bot} projects={(state.projects || []).filter((p) => p.botIds.includes(bot.id))} refresh={refresh} />}
+        {current === 'memory' && <Memory bot={bot} bots={state.bots} globalMemory={state.globalMemory || []} projects={(state.projects || []).filter((p) => p.botIds.includes(bot.id))} refresh={refresh} />}
         {current === 'artifacts' && <Artifacts bot={bot} tick={artifactsTick} onOpen={onOpenArtifact} />}
       </div>
     </aside>
@@ -161,40 +161,93 @@ function Routines({ bot, routines, runs, refresh }) {
 }
 
 const memText = (m) => (typeof m === 'string' ? m : m.text);
+const asItem = (m) => (typeof m === 'string' ? { text: m } : m);
 
-function Memory({ bot, projects = [], refresh }) {
-  const [fact, setFact] = useState('');
-  const [projFact, setProjFact] = useState({});
+// One shared memory item, with «visible para» (all bots or only some).
+function SharedItem({ m, bots, onDelete, onChange }) {
+  const [open, setOpen] = useState(false);
+  const item = asItem(m);
+  const only = item.onlyBots || [];
+  const toggle = (id) => {
+    const next = only.includes(id) ? only.filter((x) => x !== id) : [...only, id];
+    onChange({ ...item, onlyBots: next });
+  };
+  return (
+    <div className="mem-item col">
+      <div className="mem-row">
+        <span>{item.text}{item.by && <span className="muted small"> · {item.by}</span>}</span>
+        <button className={`vis-btn ${only.length ? 'limited' : ''}`} onClick={() => setOpen(!open)} title="Quién puede verlo">
+          {only.length ? `🔒 ${only.length}` : '👁 todos'}
+        </button>
+        <button className="icon-btn" onClick={onDelete} aria-label="Borrar">×</button>
+      </div>
+      {open && (
+        <div className="vis-list">
+          <div className="muted small">Visible para {only.length ? 'solo estos bots' : 'todos'} (marca bots para limitarlo):</div>
+          {bots.map((b) => (
+            <label key={b.id} className="check small"><input type="checkbox" checked={only.includes(b.id)} onChange={() => toggle(b.id)} /> {b.name}</label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AddForm({ placeholder, onAdd }) {
+  const [v, setV] = useState('');
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); if (v.trim()) { onAdd(v.trim()); setV(''); } }}>
+      <input placeholder={placeholder} value={v} onChange={(e) => setV(e.target.value)} />
+    </form>
+  );
+}
+
+function Memory({ bot, projects = [], bots = [], globalMemory = [], refresh }) {
   const update = (memory) => api.updateBot(bot.id, { memory }).then(refresh);
   const updateProject = (p, memory) => api.saveProject({ id: p.id, memory }).then(refresh);
+  const updateGlobal = (memory) => api.setGlobalMemory(memory).then(refresh);
+  const now = () => new Date().toISOString();
+  const reads = bot.sharedMemory !== false;
   return (
     <div className="memory">
+      <label className="check small reads-shared">
+        <input type="checkbox" checked={reads} onChange={(e) => api.updateBot(bot.id, { sharedMemory: e.target.checked }).then(refresh)} />
+        {bot.name} lee la memoria compartida (global y de proyectos)
+      </label>
+
+      <div className="proj-mem">
+        <div className="section-title">🌐 Memoria global</div>
+        <p className="muted small">La sabe todo el equipo (salvo lo que limites con 🔒).</p>
+        {globalMemory.map((m, i) => (
+          <SharedItem key={i} m={m} bots={bots}
+            onDelete={() => updateGlobal(globalMemory.filter((_, j) => j !== i))}
+            onChange={(nm) => updateGlobal(globalMemory.map((x, j) => (j === i ? nm : x)))} />
+        ))}
+        <AddForm placeholder="Añadir para todo el equipo…" onAdd={(t) => updateGlobal([...globalMemory, { text: t, by: 'Tú', at: now() }])} />
+      </div>
+
       {projects.map((p) => (
         <div key={p.id} className="proj-mem">
-          <div className="section-title"><span className="project-dot" style={{ background: p.color }} /> Memoria del proyecto «{p.name}»</div>
-          <p className="muted small">La comparten todos los bots del proyecto. Cuando le dices a cualquiera «recuerda que…», se guarda aquí.</p>
+          <div className="section-title"><span className="project-dot" style={{ background: p.color }} /> Proyecto «{p.name}»</div>
+          <p className="muted small">La comparten los bots del proyecto. «Recuerda que…» se guarda aquí.</p>
           {(p.memory || []).map((m, i) => (
-            <div key={i} className="mem-item">
-              <span>{memText(m)}{m.by && <span className="muted small"> · {m.by}</span>}</span>
-              <button className="icon-btn" onClick={() => updateProject(p, p.memory.filter((_, j) => j !== i))} aria-label="Borrar">×</button>
-            </div>
+            <SharedItem key={i} m={m} bots={bots.filter((b) => p.botIds.includes(b.id))}
+              onDelete={() => updateProject(p, p.memory.filter((_, j) => j !== i))}
+              onChange={(nm) => updateProject(p, p.memory.map((x, j) => (j === i ? nm : x)))} />
           ))}
-          <form onSubmit={(e) => { e.preventDefault(); const v = (projFact[p.id] || '').trim(); if (v) { updateProject(p, [...(p.memory || []), { text: v, by: 'Tú', at: new Date().toISOString() }]); setProjFact({ ...projFact, [p.id]: '' }); } }}>
-            <input placeholder="Añadir al proyecto…" value={projFact[p.id] || ''} onChange={(e) => setProjFact({ ...projFact, [p.id]: e.target.value })} />
-          </form>
+          <AddForm placeholder="Añadir al proyecto…" onAdd={(t) => updateProject(p, [...(p.memory || []), { text: t, by: 'Tú', at: now() }])} />
         </div>
       ))}
-      {projects.length > 0 && <div className="section-title">Memoria privada de {bot.name}</div>}
-      <p className="muted small">{projects.length ? `Solo la ve ${bot.name}.` : `Lo que ${bot.name} sabe de ti. Solo este bot ve su memoria. También guarda cosas cuando le dices «recuerda que…».`}</p>
+
+      <div className="section-title">🔒 Memoria privada de {bot.name}</div>
+      <p className="muted small">Solo la ve {bot.name}. Úsala para datos sensibles (p. ej. de compras o pagos).</p>
       {bot.memory.map((m, i) => (
         <div key={i} className="mem-item">
-          <span>{m}</span>
+          <span>{memText(m)}</span>
           <button className="icon-btn" onClick={() => update(bot.memory.filter((_, j) => j !== i))} aria-label="Borrar">×</button>
         </div>
       ))}
-      <form onSubmit={(e) => { e.preventDefault(); if (fact.trim()) { update([...bot.memory, fact.trim()]); setFact(''); } }}>
-        <input placeholder="Añadir un recuerdo…" value={fact} onChange={(e) => setFact(e.target.value)} />
-      </form>
+      <AddForm placeholder="Añadir un recuerdo privado…" onAdd={(t) => update([...bot.memory, t])} />
     </div>
   );
 }

@@ -15,7 +15,7 @@ import { addConnector, refreshConnector, updateConnector, removeConnector } from
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
 import { askPermission, notifyPermission, notify } from './core/notify.js';
 
-const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown', 'connectors', 'monthlyLimit', 'delegation', 'autoFallback'];
+const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown', 'connectors', 'monthlyLimit', 'delegation', 'autoFallback', 'sharedMemory'];
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled', 'catchUp'];
 const GROUP_FIELDS = ['name', 'memberIds'];
 const PROJECT_FIELDS = ['name', 'description', 'color', 'botIds', 'groupIds', 'memory'];
@@ -63,6 +63,7 @@ export const api = {
       routines: db().routines,
       groups: db().groups,
       projects: db().projects,
+      globalMemory: db().globalMemory,
       skills: db().skills,
       approvals: pendingApprovals(),
       sensitiveTools: SENSITIVE,
@@ -165,6 +166,12 @@ export const api = {
     save();
     broadcast({ type: 'bots' });
     return { ok: true };
+  },
+
+  async setGlobalMemory(memory) {
+    db().globalMemory = memory;
+    save();
+    broadcast({ type: 'bots' });
   },
 
   // ---------- projects ----------

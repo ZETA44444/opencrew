@@ -45,9 +45,20 @@ function systemPrompt(bot, group) {
     team && !group && delegationPrompt(bot, team),
     group && groupPrompt(bot, group),
     projectPrompt(bot, group),
+    globalMemoryPrompt(bot),
     getDb().skills.length ? `Skills del equipo (procesos guardados; si una tarea encaja, lee sus pasos con use_skill y síguelos; si descubres un proceso que se repetirá, guárdalo con save_skill):\n${getDb().skills.map((k) => `- ${k.name}${k.description ? `: ${k.description}` : ''}`).join('\n')}` : '',
     'Responde siempre en el idioma del usuario y usa markdown. Sé conciso.',
   ].filter(Boolean).join('\n\n');
+}
+
+// Shared memories can be limited to some bots (onlyBots), and a bot can opt out of shared memory.
+const visibleTo = (bot) => (m) => typeof m === 'string' || !m.onlyBots?.length || m.onlyBots.includes(bot.id);
+const memLine = (m) => `- ${typeof m === 'string' ? m : m.text}`;
+
+function globalMemoryPrompt(bot) {
+  if (bot.sharedMemory === false) return '';
+  const mem = (getDb().globalMemory || []).filter(visibleTo(bot)).map(memLine).join('\n');
+  return mem ? `Memoria global (lo sabe todo el equipo):\n${mem}` : '';
 }
 
 // Projects this bot (or group) belongs to: name, goal and teammates in the project.
@@ -56,7 +67,7 @@ function projectPrompt(bot, group) {
   if (!ps.length) return '';
   return ps.map((p) => {
     const mates = p.botIds.map(getBot).filter((b) => b && b.id !== bot.id).map((b) => b.name);
-    const mem = (p.memory || []).map((m) => `- ${typeof m === 'string' ? m : m.text}`).join('\n');
+    const mem = bot.sharedMemory === false ? '' : (p.memory || []).filter(visibleTo(bot)).map(memLine).join('\n');
     return `Trabajas en el proyecto «${p.name}»${p.description ? `: ${p.description}` : ''}.${mates.length ? ` Compañeros en este proyecto: ${mates.join(', ')}.` : ''}${mem ? `\nMemoria compartida del proyecto (lo que el usuario contó a cualquier bot del proyecto):\n${mem}` : ''}`;
   }).join('\n');
 }

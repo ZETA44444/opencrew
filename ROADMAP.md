@@ -84,7 +84,7 @@ Reglas para cada tarea:
 
 - [x] Proyectos: agrupan bots, chats, archivos y rutinas
 - [x] Memoria del proyecto: lo que le cuentas a un bot lo saben los demás bots del mismo proyecto
-- [ ] Memorias con permisos: individual, de proyecto o global; memorias privadas que solo ve un bot (p. ej. las de compras no las ve el de correo)
+- [x] Memorias con permisos: individual, de proyecto o global; memorias privadas que solo ve un bot (p. ej. las de compras no las ve el de correo)
 - [ ] Memoria automática: al terminar una conversación el bot propone qué recordar y tú lo apruebas
 
 ## Fase 9 — Disparadores por eventos (sin gastar tokens esperando)
