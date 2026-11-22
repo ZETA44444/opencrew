@@ -57,8 +57,14 @@ export async function runAgent({ botId, input, from = null, source = 'user', dep
     for (let i = 0; i < MAX_STEPS && final === null; i++) {
       const thinking = step({ kind: 'model', label: `Pensando (${label})`, status: 'running' });
       const t0 = Date.now();
-      const res = await callModel({ providerId: bot.provider, model: bot.model, system: systemPrompt(bot), messages: convo, tools });
-      update(thinking, { status: 'done', ms: Date.now() - t0 });
+      emit({ type: 'draft', botId, runId, text: '' }); // new model call → fresh live bubble
+      let firstToken = true;
+      const onText = (delta) => {
+        if (firstToken) { firstToken = false; update(thinking, { label: `Escribiendo (${label})` }); }
+        emit({ type: 'delta', botId, runId, text: delta });
+      };
+      const res = await callModel({ providerId: bot.provider, model: bot.model, system: systemPrompt(bot), messages: convo, tools, onText });
+      update(thinking, { status: 'done', label: `Pensando (${label})`, ms: Date.now() - t0 });
 
       if (!res.toolCalls.length) { final = res.text || '(sin respuesta)'; break; }
       convo.push({ role: 'assistant', content: res.text, toolCalls: res.toolCalls, raw: res.raw });

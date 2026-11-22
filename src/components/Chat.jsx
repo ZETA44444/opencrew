@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Avatar from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
 
-export default function Chat({ bot, bots, providers, messages, busy, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
+export default function Chat({ bot, bots, providers, messages, busy, draft, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const endRef = useRef(null);
@@ -11,6 +11,8 @@ export default function Chat({ bot, bots, providers, messages, busy, onSend, onC
   const missingKey = provider && !provider.hasKey;
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length, busy]);
+  // While streaming, keep the bottom in view without smooth-scroll jitter.
+  useEffect(() => { if (draft) endRef.current?.scrollIntoView({ block: 'end' }); }, [draft]);
   useEffect(() => { setErr(''); taRef.current?.focus(); }, [bot.id]);
 
   const send = async (value = text) => {
@@ -59,7 +61,9 @@ export default function Chat({ bot, bots, providers, messages, busy, onSend, onC
         {busy && (
           <div className="msg assistant">
             <Avatar bot={bot} size={28} />
-            <div className="typing"><span /><span /><span /></div>
+            {draft
+              ? <div className="assistant-body streaming"><Markdown text={draft} /></div>
+              : <div className="typing"><span /><span /><span /></div>}
           </div>
         )}
         <div ref={endRef} />

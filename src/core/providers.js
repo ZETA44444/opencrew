@@ -99,33 +99,68 @@ export const publicProviders = () => PROVIDERS.map((p) => ({
 const RETRYABLE = new Set([429, 500, 502, 503, 504, 529]);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// POST with automatic retries when the provider is overloaded or rate-limited.
-async function postJson(url, headers, body, label, attempts = 3) {
+// Fetch with automatic retries when the provider is overloaded or rate-limited.
+// Returns an OK Response (body not read yet) or throws a friendly error.
+async function request(url, headers, body, label, signal, attempts = 3) {
   for (let i = 1; ; i++) {
     let res;
     try {
+      const timeout = AbortSignal.timeout(180_000);
       res = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...headers },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(120_000),
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       });
     } catch (e) {
+      if (signal?.aborted) throw abortError();
       if (i < attempts) { await sleep(2000 * i); continue; }
       const local = /localhost|127\.0\.0\.1/.test(url);
       throw new Error(`${label}: sin respuesta (${e.name === 'TimeoutError' ? 'tardó demasiado' : e.message}).${local ? ' ¿Está Ollama abierto? Arráncalo con OLLAMA_ORIGINS="*" ollama serve' : ' Prueba otro modelo.'}`);
     }
+    if (res.ok) return res;
     const text = await res.text();
     let data;
     try { data = JSON.parse(text); } catch { data = { raw: text }; }
-    if (res.ok) return data;
     if (RETRYABLE.has(res.status) && i < attempts) { await sleep(2000 * i); continue; }
-    const msg = data?.error?.message || data?.message || text.slice(0, 300);
+    const err = Array.isArray(data) ? data[0]?.error : data?.error;
+    const msg = err?.message || data?.message || text.slice(0, 300);
     const hint = res.status === 503 || res.status === 529 ? ' → El modelo está saturado ahora mismo. Elige otro modelo en el selector (p. ej. uno "lite" o "latest") o inténtalo en un rato.'
       : res.status === 429 ? ' → Has llegado al límite de uso de tu clave. Espera un poco o usa otro modelo.'
       : res.status === 404 ? ' → Ese modelo ya no existe. Elige otro en el selector de modelo.'
       : res.status === 401 || res.status === 403 ? ' → La API key no es válida o no tiene permiso. Revísala en Ajustes.' : '';
     throw new Error(`${label} ${res.status}: ${msg}${hint}`);
+  }
+}
+
+function abortError() {
+  const e = new Error('Detenido por el usuario');
+  e.name = 'AbortError';
+  return e;
+}
+
+// Reads a Server-Sent Events body and yields each parsed `data:` JSON payload.
+async function* sse(res, signal) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  try {
+    for (;;) {
+      if (signal?.aborted) throw abortError();
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.search(/\r?\n\r?\n/)) >= 0) {
+        const chunk = buf.slice(0, idx);
+        buf = buf.slice(idx).replace(/^\r?\n\r?\n/, '');
+        const data = chunk.split(/\r?\n/).filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trimStart()).join('\n');
+        if (!data || data === '[DONE]') continue;
+        try { yield JSON.parse(data); } catch { /* ignore keep-alives */ }
+      }
+    }
+  } finally {
+    reader.releaseLock();
   }
 }
 
@@ -141,8 +176,10 @@ function normalize(messages) {
   return out;
 }
 
+const parseArgs = (s) => { try { return JSON.parse(s || '{}'); } catch { return {}; } };
+
 // ---------- Anthropic ----------
-async function callAnthropic({ model, apiKey, system, messages, tools }) {
+async function callAnthropic({ model, apiKey, system, messages, tools, onText, signal }) {
   const out = [];
   for (const m of normalize(messages)) {
     if (m.role === 'user') out.push({ role: 'user', content: m.content || '(vacío)' });
@@ -158,19 +195,30 @@ async function callAnthropic({ model, apiKey, system, messages, tools }) {
       else out.push({ role: 'user', content: [block] });
     }
   }
-  const data = await postJson('https://api.anthropic.com/v1/messages',
+  const res = await request('https://api.anthropic.com/v1/messages',
     { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
     {
-      model, max_tokens: 8192, system, messages: out,
+      model, max_tokens: 8192, system, messages: out, stream: true,
       ...(tools.length && { tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })) }),
-    }, 'Anthropic');
-  const text = data.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
-  const toolCalls = data.content.filter((b) => b.type === 'tool_use').map((b) => ({ id: b.id, name: b.name, args: b.input }));
-  return { text, toolCalls, usage: data.usage };
+    }, 'Anthropic', signal);
+  let text = '';
+  const blocks = {};
+  let usage;
+  for await (const ev of sse(res, signal)) {
+    if (ev.type === 'content_block_start' && ev.content_block.type === 'tool_use') {
+      blocks[ev.index] = { id: ev.content_block.id, name: ev.content_block.name, json: '' };
+    } else if (ev.type === 'content_block_delta') {
+      if (ev.delta.type === 'text_delta') { text += ev.delta.text; onText?.(ev.delta.text); }
+      else if (ev.delta.type === 'input_json_delta' && blocks[ev.index]) blocks[ev.index].json += ev.delta.partial_json;
+    } else if (ev.type === 'message_delta') usage = ev.usage;
+    else if (ev.type === 'error') throw new Error(`Anthropic: ${ev.error?.message || 'error en el streaming'}`);
+  }
+  const toolCalls = Object.values(blocks).map((b) => ({ id: b.id, name: b.name, args: parseArgs(b.json) }));
+  return { text, toolCalls, usage };
 }
 
 // ---------- OpenAI-compatible (OpenAI, xAI, OpenRouter, Ollama) ----------
-async function callOpenAI({ provider, model, apiKey, system, messages, tools }) {
+async function callOpenAI({ provider, model, apiKey, system, messages, tools, onText, signal }) {
   const out = [{ role: 'system', content: system }];
   for (const m of normalize(messages)) {
     if (m.role === 'user') out.push({ role: 'user', content: m.content });
@@ -184,17 +232,27 @@ async function callOpenAI({ provider, model, apiKey, system, messages, tools }) 
   }
   const headers = apiKey ? { authorization: `Bearer ${apiKey}` } : {};
   if (provider.id === 'openrouter') headers['X-Title'] = 'OpenCrew';
-  const data = await postJson(`${provider.baseUrl}/chat/completions`, headers, {
-    model, messages: out,
+  const res = await request(`${provider.baseUrl}/chat/completions`, headers, {
+    model, messages: out, stream: true,
     ...(tools.length && { tools: tools.map((t) => ({ type: 'function', function: t })) }),
-  }, provider.label);
-  const msg = data.choices?.[0]?.message || {};
-  const toolCalls = (msg.tool_calls || []).map((tc) => {
-    let args = {};
-    try { args = JSON.parse(tc.function.arguments || '{}'); } catch { /* keep empty */ }
-    return { id: tc.id || newId(), name: tc.function.name, args };
-  });
-  return { text: msg.content || '', toolCalls, usage: data.usage };
+  }, provider.label, signal);
+  let text = '';
+  const calls = [];
+  let usage;
+  for await (const ev of sse(res, signal)) {
+    if (ev.error) throw new Error(`${provider.label}: ${ev.error.message || 'error en el streaming'}`);
+    const delta = ev.choices?.[0]?.delta || {};
+    if (delta.content) { text += delta.content; onText?.(delta.content); }
+    for (const tc of delta.tool_calls || []) {
+      const c = (calls[tc.index ?? calls.length] ??= { id: '', name: '', args: '' });
+      if (tc.id) c.id = tc.id;
+      if (tc.function?.name) c.name += tc.function.name;
+      if (tc.function?.arguments) c.args += tc.function.arguments;
+    }
+    if (ev.usage) usage = ev.usage;
+  }
+  const toolCalls = calls.filter(Boolean).map((c) => ({ id: c.id || newId(), name: c.name, args: parseArgs(c.args) }));
+  return { text, toolCalls, usage };
 }
 
 // ---------- Gemini ----------
@@ -211,7 +269,7 @@ function geminiSchema(s) {
   return o;
 }
 
-async function callGemini({ model, apiKey, system, messages, tools }) {
+async function callGemini({ model, apiKey, system, messages, tools, onText, signal }) {
   const contents = [];
   for (const m of normalize(messages)) {
     if (m.role === 'user') contents.push({ role: 'user', parts: [{ text: m.content || '(vacío)' }] });
@@ -231,26 +289,49 @@ async function callGemini({ model, apiKey, system, messages, tools }) {
       else contents.push({ role: 'user', parts: [part] });
     }
   }
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-  const data = await postJson(url, { 'x-goog-api-key': apiKey }, {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
+  const res = await request(url, { 'x-goog-api-key': apiKey }, {
     systemInstruction: { parts: [{ text: system }] },
     contents,
     ...(tools.length && { tools: [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description, parameters: geminiSchema(t.parameters) })) }] }),
-  }, 'Gemini');
-  const parts = data.candidates?.[0]?.content?.parts || [];
+  }, 'Gemini', signal);
+  const parts = [];
+  let usage;
+  let blocked;
+  for await (const ev of sse(res, signal)) {
+    if (ev.error) throw new Error(`Gemini: ${ev.error.message}`);
+    for (const p of ev.candidates?.[0]?.content?.parts || []) {
+      parts.push(p);
+      if (p.text && !p.thought) onText?.(p.text);
+    }
+    if (ev.usageMetadata) usage = ev.usageMetadata;
+    if (ev.promptFeedback?.blockReason) blocked = ev.promptFeedback.blockReason;
+  }
+  if (!parts.length && blocked) throw new Error(`Gemini bloqueó la respuesta: ${blocked}`);
   const text = parts.filter((p) => p.text && !p.thought).map((p) => p.text).join('');
   const toolCalls = parts.filter((p) => p.functionCall).map((p) => ({ id: newId(), name: p.functionCall.name, args: p.functionCall.args || {} }));
-  if (!parts.length && data.promptFeedback?.blockReason) throw new Error(`Gemini bloqueó la respuesta: ${data.promptFeedback.blockReason}`);
-  return { text, toolCalls, raw: { gemini: parts }, usage: data.usageMetadata };
+  return { text, toolCalls, raw: { gemini: parts }, usage };
 }
 
 // ---------- Demo (no key, deterministic, for testing the app) ----------
-async function callDemo({ system, messages, tools }) {
-  await new Promise((r) => setTimeout(r, 400));
+async function demoStream(text, onText, signal) {
+  // Simulate a model typing, a few words at a time.
+  const pieces = text.match(/\S+\s*/g) || [];
+  for (let i = 0; i < pieces.length; i += 3) {
+    if (signal?.aborted) throw abortError();
+    onText?.(pieces.slice(i, i + 3).join(''));
+    await sleep(35);
+  }
+  return { text, toolCalls: [] };
+}
+
+async function callDemo({ system, messages, tools, onText, signal }) {
+  await sleep(400);
+  if (signal?.aborted) throw abortError();
   const me = system.match(/^Eres (.+?),/)?.[1] || 'un bot';
   const last = messages[messages.length - 1];
   if (last?.role === 'tool') {
-    return { text: `**(modo demo)** Listo. Resultado de \`${last.name}\`:\n\n> ${String(last.content).slice(0, 400).replace(/\n/g, '\n> ')}`, toolCalls: [] };
+    return demoStream(`**(modo demo)** Listo. Resultado de \`${last.name}\`:\n\n> ${String(last.content).slice(0, 400).replace(/\n/g, '\n> ')}`, onText, signal);
   }
   const userText = String(last?.content || '').replace(/^\[Tarea delegada por .+?\]\n/, '');
   const has = (n) => tools.some((t) => t.name === n);
@@ -265,18 +346,18 @@ async function callDemo({ system, messages, tools }) {
   if (/^(?:guarda|crea) (?:un )?(?:archivo|documento)/i.test(userText) && has('write_artifact')) {
     return { text: '', toolCalls: [{ id: newId(), name: 'write_artifact', args: { filename: 'nota-demo.md', content: `# Nota\n\n${userText}\n` } }] };
   }
-  return {
-    text: `**(modo demo)** Hola, soy ${me}. No estoy conectado a ningún modelo real todavía.\n\nHas dicho: _"${userText.slice(0, 200)}"_\n\nPara que piense de verdad, abre **Ajustes y claves**, añade tu API key y cámbiame el modelo en el selector de abajo. Prueba también:\n- \`@Nova investiga algo\` (delegar)\n- \`recuerda que me gusta el café\` (memoria)\n- \`guarda un archivo con ideas\` (artefacto)`,
-    toolCalls: [],
-  };
+  return demoStream(
+    `**(modo demo)** Hola, soy ${me}. No estoy conectado a ningún modelo real todavía.\n\nHas dicho: _"${userText.slice(0, 200)}"_\n\nPara que piense de verdad, abre **Ajustes y claves**, añade tu API key y cámbiame el modelo en el selector de abajo. Prueba también:\n- \`@Nova investiga algo\` (delegar)\n- \`recuerda que me gusta el café\` (memoria)\n- \`guarda un archivo con ideas\` (artefacto)`,
+    onText, signal);
 }
 
-export async function callModel({ providerId, model, system, messages, tools }) {
+// onText(delta) is called as text arrives; signal (AbortSignal) stops the call.
+export async function callModel({ providerId, model, system, messages, tools, onText, signal }) {
   const provider = providerById(providerId);
   if (!provider) throw new Error(`Proveedor desconocido: ${providerId}`);
   const apiKey = getKey(providerId);
-  if (!provider.noKey && !apiKey) throw new Error(`Falta la API key de ${provider.label}. Añádela en Ajustes → Claves.`);
-  const args = { provider, model, apiKey, system, messages, tools };
+  if (!provider.noKey && !apiKey) throw new Error(`Falta la API key de ${provider.label}. Añádela en Ajustes y claves.`);
+  const args = { provider, model, apiKey, system, messages, tools, onText, signal };
   switch (provider.kind) {
     case 'anthropic': return callAnthropic(args);
     case 'gemini': return callGemini(args);

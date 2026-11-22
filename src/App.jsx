@@ -14,6 +14,7 @@ export default function App() {
   const [runOf, setRunOf] = useState({}); // botId -> latest runId
   const [pinnedSteps, setPinnedSteps] = useState(null); // steps of a clicked past message
   const [artifactsTick, setArtifactsTick] = useState(0);
+  const [drafts, setDrafts] = useState({}); // botId -> text being streamed right now
   const [modal, setModal] = useState(null); // {type:'bot', bot?} | {type:'settings'}
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 1100);
   const [navOpen, setNavOpen] = useState(false);
@@ -40,8 +41,13 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = api.subscribe((raw) => {
       const ev = structuredClone(raw);
-      if (ev.type === 'message' && ev.botId === selectedRef.current) {
-        setMessages((m) => (m.some((x) => x.id === ev.message.id) ? m : [...m, ev.message]));
+      if (ev.type === 'draft') {
+        setDrafts((d) => ({ ...d, [ev.botId]: ev.text }));
+      } else if (ev.type === 'delta') {
+        setDrafts((d) => ({ ...d, [ev.botId]: (d[ev.botId] || '') + ev.text }));
+      } else if (ev.type === 'message') {
+        if (ev.message.role === 'assistant') setDrafts(({ [ev.botId]: _, ...rest }) => rest);
+        if (ev.botId === selectedRef.current) setMessages((m) => (m.some((x) => x.id === ev.message.id) ? m : [...m, ev.message]));
       } else if (ev.type === 'step') {
         const s = ev.step;
         setSteps((all) => {
@@ -88,6 +94,7 @@ export default function App() {
           providers={state.providers}
           messages={messages}
           busy={state.busy.includes(bot.id)}
+          draft={drafts[bot.id]}
           onSend={(text) => api.chat(bot.id, text)}
           onChangeModel={(provider, model) => api.updateBot(bot.id, { provider, model }).then(refresh)}
           onEdit={() => setModal({ type: 'bot', bot })}
