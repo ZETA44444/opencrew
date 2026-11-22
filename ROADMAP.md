@@ -69,6 +69,8 @@ Reglas para cada tarea:
 
 ## Fase 7 — Servidor opcional 24/7 (para lo que el navegador no puede hacer)
 
+> ⏸ **Pendiente de tu decisión**: estas tareas necesitan un ordenador o servidor encendido siempre (tu Mac, un VPS, Railway/Render/Fly…). Elige dónde quieres alojarlo y la construyo.
+
 - [ ] Servidor Node/Docker que reutiliza el mismo núcleo
 - [ ] Rutinas siempre activas aunque cierres el navegador
 - [ ] Disparadores por webhook (Slack, GitHub…)
