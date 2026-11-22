@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
+import { voices as listVoices, speechSupported, dictationSupported, speak } from '../voice.js';
 
 export default function SettingsModal({ providers, settings, services, onClose, onSaved }) {
   const [keys, setKeys] = useState({});
@@ -11,6 +12,16 @@ export default function SettingsModal({ providers, settings, services, onClose, 
   const saveTavily = async (value) => { await api.saveKeys({ tavily: value }); setHasTavily(!!value); setTavily(''); onSaved(); };
   const [webReader, setWebReader] = useState(settings?.webReader !== false);
   const [proactive, setProactive] = useState(settings?.proactive !== false);
+  const [voice, setVoice] = useState(settings?.voice || { voiceName: '', rate: 1, autoSpeak: false });
+  const [voiceList, setVoiceList] = useState(() => listVoices());
+  useEffect(() => {
+    if (!speechSupported) return undefined;
+    const update = () => setVoiceList(listVoices());
+    speechSynthesis.addEventListener?.('voiceschanged', update);
+    return () => speechSynthesis.removeEventListener?.('voiceschanged', update);
+  }, []);
+  const setVoiceOpt = (patch) => { const v = { ...voice, ...patch }; setVoice(v); api.updateSettings({ voice: v }); };
+  const lang2 = (navigator.language || 'es').slice(0, 2);
   const [notif, setNotif] = useState(settings?.notifications || { routines: true, replies: true });
   const [perm, setPerm] = useState(api.notifyPermission());
   const setNotifOpt = (k, v) => { const n = { ...notif, [k]: v }; setNotif(n); api.updateSettings({ notifications: n }); };
@@ -139,6 +150,29 @@ export default function SettingsModal({ providers, settings, services, onClose, 
             Al abrir la app, el bot principal (★) propone tareas que puede hacer por ti
           </label>
           <div className="muted small">Usa una llamada corta a su modelo como mucho cada 12 horas.</div>
+
+          <div className="section-title">Voz</div>
+          <div className="muted small">
+            {dictationSupported ? 'Pulsa el micrófono junto a la caja de texto para dictar. ' : 'Tu navegador no permite dictar (prueba con Chrome o Edge). '}
+            {speechSupported ? 'Cada respuesta tiene «🔊 Escuchar».' : 'Tu navegador no puede leer en voz alta.'}
+          </div>
+          {speechSupported && (
+            <>
+              <label className="check"><input type="checkbox" checked={!!voice.autoSpeak} onChange={(e) => setVoiceOpt({ autoSpeak: e.target.checked })} /> Leer en voz alta las respuestas nuevas automáticamente</label>
+              <div className="grid2">
+                <label>Voz
+                  <select value={voice.voiceName || ''} onChange={(e) => setVoiceOpt({ voiceName: e.target.value })}>
+                    <option value="">Automática</option>
+                    {voiceList.filter((v) => v.lang.startsWith(lang2)).concat(voiceList.filter((v) => !v.lang.startsWith(lang2))).map((v) => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
+                  </select>
+                </label>
+                <label>Velocidad: {Number(voice.rate || 1).toFixed(1)}×
+                  <input type="range" min="0.6" max="1.8" step="0.1" value={voice.rate || 1} onChange={(e) => setVoiceOpt({ rate: Number(e.target.value) })} />
+                </label>
+              </div>
+              <div><button className="btn small" onClick={() => speak('Hola, así sonarán las respuestas de tus bots.', voice)}>Probar voz</button></div>
+            </>
+          )}
 
           <div className="section-title">Notificaciones</div>
           {perm === 'unsupported' ? <div className="muted small">Este navegador no admite notificaciones.</div> : (

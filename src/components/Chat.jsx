@@ -2,10 +2,26 @@ import { useEffect, useRef, useState } from 'react';
 import Avatar, { GroupAvatar } from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
 import { api } from '../api.js';
+import { dictationSupported, startDictation, speak, stopSpeaking, speechSupported } from '../voice.js';
 
 export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, missed = [], botsById = {}, onResolveMissed, onOpenArtifact, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
+  const [listening, setListening] = useState(false);
+  const stopRef = useRef(null);
+  const baseRef = useRef('');
+  const toggleDictation = () => {
+    if (listening) { stopRef.current?.(); return; }
+    baseRef.current = text ? `${text.trim()} ` : '';
+    setErr('');
+    setListening(true);
+    stopRef.current = startDictation({
+      onText: (final, interim) => setText(baseRef.current + final + interim),
+      onEnd: () => { setListening(false); taRef.current?.focus(); },
+      onError: (m) => { setErr(m); setListening(false); },
+    });
+  };
+  useEffect(() => () => stopRef.current?.(), []);
   const endRef = useRef(null);
   const taRef = useRef(null);
   const isGroup = !!bot.isGroup;
@@ -23,6 +39,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
   const send = async (value = text) => {
     const v = value.trim();
     if (!v) return;
+    if (listening) stopRef.current?.();
     setText('');
     setErr('');
     try { await onSend(v); } catch (e) { setErr(e.message); setText(v); }
@@ -182,6 +199,11 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
               ))}
             </select>
             )}
+            {dictationSupported && (
+              <button className={`mic ${listening ? 'on' : ''}`} onClick={toggleDictation} title={listening ? 'Parar dictado' : 'Dictar con el micrófono'} aria-label="Dictar">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+              </button>
+            )}
             {busy && text.trim() && (
               <button className="queue-btn" onClick={() => send()} title="Se enviará cuando termine">+ A la cola</button>
             )}
@@ -203,6 +225,13 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
 
 function Message({ m, bot, showName, onShowSteps, onOpenArtifact, canRetry, canEdit, onRetry, onEdit }) {
   const [editing, setEditing] = useState(null);
+  const [speaking, setSpeaking] = useState(false);
+  const voice = useVoiceSettings();
+  const toggleSpeak = () => {
+    if (speaking) { stopSpeaking(); setSpeaking(false); return; }
+    setSpeaking(true);
+    speak(m.content, { voiceName: voice.voiceName, rate: voice.rate, onEnd: () => setSpeaking(false) });
+  };
   if (m.role === 'user') {
     if (editing !== null) {
       return (
@@ -259,6 +288,7 @@ function Message({ m, bot, showName, onShowSteps, onOpenArtifact, canRetry, canE
             <button onClick={() => onShowSteps(m.steps)}>{m.steps.length} pasos{tools ? ` · ${tools} herramientas` : ''}</button>
           )}
           <span>{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          {speechSupported && <button onClick={toggleSpeak} title="Escuchar en voz alta">{speaking ? '■ Parar' : '🔊 Escuchar'}</button>}
           {canRetry && <button onClick={onRetry} title="Generar otra respuesta">↻ Reintentar</button>}
         </div>
       </div>
@@ -276,3 +306,8 @@ function ImageThumb({ botId, name, onOpen }) {
     </button>
   );
 }
+
+// Voice settings live in the app settings; this small hook reads them once per render.
+let voiceSettings = { voiceName: '', rate: 1, autoSpeak: false };
+export const setVoiceSettings = (v) => { voiceSettings = { ...voiceSettings, ...v }; };
+function useVoiceSettings() { return voiceSettings; }

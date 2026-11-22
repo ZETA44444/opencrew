@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import Sidebar from './components/Sidebar.jsx';
-import Chat from './components/Chat.jsx';
+import Chat, { setVoiceSettings } from './components/Chat.jsx';
+import { speak } from './voice.js';
 import RightPanel from './components/RightPanel.jsx';
 import BotModal from './components/BotModal.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
@@ -24,6 +25,7 @@ export default function App() {
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 1100);
   const [navOpen, setNavOpen] = useState(false);
   const selectedRef = useRef(selectedId);
+  const voiceRef = useRef({});
   selectedRef.current = selectedId;
 
   const refresh = useCallback(() => api.state().then(setState).catch(console.error), []);
@@ -61,6 +63,10 @@ export default function App() {
       } else if (ev.type === 'message') {
         if (ev.message.role === 'assistant') setDrafts(({ [ev.botId]: _, ...rest }) => rest);
         if (ev.botId === selectedRef.current) setMessages((m) => (m.some((x) => x.id === ev.message.id) ? m : [...m, ev.message]));
+        // Read new answers aloud if enabled (only the chat you're looking at, not while hidden).
+        if (ev.message.role === 'assistant' && ev.botId === selectedRef.current && voiceRef.current.autoSpeak && !document.hidden && ev.message.source !== 'routine') {
+          speak(ev.message.content, voiceRef.current);
+        }
       } else if (ev.type === 'step') {
         const s = ev.step;
         setSteps((all) => {
@@ -86,6 +92,8 @@ export default function App() {
   }, [refresh]);
 
   if (!state) return <div className="loading">Cargando OpenCrew…</div>;
+  voiceRef.current = state.settings.voice || {};
+  setVoiceSettings(voiceRef.current);
 
   const group = state.groups.find((g) => g.id === selectedId);
   // A group is shown with the same Chat component, as a "bot" with several members.

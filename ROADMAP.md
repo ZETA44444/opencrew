@@ -45,7 +45,7 @@ Reglas para cada tarea:
 - [x] Ejecutar código JavaScript en un sandbox (cálculos, datos)
 - [x] Páginas y dashboards: los artefactos HTML se ven dentro de la app
 - [x] Generar imágenes (Gemini / OpenAI)
-- [ ] Voz: dictar mensajes y escuchar las respuestas
+- [x] Voz: dictar mensajes y escuchar las respuestas
 - [ ] Adjuntar archivos e imágenes al chat
 
 ## Fase 5 — Apps conectadas
