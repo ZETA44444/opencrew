@@ -6,12 +6,14 @@ import { runAgent, runGroup, getGroup, busy, stopBot } from './core/agent.js';
 import { broadcast, subscribe } from './core/events.js';
 import { computeNext, runRoutine, startScheduler, missed, resolveMissed } from './core/routines.js';
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
+import { searchBackend } from './core/search.js';
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
 import { askPermission, notifyPermission, notify } from './core/notify.js';
 
 const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown'];
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled', 'catchUp'];
 const GROUP_FIELDS = ['name', 'memberIds'];
+const SERVICE_KEYS = ['tavily']; // keys for tools, not for chat models
 // A "thread" is a bot's own chat or a group chat; both live in db.messages[id].
 const start = (threadId, text) => (getGroup(threadId)
   ? runGroup({ groupId: threadId, input: text })
@@ -62,6 +64,7 @@ export const api = {
       busy: [...busy],
       tools: TOOL_NAMES,
       settings: db().settings,
+      services: { tavily: !!db().keys.tavily, searchBackend: searchBackend() },
     });
   },
 
@@ -248,12 +251,12 @@ export const api = {
   // ---------- keys & settings ----------
   async saveKeys(keys) {
     for (const [provider, key] of Object.entries(keys || {})) {
-      if (!providerById(provider)) continue;
+      if (!providerById(provider) && !SERVICE_KEYS.includes(provider)) continue;
       if (key) db().keys[provider] = String(key).trim();
       else delete db().keys[provider];
     }
     save();
-    await Promise.all(Object.keys(keys || {}).map((p) => refreshModels(p)));
+    await Promise.all(Object.keys(keys || {}).filter((p) => providerById(p)).map((p) => refreshModels(p)));
     broadcast({ type: 'bots' });
     return publicProviders();
   },

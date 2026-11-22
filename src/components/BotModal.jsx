@@ -7,6 +7,7 @@ const TOOL_LABELS = {
   delegate_to_bot: 'Delegar a otros bots',
   save_memory: 'Guardar en memoria',
   fetch_url: 'Leer páginas web',
+  web_search: 'Buscar en internet',
   write_artifact: 'Crear archivos',
   get_current_time: 'Ver la hora',
   save_skill: 'Guardar skills',

@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 
-export default function SettingsModal({ providers, settings, onClose, onSaved }) {
+export default function SettingsModal({ providers, settings, services, onClose, onSaved }) {
   const [keys, setKeys] = useState({});
   const [list, setList] = useState(providers);
   const [tests, setTests] = useState({});
   const [saving, setSaving] = useState(false);
+  const [tavily, setTavily] = useState('');
+  const [hasTavily, setHasTavily] = useState(!!services?.tavily);
+  const saveTavily = async (value) => { await api.saveKeys({ tavily: value }); setHasTavily(!!value); setTavily(''); onSaved(); };
   const [webReader, setWebReader] = useState(settings?.webReader !== false);
   const [proactive, setProactive] = useState(settings?.proactive !== false);
   const [notif, setNotif] = useState(settings?.notifications || { routines: true, replies: true });
@@ -102,6 +105,24 @@ export default function SettingsModal({ providers, settings, onClose, onSaved })
             <div className="muted small">
               Instala Ollama, ejecuta <code>ollama pull llama3.2</code> y arráncalo permitiendo esta web:
               <code>OLLAMA_ORIGINS="*" ollama serve</code>. Luego elige «Ollama» en el bot.
+            </div>
+          </div>
+
+          <div className="section-title">Búsqueda en internet</div>
+          <div className="muted small">
+            Los bots buscan con la mejor opción que tengas: <b>Tavily</b> → <b>Gemini + Google</b> → <b>Claude</b> → DuckDuckGo sin clave.
+            Ahora mismo: <b>{services?.searchBackend}</b>.
+          </div>
+          <div className="key-row">
+            <div className="key-head">
+              <strong>Tavily (opcional, búsquedas más precisas)</strong>
+              {hasTavily ? <span className="pill ok">configurada</span> : <span className="pill">sin clave</span>}
+              <a href="https://app.tavily.com" target="_blank" rel="noreferrer" className="link small">Conseguir clave ↗</a>
+            </div>
+            <div className="key-input">
+              <input type="password" autoComplete="off" placeholder={hasTavily ? '•••••••• (escribe para reemplazar)' : 'Pega tu API key de Tavily'} value={tavily} onChange={(e) => setTavily(e.target.value)} />
+              <button className="btn small" disabled={!tavily} onClick={() => saveTavily(tavily)}>Guardar</button>
+              {hasTavily && <button className="btn small ghost" onClick={() => saveTavily('')}>Quitar</button>}
             </div>
           </div>
 

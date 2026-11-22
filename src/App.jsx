@@ -178,7 +178,7 @@ export default function App() {
       )}
       {modal?.type === 'skills' && <SkillsModal skills={state.skills} onClose={() => setModal(null)} />}
       {modal?.type === 'settings' && (
-        <SettingsModal providers={state.providers} settings={state.settings} onClose={() => setModal(null)} onSaved={refresh} />
+        <SettingsModal providers={state.providers} settings={state.settings} services={state.services} onClose={() => setModal(null)} onSaved={refresh} />
       )}
     </div>
   );

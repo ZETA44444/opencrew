@@ -17,7 +17,7 @@ function seed() {
       '#e5e5e5', 'diamond', true),
     bot('Nova', 'Investigadora',
       'Busca y resume información de páginas web. Da fuentes.',
-      'Usa fetch_url para leer páginas. Resume en viñetas y cita siempre las URLs.',
+      'Usa web_search para buscar y fetch_url para leer páginas. Resume en viñetas y cita siempre las URLs.',
       '#7dd3fc', 'circle'),
     bot('Quill', 'Redactor',
       'Escribe posts, correos y textos con buen estilo.',

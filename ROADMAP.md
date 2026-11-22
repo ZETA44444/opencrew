@@ -41,7 +41,7 @@ Reglas para cada tarea:
 
 ## Fase 4 — Herramientas
 
-- [ ] Búsqueda en internet (Gemini con Google Search, Claude con web search, o Tavily)
+- [x] Búsqueda en internet (Gemini con Google Search, Claude con web search, o Tavily)
 - [ ] Ejecutar código JavaScript en un sandbox (cálculos, datos)
 - [ ] Páginas y dashboards: los artefactos HTML se ven dentro de la app
 - [ ] Generar imágenes (Gemini / OpenAI)
