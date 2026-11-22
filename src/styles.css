@@ -389,6 +389,7 @@ textarea { resize: vertical; line-height: 1.45; }
 .mic { margin-left: auto; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--text-2); border: 1px solid var(--line-2); }
 .mic:hover { color: var(--text); background: var(--bg-3); }
 .mic.on { color: #000; background: var(--err); border-color: var(--err); animation: pulse 1.2s infinite; }
+.mic.busy { animation: pulse .8s infinite; }
 .mic + .queue-btn, .mic + .send { margin-left: 0; }
 input[type=range] { padding: 0; accent-color: #fff; }
 

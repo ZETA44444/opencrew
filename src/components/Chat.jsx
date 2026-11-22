@@ -3,7 +3,7 @@ import Avatar, { GroupAvatar } from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
 import { api } from '../api.js';
 import { readAttachment, packMessage, MAX_FILES } from '../attachments.js';
-import { dictationSupported, startDictation, speak, stopSpeaking, speechSupported } from '../voice.js';
+import { dictationSupported, startDictation, speak, stopSpeaking, speechSupported, startCloudDictation, cloudDictationAvailable, preferCloudDictation, setDictationMode } from '../voice.js';
 
 export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, missed = [], botsById = {}, onResolveMissed, onOpenArtifact, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
@@ -21,15 +21,34 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
   };
   const stopRef = useRef(null);
   const baseRef = useRef('');
+  const [transcribing, setTranscribing] = useState(false);
   const toggleDictation = () => {
     if (listening) { stopRef.current?.(); return; }
     baseRef.current = text ? `${text.trim()} ` : '';
     setErr('');
     setListening(true);
+    // Cloud mode: record, then transcribe with your Gemini/OpenAI key.
+    if (preferCloudDictation() || !dictationSupported) {
+      stopRef.current = startCloudDictation({
+        onStatus: (st) => { if (st === 'transcribing') { setListening(false); setTranscribing(true); } },
+        onEnd: (t) => { setTranscribing(false); setListening(false); if (t) setText(baseRef.current + t); taRef.current?.focus(); },
+        onError: (m) => { setErr(m); setListening(false); setTranscribing(false); },
+      });
+      return;
+    }
     stopRef.current = startDictation({
       onText: (final, interim) => setText(baseRef.current + final + interim),
       onEnd: () => { setListening(false); taRef.current?.focus(); },
-      onError: (m) => { setErr(m); setListening(false); },
+      onError: (m) => {
+        setListening(false);
+        // The browser's speech service is blocked here → switch to cloud dictation from now on.
+        if (/network|service-not-allowed/.test(m)) {
+          if (cloudDictationAvailable()) {
+            setDictationMode('cloud');
+            setErr('El dictado del navegador no funciona aquí. A partir de ahora grabaré tu voz y la transcribiré con tu clave de IA: pulsa el micrófono otra vez.');
+          } else setErr('El dictado de este navegador no funciona (bloquea el servicio de voz de Google). Añade una clave de Gemini u OpenAI en Ajustes y lo haré con ella, o usa Chrome/Edge.');
+        } else setErr(m);
+      },
     });
   };
   useEffect(() => () => stopRef.current?.(), []);
@@ -235,8 +254,8 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
               ))}
             </select>
             )}
-            {dictationSupported && (
-              <button className={`mic ${listening ? 'on' : ''}`} onClick={toggleDictation} title={listening ? 'Parar dictado' : 'Dictar con el micrófono'} aria-label="Dictar">
+            {(dictationSupported || cloudDictationAvailable()) && (
+              <button className={`mic ${listening ? 'on' : ''} ${transcribing ? 'busy' : ''}`} onClick={toggleDictation} disabled={transcribing} title={transcribing ? 'Transcribiendo…' : listening ? 'Parar y transcribir' : 'Dictar con el micrófono'} aria-label="Dictar">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
               </button>
             )}

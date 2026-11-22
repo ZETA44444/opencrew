@@ -156,6 +156,12 @@ export default function SettingsModal({ providers, settings, services, onClose, 
             {dictationSupported ? 'Pulsa el micrófono junto a la caja de texto para dictar. ' : 'Tu navegador no permite dictar (prueba con Chrome o Edge). '}
             {speechSupported ? 'Cada respuesta tiene «🔊 Escuchar».' : 'Tu navegador no puede leer en voz alta.'}
           </div>
+          <label>Dictado
+            <select value={voice.dictation || 'browser'} onChange={(e) => setVoiceOpt({ dictation: e.target.value })}>
+              <option value="browser">Del navegador (en directo, gratis; no funciona en Brave/Arc/Opera)</option>
+              <option value="cloud">Grabar y transcribir con mi clave de Gemini u OpenAI (más fiable)</option>
+            </select>
+          </label>
           {speechSupported && (
             <>
               <label className="check"><input type="checkbox" checked={!!voice.autoSpeak} onChange={(e) => setVoiceOpt({ autoSpeak: e.target.checked })} /> Leer en voz alta las respuestas nuevas automáticamente</label>
