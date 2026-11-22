@@ -7,10 +7,11 @@ import { broadcast, subscribe } from './core/events.js';
 import { computeNext, runRoutine, startScheduler, missed, resolveMissed } from './core/routines.js';
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
 import { searchBackend } from './core/search.js';
+import { addConnector, refreshConnector, updateConnector, removeConnector } from './core/mcp.js';
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
 import { askPermission, notifyPermission, notify } from './core/notify.js';
 
-const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown'];
+const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown', 'connectors'];
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled', 'catchUp'];
 const GROUP_FIELDS = ['name', 'memberIds'];
 const SERVICE_KEYS = ['tavily']; // keys for tools, not for chat models
@@ -57,6 +58,7 @@ export const api = {
       routines: db().routines,
       groups: db().groups,
       skills: db().skills,
+      connectors: db().connectors.map(({ token, ...c }) => ({ ...c, hasToken: !!token })),
       suggestions: db().suggestions || null,
       suggestionsLoading: suggestionsLoading(),
       runs: db().runs.slice(0, 300),
@@ -201,6 +203,12 @@ export const api = {
   // ---------- proactive main bot ----------
   refreshSuggestions: () => refreshSuggestions({ force: true }),
   dismissSuggestion,
+
+  // ---------- connected apps (MCP) ----------
+  addConnector,
+  refreshConnector,
+  updateConnector,
+  removeConnector,
 
   // ---------- skills (shared library of processes) ----------
   async saveSkill(input) {

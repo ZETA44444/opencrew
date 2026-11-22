@@ -9,6 +9,7 @@ import SettingsModal from './components/SettingsModal.jsx';
 import GroupModal from './components/GroupModal.jsx';
 import SkillsModal from './components/SkillsModal.jsx';
 import ArtifactViewer from './components/ArtifactViewer.jsx';
+import ConnectorsModal from './components/ConnectorsModal.jsx';
 
 export default function App() {
   const [state, setState] = useState(null);
@@ -80,7 +81,7 @@ export default function App() {
         if (s.depth === 0 && thread === selectedRef.current) setPinnedSteps(null);
       } else if (ev.type === 'status') {
         setState((st) => st && { ...st, busy: ev.busy ? [...new Set([...st.busy, ev.botId])] : st.busy.filter((b) => b !== ev.botId) });
-      } else if (ev.type === 'bots' || ev.type === 'routines' || ev.type === 'skills' || ev.type === 'suggestions') {
+      } else if (ev.type === 'bots' || ev.type === 'routines' || ev.type === 'skills' || ev.type === 'suggestions' || ev.type === 'connectors') {
         refresh();
       } else if (ev.type === 'queue') {
         if (ev.botId === selectedRef.current) api.queue(ev.botId).then(setQueued);
@@ -113,6 +114,8 @@ export default function App() {
         bots={state.bots}
         groups={state.groups}
         skillsCount={state.skills.length}
+        connectorsCount={state.connectors.filter((c) => c.enabled && c.status === 'ok').length}
+        onConnectors={() => setModal({ type: 'connectors' })}
         onSkills={() => setModal({ type: 'skills' })}
         busy={state.busy}
         selectedId={selectedId}
@@ -189,6 +192,7 @@ export default function App() {
         />
       )}
       {viewer && <ArtifactViewer botId={viewer.botId} name={viewer.name} onClose={() => setViewer(null)} />}
+      {modal?.type === 'connectors' && <ConnectorsModal connectors={state.connectors} onClose={() => setModal(null)} />}
       {modal?.type === 'skills' && <SkillsModal skills={state.skills} onClose={() => setModal(null)} />}
       {modal?.type === 'settings' && (
         <SettingsModal providers={state.providers} settings={state.settings} services={state.services} onClose={() => setModal(null)} onSaved={refresh} />

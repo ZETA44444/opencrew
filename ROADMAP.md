@@ -50,7 +50,7 @@ Reglas para cada tarea:
 
 ## Fase 5 — Apps conectadas
 
-- [ ] Conectores MCP remotos (pegar la URL de un servidor MCP)
+- [x] Conectores MCP remotos (pegar la URL de un servidor MCP)
 - [ ] GitHub (con token personal): issues, PRs, repos
 - [ ] Gmail y Google Calendar (con tu propio Client ID de Google)
 - [ ] Notion

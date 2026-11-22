@@ -408,3 +408,8 @@ input[type=range] { padding: 0; accent-color: #fff; }
 .pending-file button:hover { color: var(--text); }
 .msg-files { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 80%; }
 .msg-img { max-width: 220px; max-height: 220px; border-radius: 14px; border: 1px solid var(--line-2); object-fit: cover; }
+
+/* ---------- connectors ---------- */
+.pill.err { color: var(--err); border-color: #f8717140; }
+.conn-url { overflow-wrap: anywhere; }
+.conn-tools { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); }

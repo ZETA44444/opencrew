@@ -43,7 +43,7 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
   const submit = async () => {
     setErr('');
     try {
-      const payload = { name: f.name, title: f.title, description: f.description, instructions: f.instructions, color: f.color, shape: f.shape, provider: f.provider, model: f.model, tools: f.tools, toolsKnown: tools, starred: f.starred };
+      const payload = { name: f.name, title: f.title, description: f.description, instructions: f.instructions, color: f.color, shape: f.shape, provider: f.provider, model: f.model, tools: f.tools, toolsKnown: tools, starred: f.starred, connectors: f.connectors !== false };
       const saved = isNew ? await api.createBot(payload) : await api.updateBot(bot.id, payload);
       onSaved(saved);
     } catch (e) { setErr(e.message); }
@@ -121,6 +121,7 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
                 {TOOL_LABELS[t] || t}
               </label>
             ))}
+            <label className="check"><input type="checkbox" checked={f.connectors !== false} onChange={(e) => set({ connectors: e.target.checked })} /> Usar apps conectadas (MCP)</label>
             <label className="check"><input type="checkbox" checked={!!f.starred} onChange={(e) => set({ starred: e.target.checked })} /> ★ Bot principal</label>
           </div>
           {err && <div className="banner error">{err}</div>}

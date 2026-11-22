@@ -283,16 +283,28 @@ async function callOpenAI({ provider, model, apiKey, system, messages, tools, on
 }
 
 // ---------- Gemini ----------
+// Gemini accepts only a subset of JSON Schema: keep the parts it understands.
 function geminiSchema(s) {
   if (!s || typeof s !== 'object') return s;
   const o = {};
-  for (const [k, v] of Object.entries(s)) {
-    if (k === 'additionalProperties') continue;
-    if (k === 'type') o.type = String(v).toUpperCase();
-    else if (k === 'properties') o.properties = Object.fromEntries(Object.entries(v).map(([pk, pv]) => [pk, geminiSchema(pv)]));
-    else if (k === 'items') o.items = geminiSchema(v);
-    else o[k] = v;
+  let type = s.type;
+  if (Array.isArray(type)) { type = type.find((t) => t !== 'null') || 'string'; o.nullable = true; }
+  if (!type && (s.anyOf || s.oneOf)) {
+    const alt = (s.anyOf || s.oneOf).find((x) => x && x.type && x.type !== 'null');
+    if (alt) return { ...geminiSchema(alt), ...(s.description && { description: s.description }) };
   }
+  if (type) o.type = String(type).toUpperCase();
+  if (s.description) o.description = String(s.description).slice(0, 1000);
+  if (Array.isArray(s.enum)) o.enum = s.enum.map(String);
+  if (s.format && ['enum', 'date-time'].includes(s.format)) o.format = s.format;
+  if (s.properties && typeof s.properties === 'object') {
+    o.type ??= 'OBJECT';
+    o.properties = Object.fromEntries(Object.entries(s.properties).map(([k, v]) => [k, geminiSchema(v)]));
+    if (Array.isArray(s.required)) o.required = s.required.filter((r) => r in s.properties);
+  }
+  if (s.items) o.items = geminiSchema(Array.isArray(s.items) ? s.items[0] : s.items);
+  if (o.type === 'ARRAY' && !o.items) o.items = { type: 'STRING' };
+  if (!o.type) o.type = 'STRING';
   return o;
 }
 
@@ -392,6 +404,12 @@ async function callDemo({ system, messages, tools, onText, signal }) {
   if (sk && has('save_skill')) return { text: '', toolCalls: [{ id: newId(), name: 'save_skill', args: { name: sk[1].trim(), description: 'Guardada desde el chat', steps: sk[2].trim() } }] };
   const us = userText.match(/usa (?:la )?skill «?([^»]+?)»?$/i);
   if (us && has('use_skill')) return { text: '', toolCalls: [{ id: newId(), name: 'use_skill', args: { name: us[1].trim() } }] };
+  const mc = userText.match(/^usa (?:la herramienta )?(mcp_[\w-]+)\s*(\{[\s\S]*\})?/i);
+  if (mc && has(mc[1])) {
+    let args = {};
+    try { args = mc[2] ? JSON.parse(mc[2]) : {}; } catch { /* keep empty */ }
+    return { text: '', toolCalls: [{ id: newId(), name: mc[1], args }] };
+  }
   const im = userText.match(/^(?:genera|dibuja|crea)(?:me)? (?:una )?imagen (?:de |con )?(.+)/i);
   if (im && has('generate_image')) return { text: '', toolCalls: [{ id: newId(), name: 'generate_image', args: { prompt: im[1] } }] };
   const js = userText.match(/^(?:ejecuta|run)(?: este código)?:\s*([\s\S]+)/i);

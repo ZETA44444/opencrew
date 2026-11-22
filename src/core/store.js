@@ -33,7 +33,7 @@ function seed() {
 
 function fill(d) {
   d.keys ??= {}; d.bots ??= []; d.messages ??= {}; d.routines ??= []; d.runs ??= [];
-  d.artifacts ??= {}; d.settings ??= {}; d.groups ??= []; d.skills ??= [];
+  d.artifacts ??= {}; d.settings ??= {}; d.groups ??= []; d.skills ??= []; d.connectors ??= [];
   d.settings.webReader ??= true;
   d.settings.proactive ??= true;
   d.settings.notifications ??= { routines: true, replies: true };
@@ -150,7 +150,10 @@ export const messagesOf = (botId) => (db.messages[botId] ??= []);
 // Backup: everything except API keys unless asked.
 export function exportData({ includeKeys = false } = {}) {
   const copy = JSON.parse(JSON.stringify(db));
-  if (!includeKeys) copy.keys = {};
+  if (!includeKeys) {
+    copy.keys = {};
+    for (const c of copy.connectors || []) c.token = '';
+  }
   return { app: 'opencrew', version: 1, exportedAt: now(), data: copy };
 }
 
