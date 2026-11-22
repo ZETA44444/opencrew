@@ -169,6 +169,15 @@ export default function App() {
         onNew={() => setModal({ type: 'bot' })}
         onNewGroup={() => setModal({ type: 'group' })}
         onSettings={() => setModal({ type: 'settings' })}
+        onEditItem={(item, kind) => setModal(kind === 'group' ? { type: 'group', group: item } : { type: 'bot', bot: item })}
+        onDeleteItem={async (item, kind) => {
+          const msg = kind === 'group' ? `¿Borrar el grupo ${item.name} y su conversación? Los bots no se borran.` : `¿Borrar ${item.name} y su conversación?`;
+          if (!confirm(msg)) return;
+          try {
+            await (kind === 'group' ? api.deleteGroup(item.id) : api.deleteBot(item.id));
+            refresh();
+          } catch (e) { alert(`No se pudo borrar: ${e.message}`); }
+        }}
         noKeys={noKeys}
         onClose={() => setNavOpen(false)}
       />

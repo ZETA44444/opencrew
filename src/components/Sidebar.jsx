@@ -25,8 +25,26 @@ function useInstall() {
   return [can, install];
 }
 
-export default function Sidebar({ bots, groups = [], projects = [], projectId = '', onProject, onNewProject, onEditProject, waiting = [], skillsCount = 0, connectorsCount = 0, onConnectors, onUsage, busy, selectedId, onSelect, onNew, onNewGroup, onSkills, onSettings, noKeys, onClose }) {
+export default function Sidebar({ bots, groups = [], projects = [], projectId = '', onProject, onNewProject, onEditProject, waiting = [], skillsCount = 0, connectorsCount = 0, onConnectors, onUsage, busy, selectedId, onSelect, onNew, onNewGroup, onSkills, onSettings, noKeys, onClose, onEditItem, onDeleteItem }) {
   const [canInstall, install] = useInstall();
+  const [menu, setMenu] = useState(null); // id of the item whose «⋯» menu is open
+  useEffect(() => {
+    if (!menu) return;
+    const close = (e) => { if (!e.target.closest?.('.item-menu, .item-more')) setMenu(null); };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [menu]);
+  const More = ({ item, kind }) => (
+    <>
+      <button className="item-more" aria-label={`Opciones de ${item.name}`} title="Opciones" onClick={() => setMenu(menu === item.id ? null : item.id)}>⋯</button>
+      {menu === item.id && (
+        <div className="item-menu" role="menu">
+          <button role="menuitem" onClick={() => { setMenu(null); onEditItem?.(item, kind); }}>✎ Editar</button>
+          <button role="menuitem" className="danger" onClick={() => { setMenu(null); onDeleteItem?.(item, kind); }}>🗑 Borrar {kind === 'group' ? 'grupo' : 'bot'}</button>
+        </div>
+      )}
+    </>
+  );
   const project = projects.find((p) => p.id === projectId);
   // Inside a project, only its bots and group chats are listed.
   const visibleBots = project ? bots.filter((b) => project.botIds.includes(b.id)) : bots;
@@ -60,7 +78,8 @@ export default function Sidebar({ bots, groups = [], projects = [], projectId = 
         {visibleGroups.map((g) => {
           const members = g.memberIds.map((id) => bots.find((b) => b.id === id)).filter(Boolean);
           return (
-            <button key={g.id} className={`bot-item ${g.id === selectedId ? 'active' : ''}`} onClick={() => onSelect(g.id)}>
+            <div key={g.id} className="item-row">
+            <button className={`bot-item ${g.id === selectedId ? 'active' : ''}`} onClick={() => onSelect(g.id)}>
               <div className="avatar-wrap">
                 <GroupAvatar members={members} size={30} />
                 {waiting.includes(g.id) ? <span className="busy-dot wait" title="Esperando tu permiso" /> : busy.includes(g.id) && <span className="busy-dot" title="Trabajando" />}
@@ -70,11 +89,14 @@ export default function Sidebar({ bots, groups = [], projects = [], projectId = 
                 <div className="bot-sub">{members.map((b) => b.name).join(', ')}</div>
               </div>
             </button>
+            <More item={g} kind="group" />
+            </div>
           );
         })}
         <div className="section-label">Bots</div>
         {sorted.map((b) => (
-          <button key={b.id} className={`bot-item ${b.id === selectedId ? 'active' : ''}`} onClick={() => onSelect(b.id)}>
+          <div key={b.id} className="item-row">
+          <button className={`bot-item ${b.id === selectedId ? 'active' : ''}`} onClick={() => onSelect(b.id)}>
             <div className="avatar-wrap">
               <Avatar bot={b} size={30} />
               {waiting.includes(b.id) ? <span className="busy-dot wait" title="Esperando tu permiso" /> : busy.includes(b.id) && <span className="busy-dot" title="Trabajando" />}
@@ -85,6 +107,8 @@ export default function Sidebar({ bots, groups = [], projects = [], projectId = 
             </div>
             <span className="model-tag" title={`${b.provider}/${b.model}`}>{shortModel(b)}</span>
           </button>
+          <More item={b} kind="bot" />
+          </div>
         ))}
       </nav>
       <button className="settings-btn" onClick={onConnectors}>
