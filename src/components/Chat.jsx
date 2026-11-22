@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Avatar from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
 
-export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
+export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const endRef = useRef(null);
@@ -17,7 +17,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
 
   const send = async (value = text) => {
     const v = value.trim();
-    if (!v || busy) return;
+    if (!v) return;
     setText('');
     setErr('');
     try { await onSend(v); } catch (e) { setErr(e.message); setText(v); }
@@ -88,12 +88,24 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
           </div>
         )}
         {err && <div className="banner error">{err}</div>}
+        {queued.length > 0 && (
+          <div className="queue">
+            <div className="queue-title">En cola · {bot.name} lo hará al terminar</div>
+            {queued.map((q, i) => (
+              <div key={q.id} className="queue-item">
+                <span className="queue-n">{i + 1}</span>
+                <span className="queue-text">{q.text}</span>
+                <button className="icon-btn" onClick={() => onRemoveQueued(q.id)} aria-label="Quitar de la cola" title="Quitar de la cola">×</button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="composer">
           <textarea
             ref={taRef}
             rows={1}
             value={text}
-            placeholder={`Escribe a ${bot.name}…  (usa @Nombre para delegar)`}
+            placeholder={busy ? `${bot.name} está trabajando… escribe y se pondrá en cola` : `Escribe a ${bot.name}…  (usa @Nombre para delegar)`}
             onChange={(e) => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`; }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -115,6 +127,9 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
                 </optgroup>
               ))}
             </select>
+            {busy && text.trim() && (
+              <button className="queue-btn" onClick={() => send()} title="Se enviará cuando termine">+ A la cola</button>
+            )}
             {busy ? (
               <button className="send stop" onClick={onStop} aria-label="Parar ahora" title="Parar ahora">
                 <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" /></svg>

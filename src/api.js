@@ -13,10 +13,25 @@ const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => obj[k] !== und
 const db = getDb;
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
+// ---------- message queue («Queue») ----------
+const queueOf = (botId) => ((db().queues ??= {})[botId] ??= []);
+
+function drain(botId) {
+  const q = queueOf(botId);
+  if (busy.has(botId) || !q.length || !getBot(botId)) return;
+  const next = q.shift();
+  save();
+  broadcast({ type: 'queue', botId });
+  runAgent({ botId, input: next.text }).catch((e) => console.error(e));
+}
+
 let booted = false;
 function boot() {
   if (booted) return;
   booted = true;
+  // When a bot finishes, it picks up the next queued message.
+  subscribe((ev) => { if (ev.type === 'status' && !ev.busy) setTimeout(() => drain(ev.botId), 300); });
+  for (const botId of Object.keys(db().queues || {})) setTimeout(() => drain(botId), 1000);
   startScheduler();
   refreshAllModels().then(() => broadcast({ type: 'bots' }));
 }
@@ -45,8 +60,22 @@ export const api = {
     const bot = getBot(botId);
     if (!bot) throw new Error('Bot no encontrado');
     if (!text.trim()) throw new Error('Mensaje vacío');
-    if (busy.has(bot.id)) throw new Error(`${bot.name} está ocupado, espera a que termine`);
+    if (busy.has(bot.id)) {
+      queueOf(bot.id).push({ id: newId(), text: text.trim(), at: now() });
+      save();
+      broadcast({ type: 'queue', botId: bot.id });
+      return { ok: true, queued: true };
+    }
     runAgent({ botId: bot.id, input: text.trim() }).catch((e) => console.error(e));
+    return { ok: true };
+  },
+
+  async queue(botId) { return clone(queueOf(botId)); },
+
+  async removeQueued(botId, id) {
+    db().queues[botId] = queueOf(botId).filter((x) => x.id !== id);
+    save();
+    broadcast({ type: 'queue', botId });
     return { ok: true };
   },
 
@@ -99,6 +128,7 @@ export const api = {
     d.bots = d.bots.filter((b) => b.id !== id);
     delete d.messages[id];
     delete d.artifacts[id];
+    if (d.queues) delete d.queues[id];
     d.routines = d.routines.filter((r) => r.botId !== id);
     save();
     broadcast({ type: 'bots' });

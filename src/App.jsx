@@ -15,6 +15,7 @@ export default function App() {
   const [pinnedSteps, setPinnedSteps] = useState(null); // steps of a clicked past message
   const [artifactsTick, setArtifactsTick] = useState(0);
   const [drafts, setDrafts] = useState({}); // botId -> text being streamed right now
+  const [queued, setQueued] = useState([]); // queued messages of the selected bot
   const [modal, setModal] = useState(null); // {type:'bot', bot?} | {type:'settings'}
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 1100);
   const [navOpen, setNavOpen] = useState(false);
@@ -35,6 +36,7 @@ export default function App() {
     localStorageSet('oc.bot', selectedId);
     setPinnedSteps(null);
     api.messages(selectedId).then(setMessages).catch(console.error);
+    api.queue(selectedId).then(setQueued).catch(console.error);
   }, [selectedId]);
 
   // Live events from the in-browser agent engine.
@@ -62,6 +64,8 @@ export default function App() {
         setState((st) => st && { ...st, busy: ev.busy ? [...new Set([...st.busy, ev.botId])] : st.busy.filter((b) => b !== ev.botId) });
       } else if (ev.type === 'bots' || ev.type === 'routines') {
         refresh();
+      } else if (ev.type === 'queue') {
+        if (ev.botId === selectedRef.current) api.queue(ev.botId).then(setQueued);
       } else if (ev.type === 'artifacts') {
         setArtifactsTick((t) => t + 1);
       }
@@ -96,6 +100,8 @@ export default function App() {
           busy={state.busy.includes(bot.id)}
           draft={drafts[bot.id]}
           onStop={() => api.stop(bot.id)}
+          queued={queued}
+          onRemoveQueued={(id) => api.removeQueued(bot.id, id)}
           onRerun={(text) => api.rerunLast(bot.id, text).then(() => api.messages(bot.id)).then(setMessages)}
           onSend={(text) => api.chat(bot.id, text)}
           onChangeModel={(provider, model) => api.updateBot(bot.id, { provider, model }).then(refresh)}
