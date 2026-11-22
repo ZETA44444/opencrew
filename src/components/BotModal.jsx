@@ -22,7 +22,7 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
   const firstWithKey = providers.find((p) => !p.noKey && p.hasKey);
   const [f, setF] = useState(() => bot ? { ...bot, tools: bot.tools || tools } : {
     name: '', title: '', description: '', instructions: '', color: COLORS[1], shape: 'circle',
-    provider: firstWithKey?.id || 'demo', model: firstWithKey?.models[0] || 'demo', tools, starred: false,
+    provider: firstWithKey?.id || 'demo', model: firstWithKey?.defaultModel || 'demo', tools, starred: false,
   });
   const [err, setErr] = useState('');
   const set = (patch) => setF((x) => ({ ...x, ...patch }));
@@ -79,7 +79,7 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
           <div className="section-title">Modelo de IA de este bot</div>
           <div className="grid2">
             <label>Proveedor
-              <select value={f.provider} onChange={(e) => { const p = providers.find((x) => x.id === e.target.value); set({ provider: p.id, model: p.models[0] }); }}>
+              <select value={f.provider} onChange={(e) => { const p = providers.find((x) => x.id === e.target.value); set({ provider: p.id, model: p.defaultModel }); }}>
                 {providers.map((p) => <option key={p.id} value={p.id}>{p.label}{p.hasKey ? '' : ' (sin clave)'}</option>)}
               </select>
             </label>

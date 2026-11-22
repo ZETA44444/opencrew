@@ -20,7 +20,7 @@ export default function SettingsModal({ providers, onClose, onSaved }) {
   const test = async (p) => {
     setTests((t) => ({ ...t, [p.id]: { loading: true } }));
     if (keys[p.id]) await save();
-    const r = await api.testProvider(p.id, p.models[0]).catch((e) => ({ ok: false, error: e.message }));
+    const r = await api.testProvider(p.id).catch((e) => ({ ok: false, error: e.message }));
     setTests((t) => ({ ...t, [p.id]: r }));
   };
 
@@ -59,8 +59,8 @@ export default function SettingsModal({ providers, onClose, onSaved }) {
                   <button className="btn small" onClick={() => test(p)} disabled={!p.hasKey && !keys[p.id]}>Probar</button>
                   {p.keySource === 'app' && <button className="btn small ghost" onClick={() => remove(p)}>Quitar</button>}
                 </div>
-                {t && (t.loading ? <div className="muted small">Probando {p.models[0]}…</div>
-                  : t.ok ? <div className="small run-ok">✓ Funciona · respondió «{t.reply}» en {(t.ms / 1000).toFixed(1)}s</div>
+                {t && (t.loading ? <div className="muted small">Probando {p.defaultModel}…</div>
+                  : t.ok ? <div className="small run-ok">✓ Funciona con {t.model} · respondió «{t.reply}» en {(t.ms / 1000).toFixed(1)}s</div>
                   : <div className="small run-error">✗ {t.error}</div>)}
               </div>
             );

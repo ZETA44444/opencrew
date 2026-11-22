@@ -5,7 +5,7 @@ import express from 'express';
 try { process.loadEnvFile(); } catch { /* no .env file, that's fine */ }
 
 const { getDb, getBot, newId, now, save, messagesOf } = await import('./store.js');
-const { publicProviders, providerById, callModel } = await import('./providers.js');
+const { publicProviders, providerById, callModel, refreshModels, refreshAllModels, defaultModel } = await import('./providers.js');
 const { runAgent, busy } = await import('./agent.js');
 const { sseHandler, broadcast } = await import('./events.js');
 const { computeNext, runRoutine, startScheduler } = await import('./routines.js');
@@ -112,25 +112,28 @@ app.delete('/api/bots/:id/artifacts/:name', (req, res) => {
 });
 
 // ---------- API keys (stored only on this machine, never sent back in full) ----------
-app.put('/api/settings/keys', (req, res) => {
+app.put('/api/settings/keys', async (req, res) => {
   for (const [provider, key] of Object.entries(req.body || {})) {
     if (!providerById(provider)) continue;
     if (key) db().keys[provider] = String(key).trim();
     else delete db().keys[provider];
   }
   save();
+  await Promise.all(Object.keys(req.body || {}).map((p) => refreshModels(p)));
+  broadcast({ type: 'bots' });
   res.json(publicProviders());
 });
 
 app.post('/api/settings/test', async (req, res) => {
-  const { provider, model } = req.body || {};
+  const { provider } = req.body || {};
+  const model = req.body?.model || defaultModel(provider);
   const t0 = Date.now();
   try {
     const r = await callModel({
       providerId: provider, model, tools: [],
       system: 'Eres una prueba de conexión.', messages: [{ role: 'user', content: 'Responde solo con: OK' }],
     });
-    res.json({ ok: true, reply: r.text.slice(0, 200), ms: Date.now() - t0 });
+    res.json({ ok: true, model, reply: r.text.slice(0, 200), ms: Date.now() - t0 });
   } catch (e) {
     res.json({ ok: false, error: e.message });
   }
@@ -186,4 +189,5 @@ const HOST = process.env.HOST || '127.0.0.1'; // local only by default: your API
 app.listen(PORT, HOST, () => {
   console.log(`OpenCrew API → http://${HOST}:${PORT}`);
   startScheduler();
+  refreshAllModels().then(() => broadcast({ type: 'bots' }));
 });

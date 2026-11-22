@@ -11,7 +11,7 @@ export const PROVIDERS = [
     models: ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5'] },
   { id: 'gemini', label: 'Gemini (Google)', kind: 'gemini', env: 'GEMINI_API_KEY',
     keyUrl: 'https://aistudio.google.com/apikey',
-    models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite'] },
+    models: ['gemini-3.8-flash'] },
   { id: 'openai', label: 'OpenAI', kind: 'openai', env: 'OPENAI_API_KEY', baseUrl: 'https://api.openai.com/v1',
     keyUrl: 'https://platform.openai.com/api-keys',
     models: ['gpt-5', 'gpt-5-mini'] },
@@ -39,28 +39,96 @@ export function getKey(providerId) {
   return '';
 }
 
+// Models fetched live from each provider's API (so the list never goes stale).
+const liveModels = {};
+
+const SKIP_MODEL = /(embed|tts|audio|image|imagen|veo|live|native|aqa|learnlm|robotics|computer-use|whisper|dall-e|moderation|transcribe|realtime|search|sora|codex)/i;
+
+export async function refreshModels(providerId) {
+  const p = providerById(providerId);
+  if (!p || p.kind === 'demo') return null;
+  const key = getKey(providerId);
+  if (!p.noKey && !key) return null;
+  let ids = [];
+  try {
+    if (p.kind === 'gemini') {
+      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', { headers: { 'x-goog-api-key': key }, signal: AbortSignal.timeout(15_000) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message || res.status);
+      ids = (data.models || [])
+        .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
+        .map((m) => m.name.replace(/^models\//, ''))
+        .filter((id) => id.startsWith('gemini') && !SKIP_MODEL.test(id));
+    } else if (p.kind === 'anthropic') {
+      const res = await fetch('https://api.anthropic.com/v1/models?limit=100', { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, signal: AbortSignal.timeout(15_000) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message || res.status);
+      ids = (data.data || []).map((m) => m.id);
+    } else {
+      const res = await fetch(`${p.baseUrl}/models`, { headers: key ? { authorization: `Bearer ${key}` } : {}, signal: AbortSignal.timeout(15_000) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message || res.status);
+      ids = (data.data || []).map((m) => m.id).filter((id) => !SKIP_MODEL.test(id));
+    }
+  } catch (e) {
+    console.warn(`No se pudo leer la lista de modelos de ${p.label}: ${e.message}`);
+    return null;
+  }
+  if (!ids.length) return null;
+  // Newest-looking first (higher version numbers sort first), "latest" aliases on top.
+  ids.sort((a, b) => Number(/latest/.test(b)) - Number(/latest/.test(a)) || b.localeCompare(a, undefined, { numeric: true }));
+  liveModels[providerId] = ids;
+  return ids;
+}
+
+export const refreshAllModels = () => Promise.all(PROVIDERS.map((p) => refreshModels(p.id)));
+
+export const modelsOf = (providerId) => liveModels[providerId] || providerById(providerId)?.models || [];
+
+// A sensible default: newest stable "flash" for Gemini, "sonnet" for Claude, "mini" for OpenAI, else the first.
+export function defaultModel(providerId) {
+  const list = modelsOf(providerId);
+  const prefer = { gemini: /^gemini-[\d.]+-flash$/, anthropic: /sonnet/, openai: /^gpt-[\d.]+-mini$/ }[providerId];
+  return (prefer && list.find((m) => prefer.test(m))) || list[0];
+}
+
 export const publicProviders = () => PROVIDERS.map((p) => ({
-  id: p.id, label: p.label, models: p.models, keyUrl: p.keyUrl, noKey: !!p.noKey,
+  id: p.id, label: p.label, models: modelsOf(p.id), defaultModel: defaultModel(p.id), live: !!liveModels[p.id], keyUrl: p.keyUrl, noKey: !!p.noKey,
   hasKey: p.noKey ? true : !!getKey(p.id),
   keySource: p.noKey ? null : getDb().keys[p.id] ? 'app' : getKey(p.id) ? 'env' : null,
 }));
 
 // ---------- helpers ----------
-async function postJson(url, headers, body, label) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...headers },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(180_000),
-  });
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
-  if (!res.ok) {
+const RETRYABLE = new Set([429, 500, 502, 503, 504, 529]);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// POST with automatic retries when the provider is overloaded or rate-limited.
+async function postJson(url, headers, body, label, attempts = 3) {
+  for (let i = 1; ; i++) {
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(120_000),
+      });
+    } catch (e) {
+      if (i < attempts) { await sleep(2000 * i); continue; }
+      throw new Error(`${label}: sin respuesta (${e.name === 'TimeoutError' ? 'tardó demasiado' : e.message}). Prueba otro modelo.`);
+    }
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    if (res.ok) return data;
+    if (RETRYABLE.has(res.status) && i < attempts) { await sleep(2000 * i); continue; }
     const msg = data?.error?.message || data?.message || text.slice(0, 300);
-    throw new Error(`${label} ${res.status}: ${msg}`);
+    const hint = res.status === 503 || res.status === 529 ? ' → El modelo está saturado ahora mismo. Elige otro modelo en el selector (p. ej. uno "lite" o "latest") o inténtalo en un rato.'
+      : res.status === 429 ? ' → Has llegado al límite de uso de tu clave. Espera un poco o usa otro modelo.'
+      : res.status === 404 ? ' → Ese modelo ya no existe. Elige otro en el selector de modelo.'
+      : res.status === 401 || res.status === 403 ? ' → La API key no es válida o no tiene permiso. Revísala en Ajustes.' : '';
+    throw new Error(`${label} ${res.status}: ${msg}${hint}`);
   }
-  return data;
 }
 
 // Merge consecutive plain-text messages with the same role (some APIs require alternation).

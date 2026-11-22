@@ -91,7 +91,7 @@ export default function Chat({ bot, bots, providers, messages, busy, onSend, onC
               {providers.map((p) => (
                 <optgroup key={p.id} label={`${p.label}${p.hasKey ? '' : ' — sin clave'}`}>
                   {[...new Set([...p.models, ...(p.id === bot.provider ? [bot.model] : [])])].map((m) => (
-                    <option key={m} value={`${p.id}::${m}`}>{p.id === 'demo' ? 'Demo (sin IA)' : m}</option>
+                    <option key={m} value={`${p.id}::${m}`}>{p.id === 'demo' ? 'Demo (sin IA)' : m}{p.live && !p.models.includes(m) ? ' (ya no disponible)' : ''}</option>
                   ))}
                 </optgroup>
               ))}
