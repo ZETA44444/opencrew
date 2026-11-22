@@ -86,6 +86,21 @@ function cors(req, res) {
   }
 }
 
+const APP_URL = process.env.OPENCREW_APP_URL || 'https://zeta44444.github.io/opencrew/';
+const HOME = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Servidor OpenCrew</title><style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0b0c;color:#ededed;font:16px/1.5 system-ui,-apple-system,sans-serif;padding:16px;box-sizing:border-box}
+main{max-width:460px;text-align:center}h1{font-size:22px;font-weight:600;margin:0 0 8px}p{color:#a1a1aa;margin:0 0 20px}
+.ok{display:inline-block;margin-bottom:18px;padding:4px 12px;border-radius:999px;background:#12301f;color:#86efac;font-size:13px}
+a.btn{display:inline-block;padding:10px 18px;border-radius:999px;background:#ededed;color:#0b0b0c;text-decoration:none;font-weight:600}
+small{display:block;margin-top:22px;color:#71717a}</style></head><body><main>
+<div class="ok">● Funcionando · v${VERSION}</div>
+<h1>Este es tu servidor de OpenCrew</h1>
+<p>Aquí trabajan tus bots 24/7, pero la app se abre desde su web. Para usarlo, abre la app y conéctala en <b>Ajustes → Servidor</b> con esta dirección y tu token.</p>
+<a class="btn" href="${APP_URL}">Abrir OpenCrew</a>
+<small>Dirección del servidor: la de esta página</small>
+</main></body></html>`;
+
 const send = (res, status, data) => {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
   res.end(JSON.stringify(data));
@@ -120,6 +135,11 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
     if (url.pathname === '/api/health' && req.method === 'GET') return send(res, 200, { ok: true, app: 'opencrew', version: VERSION });
+    if (url.pathname === '/' && req.method === 'GET') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(HOME);
+      return;
+    }
     if (!url.pathname.startsWith('/api/')) return send(res, 404, { error: 'No encontrado' });
     if (!authorized(req)) return send(res, 401, { error: 'Token no válido' });
 
