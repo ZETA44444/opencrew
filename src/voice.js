@@ -94,7 +94,7 @@ const toBase64 = (blob) => new Promise((resolve, reject) => {
   r.readAsDataURL(blob);
 });
 
-async function transcribe(blob) {
+export async function transcribe(blob) {
   const keys = getDb().keys;
   const lang = navigator.language || 'es-ES';
   if (keys.gemini) {
@@ -151,4 +151,22 @@ export function startCloudDictation({ onStatus, onEnd, onError }) {
     }
   })();
   return () => { stopped = true; if (rec && rec.state !== 'inactive') rec.stop(); };
+}
+
+// A distinct, stable voice for each bot (same language as the app), so group calls sound like a team.
+export function voiceForBot(bot) {
+  if (bot?.voiceName) return bot.voiceName;
+  const lang = (navigator.language || 'es').slice(0, 2);
+  const sameLang = voices().filter((v) => v.lang.toLowerCase().startsWith(lang));
+  // Skip novelty/robotic system voices when there are normal ones.
+  const NOVELTY = /grandpa|grandma|rocko|eddy|flo\b|reed|sandy|shelley|bad news|bells|bubbles|boing|jester|whisper|zarvox|trinoids|organ|cellos|superstar|wobble|bahh|albert|fred|junior|ralph|kathy/i;
+  const normal = sameLang.filter((v) => !NOVELTY.test(v.name));
+  const list = normal.length >= 2 ? normal : sameLang;
+  if (!list.length) return '';
+  const h = [...String(bot?.id || bot?.name || '')].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7);
+  return list[Math.abs(h) % list.length].name;
+}
+
+export function speakAsync(text, opts = {}) {
+  return new Promise((resolve) => speak(text, { ...opts, onEnd: resolve }));
 }

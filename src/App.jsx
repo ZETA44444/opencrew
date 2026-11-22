@@ -12,6 +12,7 @@ import ArtifactViewer from './components/ArtifactViewer.jsx';
 import ConnectorsModal from './components/ConnectorsModal.jsx';
 import UsageModal from './components/UsageModal.jsx';
 import ProjectModal from './components/ProjectModal.jsx';
+import CallOverlay from './components/CallOverlay.jsx';
 
 export default function App() {
   const [state, setState] = useState(null);
@@ -24,6 +25,7 @@ export default function App() {
   const [drafts, setDrafts] = useState({}); // botId -> text being streamed right now
   const [queued, setQueued] = useState([]);
   const [memProposals, setMemProposals] = useState([]);
+  const [call, setCall] = useState(false);
   const [viewer, setViewer] = useState(null); // { botId, name } of the open file
   const [projectId, setProjectId] = useState(() => localStorageGet('oc.project') || ''); // queued messages of the selected bot
   const [modal, setModal] = useState(null); // {type:'bot', bot?} | {type:'settings'}
@@ -150,6 +152,7 @@ export default function App() {
           busy={state.busy.includes(bot.id)}
           draft={drafts[bot.id]}
           onStop={() => api.stop(bot.id)}
+          onCall={() => setCall(true)}
           memProposals={group ? [] : memProposals}
           inProject={!group && state.projects.some((p) => p.botIds.includes(bot.id))}
           onResolveMemory={(id, action, scope) => api.resolveMemoryProposal(bot.id, id, action, scope)}
@@ -216,6 +219,7 @@ export default function App() {
           onDeleted={() => { setModal(null); refresh(); }}
         />
       )}
+      {call && bot && <CallOverlay bot={bot} rate={state.settings.voice?.rate || 1} onClose={() => setCall(false)} />}
       {viewer && <ArtifactViewer botId={viewer.botId} name={viewer.name} onClose={() => setViewer(null)} />}
       {modal?.type === 'project' && (
         <ProjectModal
