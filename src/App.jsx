@@ -114,7 +114,7 @@ export default function App() {
         bots={state.bots}
         groups={state.groups}
         skillsCount={state.skills.length}
-        connectorsCount={state.connectors.filter((c) => c.enabled && c.status === 'ok').length}
+        connectorsCount={state.connectors.filter((c) => c.enabled && c.status === 'ok').length + (state.services.github ? 1 : 0)}
         onConnectors={() => setModal({ type: 'connectors' })}
         onSkills={() => setModal({ type: 'skills' })}
         busy={state.busy}
@@ -192,7 +192,7 @@ export default function App() {
         />
       )}
       {viewer && <ArtifactViewer botId={viewer.botId} name={viewer.name} onClose={() => setViewer(null)} />}
-      {modal?.type === 'connectors' && <ConnectorsModal connectors={state.connectors} onClose={() => setModal(null)} />}
+      {modal?.type === 'connectors' && <ConnectorsModal connectors={state.connectors} services={state.services} onClose={() => setModal(null)} />}
       {modal?.type === 'skills' && <SkillsModal skills={state.skills} onClose={() => setModal(null)} />}
       {modal?.type === 'settings' && (
         <SettingsModal providers={state.providers} settings={state.settings} services={state.services} onClose={() => setModal(null)} onSaved={refresh} />

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 
-export default function ConnectorsModal({ connectors, onClose }) {
+export default function ConnectorsModal({ connectors, services = {}, onClose }) {
   const [form, setForm] = useState(null);
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
@@ -16,6 +16,19 @@ export default function ConnectorsModal({ connectors, onClose }) {
       else setForm(null);
     } catch (e) { setErr(e.message); } finally { setBusy(''); }
   };
+
+  const [ghToken, setGhToken] = useState('');
+  const [ghUser, setGhUser] = useState(null);
+  const [ghErr, setGhErr] = useState('');
+  const saveGithub = async (value) => {
+    setGhErr(''); setGhUser(null);
+    await api.saveKeys({ github: value });
+    setGhToken('');
+    if (value) {
+      try { setGhUser(await api.githubWhoAmI()); } catch (e) { setGhErr(e.message); }
+    }
+  };
+  const testGithub = async () => { setGhErr(''); try { setGhUser(await api.githubWhoAmI()); } catch (e) { setGhErr(e.message); } };
 
   const refresh = async (id) => { setBusy(id); await api.refreshConnector(id); setBusy(''); };
 
@@ -32,7 +45,31 @@ export default function ConnectorsModal({ connectors, onClose }) {
             buscar en Notion, crear issues, leer tu calendario… Pega la URL del servidor (transporte HTTP). Debe permitir conexiones desde el navegador (CORS).
           </p>
 
-          {connectors.length === 0 && !form && <div className="empty-skills muted">Aún no hay apps conectadas.</div>}
+          <div className="section-title">Integradas</div>
+          <div className="key-row">
+            <div className="key-head">
+              <strong>GitHub</strong>
+              {services.github ? <span className="pill ok">conectado{ghUser ? ` como ${ghUser}` : ''}</span> : <span className="pill">sin token</span>}
+              <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer" className="link small">Crear token ↗</a>
+            </div>
+            <div className="muted small">Tus bots podrán ver tus repos, issues, pull requests y archivos. Usa un token «fine-grained» solo con los repos y permisos que quieras darles.</div>
+            <div className="key-input">
+              <input type="password" autoComplete="off" placeholder={services.github ? '•••••••• (escribe para reemplazar)' : 'Pega tu token personal de GitHub'} value={ghToken} onChange={(e) => setGhToken(e.target.value)} />
+              <button className="btn small" disabled={!ghToken} onClick={() => saveGithub(ghToken)}>Guardar</button>
+              {services.github && <button className="btn small" onClick={testGithub}>Probar</button>}
+              {services.github && <button className="btn small ghost" onClick={() => saveGithub('')}>Quitar</button>}
+            </div>
+            {services.github && (
+              <label className="check small">
+                <input type="checkbox" checked={!!services.githubWrite} onChange={(e) => api.updateSettings({ githubWrite: e.target.checked })} />
+                Permitir que los bots escriban (crear issues y comentarios) cuando se lo pidas
+              </label>
+            )}
+            {ghErr && <div className="small run-error">{ghErr}</div>}
+          </div>
+
+          <div className="section-title">Servidores MCP</div>
+          {connectors.length === 0 && !form && <div className="empty-skills muted">Aún no hay servidores MCP conectados.</div>}
 
           {connectors.map((c) => (
             <div key={c.id} className="key-row">

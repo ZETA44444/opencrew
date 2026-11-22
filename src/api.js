@@ -7,6 +7,7 @@ import { broadcast, subscribe } from './core/events.js';
 import { computeNext, runRoutine, startScheduler, missed, resolveMissed } from './core/routines.js';
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
 import { searchBackend } from './core/search.js';
+import { githubWhoAmI } from './core/github.js';
 import { addConnector, refreshConnector, updateConnector, removeConnector } from './core/mcp.js';
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
 import { askPermission, notifyPermission, notify } from './core/notify.js';
@@ -14,7 +15,7 @@ import { askPermission, notifyPermission, notify } from './core/notify.js';
 const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown', 'connectors'];
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled', 'catchUp'];
 const GROUP_FIELDS = ['name', 'memberIds'];
-const SERVICE_KEYS = ['tavily']; // keys for tools, not for chat models
+const SERVICE_KEYS = ['tavily', 'github']; // keys for tools, not for chat models
 // A "thread" is a bot's own chat or a group chat; both live in db.messages[id].
 const start = (threadId, text, attachments = []) => (getGroup(threadId)
   ? runGroup({ groupId: threadId, input: text, attachments })
@@ -66,7 +67,7 @@ export const api = {
       busy: [...busy],
       tools: TOOL_NAMES,
       settings: db().settings,
-      services: { tavily: !!db().keys.tavily, searchBackend: searchBackend() },
+      services: { tavily: !!db().keys.tavily, github: !!db().keys.github, githubWrite: !!db().settings.githubWrite, searchBackend: searchBackend() },
     });
   },
 
@@ -203,6 +204,9 @@ export const api = {
   // ---------- proactive main bot ----------
   refreshSuggestions: () => refreshSuggestions({ force: true }),
   dismissSuggestion,
+
+  // ---------- GitHub ----------
+  githubWhoAmI,
 
   // ---------- connected apps (MCP) ----------
   addConnector,

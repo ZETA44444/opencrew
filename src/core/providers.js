@@ -404,7 +404,7 @@ async function callDemo({ system, messages, tools, onText, signal }) {
   if (sk && has('save_skill')) return { text: '', toolCalls: [{ id: newId(), name: 'save_skill', args: { name: sk[1].trim(), description: 'Guardada desde el chat', steps: sk[2].trim() } }] };
   const us = userText.match(/usa (?:la )?skill «?([^»]+?)»?$/i);
   if (us && has('use_skill')) return { text: '', toolCalls: [{ id: newId(), name: 'use_skill', args: { name: us[1].trim() } }] };
-  const mc = userText.match(/^usa (?:la herramienta )?(mcp_[\w-]+)\s*(\{[\s\S]*\})?/i);
+  const mc = userText.match(/^usa (?:la herramienta )?((?:mcp|github)_[\w-]+)\s*(\{[\s\S]*\})?/i);
   if (mc && has(mc[1])) {
     let args = {};
     try { args = mc[2] ? JSON.parse(mc[2]) : {}; } catch { /* keep empty */ }
