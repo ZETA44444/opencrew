@@ -98,7 +98,7 @@ Reglas para cada tarea:
 ## Fase 10 — Llamadas de voz en tiempo real
 
 - [x] Llamada en tiempo real con un bot (escucha, detecta cuándo te callas, responde en voz alta y vuelve a escuchar; funciona con cualquier modelo)
-- [ ] Voz nativa de baja latencia (Gemini Live / OpenAI Realtime) como mejora opcional
+- [x] Voz nativa de baja latencia con Gemini Live (Ajustes → Voz → Llamadas; con tu clave de Gemini, sin herramientas; si no conecta, usa la llamada normal). OpenAI Realtime queda para la Fase 11: necesita un servidor que cree claves temporales
 - [x] Llamada de grupo con varios bots, cada uno con su voz; el coordinador reparte el trabajo
 - [ ] Encargos por voz que se hacen en segundo plano y te avisan al terminar
 

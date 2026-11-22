@@ -186,6 +186,13 @@ export default function SettingsModal({ providers, settings, services, sensitive
               <option value="cloud">Grabar y transcribir con mi clave de Gemini u OpenAI (más fiable)</option>
             </select>
           </label>
+          <label>Llamadas
+            <select value={voice.native || ''} onChange={(e) => setVoiceOpt({ native: e.target.value })}>
+              <option value="">Normal (cualquier modelo, con herramientas; voz del navegador)</option>
+              <option value="gemini">Voz nativa con Gemini Live (más rápida y natural; necesita tu clave de Gemini, sin herramientas)</option>
+            </select>
+          </label>
+          {voice.native === 'gemini' && !providers?.find((p) => p.id === 'gemini')?.hasKey && <div className="muted small">⚠️ Añade tu clave de Gemini arriba para usar la voz nativa; mientras tanto se usa la llamada normal.</div>}
           {speechSupported && (
             <>
               <label className="check"><input type="checkbox" checked={!!voice.autoSpeak} onChange={(e) => setVoiceOpt({ autoSpeak: e.target.checked })} /> Leer en voz alta las respuestas nuevas automáticamente</label>

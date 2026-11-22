@@ -219,7 +219,7 @@ export default function App() {
           onDeleted={() => { setModal(null); refresh(); }}
         />
       )}
-      {call && bot && <CallOverlay bot={bot} rate={state.settings.voice?.rate || 1} onClose={() => setCall(false)} />}
+      {call && bot && <CallOverlay bot={bot} rate={state.settings.voice?.rate || 1} native={state.settings.voice?.native === 'gemini'} onClose={() => setCall(false)} />}
       {viewer && <ArtifactViewer botId={viewer.botId} name={viewer.name} onClose={() => setViewer(null)} />}
       {modal?.type === 'project' && (
         <ProjectModal

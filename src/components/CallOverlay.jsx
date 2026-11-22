@@ -1,22 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import Avatar, { GroupAvatar } from './Avatar.jsx';
 import { CallSession } from '../call.js';
+import { LiveSession, liveAvailable } from '../live.js';
 
 const LABEL = {
   idle: 'Conectando…', listening: 'Te escucho…', transcribing: 'Entendiendo…', thinking: 'Pensando…',
   speaking: 'Hablando…', error: 'No puedo escucharte', ended: 'Llamada terminada',
 };
 
-export default function CallOverlay({ bot, rate = 1, onClose }) {
+export default function CallOverlay({ bot, rate = 1, native = false, onClose }) {
   const [state, setState] = useState('idle');
   const [lines, setLines] = useState([]);
   const [err, setErr] = useState('');
   const [secs, setSecs] = useState(0);
+  const [mode, setMode] = useState('');
+  const [notice, setNotice] = useState('');
   const session = useRef(null);
   const endRef = useRef(null);
 
   useEffect(() => {
-    const s = new CallSession({
+    const handlers = {
       threadId: bot.id, rate,
       onState: setState,
       onError: setErr,
@@ -26,13 +29,22 @@ export default function CallOverlay({ bot, rate = 1, onClose }) {
         if (last?.interim && l.who === 'Tú') return [...ls.slice(0, -1), l];
         return [...ls, l].slice(-30);
       }),
-    });
-    session.current = s;
-    window.__ocCall = s; // handy for testing
-    s.start();
+    };
+    const begin = (s, m) => { session.current = s; window.__ocCall = s; setMode(m); s.start(); };
+    if (native && !bot.isGroup && liveAvailable()) {
+      begin(new LiveSession({
+        ...handlers,
+        onFallback: (msg) => {
+          if (session.current?.closed) return;
+          session.current?.hangup();
+          setNotice(msg);
+          begin(new CallSession(handlers), 'normal'); // fall back to the normal call
+        },
+      }), 'live');
+    } else begin(new CallSession(handlers), 'normal');
     const t = setInterval(() => setSecs((x) => x + 1), 1000);
-    return () => { clearInterval(t); s.hangup(); if (window.__ocCall === s) delete window.__ocCall; };
-  }, [bot.id, rate]);
+    return () => { clearInterval(t); const s = session.current; s?.hangup(); if (window.__ocCall === s) delete window.__ocCall; };
+  }, [bot.id, rate, native]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [lines.length]);
 
@@ -42,13 +54,14 @@ export default function CallOverlay({ bot, rate = 1, onClose }) {
   return (
     <div className="call-overlay" role="dialog" aria-label={`Llamada con ${bot.name}`}>
       <div className="call-top">
-        <span className="muted small">Llamada · {mm}</span>
+        <span className="muted small">Llamada · {mm}{mode === 'live' && ' · ⚡ voz nativa (Gemini Live)'}</span>
       </div>
       <div className={`call-avatar state-${state}`}>
         {bot.isGroup ? <GroupAvatar members={bot.members} size={120} /> : <Avatar bot={bot} size={120} />}
       </div>
       <h2 className="call-name">{bot.name}</h2>
       <div className="call-state">{LABEL[state] || state}</div>
+      {notice && <div className="banner small call-err">{notice}</div>}
       {err && <div className="banner error small call-err">{err}</div>}
       <div className="call-lines">
         {lines.map((l, i) => (

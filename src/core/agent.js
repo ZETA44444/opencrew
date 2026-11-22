@@ -34,7 +34,7 @@ export function stopBot(botId) {
   return !!c;
 }
 
-function systemPrompt(bot, group) {
+export function systemPrompt(bot, group) {
   const team = getDb().bots.filter((b) => b.id !== bot.id)
     .map((b) => `- ${b.name} (${b.title}) — ${b.description} [modelo: ${b.provider}/${b.model}]`).join('\n');
   return [
