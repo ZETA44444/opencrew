@@ -347,6 +347,10 @@ async function callDemo({ system, messages, tools, onText, signal }) {
   if (mention && has('delegate_to_bot')) {
     return { text: '', toolCalls: [{ id: newId(), name: 'delegate_to_bot', args: { bot_name: mention[1], task: userText.replace(mention[0], '').trim() } }] };
   }
+  const mk = userText.match(/crea(?:r|me)? un bot (?:llamado|que se llame) ([\p{L}\d_-]+)(?:,? (?:que|para) (.+))?/iu);
+  if (mk && has('create_bot')) {
+    return { text: '', toolCalls: [{ id: newId(), name: 'create_bot', args: { name: mk[1], title: 'Asistente', description: mk[2] || 'Bot creado desde el chat', provider: 'demo' } }] };
+  }
   const url = userText.match(/https?:\/\/\S+/);
   if (url && has('fetch_url')) return { text: '', toolCalls: [{ id: newId(), name: 'fetch_url', args: { url: url[0] } }] };
   const rem = userText.match(/^(?:recuerda|remember)(?: que)?[:,]?\s+(.+)/i);

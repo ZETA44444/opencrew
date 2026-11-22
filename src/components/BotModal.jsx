@@ -15,14 +15,17 @@ const TOOL_LABELS = {
   fetch_url: 'Leer páginas web',
   write_artifact: 'Crear archivos',
   get_current_time: 'Ver la hora',
+  create_bot: 'Crear bots nuevos',
+  update_bot: 'Configurar otros bots',
 };
 
 export default function BotModal({ bot, providers, tools, onClose, onSaved, onDeleted }) {
   const isNew = !bot;
   const firstWithKey = providers.find((p) => !p.noKey && p.hasKey);
-  const [f, setF] = useState(() => bot ? { ...bot, tools: bot.tools || tools } : {
+  const MANAGER = ['create_bot', 'update_bot'];
+  const [f, setF] = useState(() => bot ? { ...bot, tools: bot.tools || tools.filter((t) => bot.starred || !MANAGER.includes(t)) } : {
     name: '', title: '', description: '', instructions: '', color: COLORS[1], shape: 'circle',
-    provider: firstWithKey?.id || 'demo', model: firstWithKey?.defaultModel || 'demo', tools, starred: false,
+    provider: firstWithKey?.id || 'demo', model: firstWithKey?.defaultModel || 'demo', tools: tools.filter((t) => !MANAGER.includes(t)), starred: false,
   });
   const [err, setErr] = useState('');
   const set = (patch) => setF((x) => ({ ...x, ...patch }));
