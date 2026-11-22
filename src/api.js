@@ -14,7 +14,7 @@ import { addConnector, refreshConnector, updateConnector, removeConnector } from
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
 import { askPermission, notifyPermission, notify } from './core/notify.js';
 
-const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown', 'connectors', 'monthlyLimit'];
+const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown', 'connectors', 'monthlyLimit', 'delegation', 'autoFallback'];
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled', 'catchUp'];
 const GROUP_FIELDS = ['name', 'memberIds'];
 const SERVICE_KEYS = ['tavily', 'github']; // keys for tools, not for chat models
@@ -77,7 +77,7 @@ export const api = {
 
   async messages(botId) { return clone(messagesOf(botId)); },
 
-  async clear(botId) { db().messages[botId] = []; save(); return { ok: true }; },
+  async clear(botId) { stopBot(botId); db().messages[botId] = []; save(); return { ok: true }; },
 
   async chat(botId, text, attachments = []) {
     const bot = getBot(botId) || getGroup(botId);

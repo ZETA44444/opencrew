@@ -27,7 +27,13 @@ const settings = () => {
 // MCP tools that declare themselves read-only don't need approval; the rest do.
 function isSensitive(name) {
   if (SENSITIVE[name]) return true;
-  if (name.startsWith('mcp_')) return !findConnectorTool(name)?.t.readOnly;
+  if (name.startsWith('mcp_')) {
+    const hit = findConnectorTool(name);
+    if (!hit) return true;
+    if (hit.t.readOnly) return false;
+    // Servers rarely annotate tools: treat clearly read-only names as safe.
+    return !/^(get|list|search|read|fetch|find|query|describe|show|view)[_-]/i.test(hit.t.name);
+  }
   return false;
 }
 
@@ -38,7 +44,7 @@ export function needsApproval(call) {
   return isSensitive(call.name);
 }
 
-export function requestApproval({ call, bot, threadId, label, signal }) {
+export function requestApproval({ call, bot, threadId, label, signal, timeoutMs = 0 }) {
   return new Promise((resolve, reject) => {
     const id = newId();
     const meta = { id, threadId, botId: bot.id, botName: bot.name, tool: call.name, label, args: call.args || {}, at: now() };
@@ -47,6 +53,7 @@ export function requestApproval({ call, bot, threadId, label, signal }) {
     if (signal?.aborted) return onAbort();
     signal?.addEventListener?.('abort', onAbort, { once: true });
     pending.set(id, { meta, resolve: (d) => done(resolve, d) });
+    if (timeoutMs) setTimeout(() => { if (pending.has(id)) done(resolve, 'deny'); }, timeoutMs);
     broadcast({ type: 'approvals', request: meta });
   });
 }

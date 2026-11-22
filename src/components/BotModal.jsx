@@ -43,7 +43,7 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
   const submit = async () => {
     setErr('');
     try {
-      const payload = { name: f.name, title: f.title, description: f.description, instructions: f.instructions, color: f.color, shape: f.shape, provider: f.provider, model: f.model, tools: f.tools, toolsKnown: tools, starred: f.starred, connectors: f.connectors !== false, monthlyLimit: f.monthlyLimit || null };
+      const payload = { name: f.name, title: f.title, description: f.description, instructions: f.instructions, color: f.color, shape: f.shape, provider: f.provider, model: f.model, tools: f.tools, toolsKnown: tools, starred: f.starred, connectors: f.connectors !== false, monthlyLimit: f.monthlyLimit || null, delegation: f.delegation || null, autoFallback: f.autoFallback !== false };
       const saved = isNew ? await api.createBot(payload) : await api.updateBot(bot.id, payload);
       onSaved(saved);
     } catch (e) { setErr(e.message); }
@@ -116,6 +116,14 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
             <input type="number" min="0" step="0.5" placeholder="Sin límite" value={f.monthlyLimit ?? ''} onChange={(e) => set({ monthlyLimit: e.target.value === '' ? null : Number(e.target.value) })} />
           </label>
 
+          <label>Delegación
+            <select value={f.delegation || (f.starred ? 'coordinator' : 'auto')} onChange={(e) => set({ delegation: e.target.value })}>
+              <option value="coordinator">Coordinador: reparte el trabajo a los especialistas y no lo hace él</option>
+              <option value="auto">Automática: delega solo si otro bot encaja claramente mejor</option>
+              <option value="never">Nunca: hace él todas las tareas</option>
+            </select>
+          </label>
+
           <div className="section-title">Herramientas</div>
           <div className="tool-checks">
             {tools.map((t) => (
@@ -124,6 +132,7 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
                 {TOOL_LABELS[t] || t}
               </label>
             ))}
+            <label className="check"><input type="checkbox" checked={f.autoFallback !== false} onChange={(e) => set({ autoFallback: e.target.checked })} /> Si el modelo falla, probar otro automáticamente</label>
             <label className="check"><input type="checkbox" checked={f.connectors !== false} onChange={(e) => set({ connectors: e.target.checked })} /> Usar apps conectadas (MCP)</label>
             <label className="check"><input type="checkbox" checked={!!f.starred} onChange={(e) => set({ starred: e.target.checked })} /> ★ Bot principal</label>
           </div>

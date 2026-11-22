@@ -1,6 +1,6 @@
 // The agent loop: model → tools → model … until the bot gives a final answer.
 import { getBot, getDb, messagesOf, newId, now, save } from './store.js';
-import { callModel, providerById } from './providers.js';
+import { callModel, providerById, fallbackModels, shouldFallBack } from './providers.js';
 import { toolsFor, runTool, describeCall } from './tools.js';
 import { broadcast } from './events.js';
 import { notify } from './notify.js';
@@ -13,12 +13,14 @@ export const busy = new Set();
 const controllers = new Map(); // botId -> AbortController of the run it is working on
 
 // Resolves when the bot/thread is free (or rejects if the run asking for it is stopped).
-export function waitUntilFree(id, signal) {
+export function waitUntilFree(id, signal, timeoutMs = 3 * 60_000) {
   if (!busy.has(id)) return Promise.resolve();
+  const until = Date.now() + timeoutMs;
   return new Promise((resolve, reject) => {
     const t = setInterval(() => {
       if (signal?.aborted) { clearInterval(t); reject(stopped()); }
       else if (!busy.has(id)) { clearInterval(t); resolve(); }
+      else if (Date.now() > until) { clearInterval(t); reject(Object.assign(new Error('timeout'), { busyTimeout: true })); }
     }, 400);
   });
 }
@@ -38,16 +40,43 @@ function systemPrompt(bot, group) {
     bot.instructions && `Instrucciones:\n${bot.instructions}`,
     `Fecha y hora actual: ${new Date().toString()}`,
     bot.memory.length ? `Tu memoria (datos que el usuario te pidió recordar):\n${bot.memory.map((m) => `- ${m}`).join('\n')}` : '',
-    team && `Tu equipo (puedes delegar con delegate_to_bot):\n${team}`,
+    team && !group && delegationPrompt(bot, team),
     group && groupPrompt(bot, group),
     getDb().skills.length ? `Skills del equipo (procesos guardados; si una tarea encaja, lee sus pasos con use_skill y síguelos; si descubres un proceso que se repetirá, guárdalo con save_skill):\n${getDb().skills.map((k) => `- ${k.name}${k.description ? `: ${k.description}` : ''}`).join('\n')}` : '',
     'Responde siempre en el idioma del usuario y usa markdown. Sé conciso.',
   ].filter(Boolean).join('\n\n');
 }
 
+// How hard a bot should push work to its teammates. The main bot (★) is a coordinator by
+// default: it must hand specialised work to the right bot instead of doing it itself.
+const ANSWER_MYSELF = {
+  name: 'responder_yo_mismo',
+  description: 'Úsalo SOLO si ningún bot del equipo es especialista en lo que se pide (saludos, preguntas sobre el equipo, resumir lo ya hecho). Si algún bot encaja, usa delegate_to_bot en su lugar.',
+  parameters: { type: 'object', properties: { motivo: { type: 'string', description: 'Por qué no encaja con ningún bot del equipo' } }, required: ['motivo'] },
+};
+
+export const delegationMode = (bot) => bot.delegation || (bot.starred ? 'coordinator' : 'auto');
+
+function delegationPrompt(bot, team) {
+  const mode = delegationMode(bot);
+  if (mode === 'never') return `Tu equipo (no delegas tareas, las haces tú):\n${team}`;
+  if (mode === 'coordinator') {
+    return [
+      `Tu equipo:\n${team}`,
+      'ERES EL COORDINADOR. Regla más importante: si una tarea encaja con el trabajo de otro bot del equipo, NO la hagas tú.',
+      'Usa delegate_to_bot con ese bot y pásale el encargo completo y todo el contexto (lo que pidió el usuario, para qué es, formato, extensión).',
+      'Ejemplos: escribir un texto, redacción, trabajo o ensayo → al redactor; buscar o investigar información → al investigador; código → al programador.',
+      'Si la tarea tiene varias partes, delega cada parte al bot adecuado (puedes llamar a delegate_to_bot varias veces, por ejemplo primero investigar y luego redactar con lo investigado) y al final une y resume los resultados.',
+      'Solo respondes tú directamente cuando es un saludo, una pregunta sobre el equipo o la app, organizar o resumir lo que ya han hecho otros, o una tarea que no encaja con nadie.',
+      'Antes de responder piensa: ¿qué bot del equipo es el especialista en esto? Si existe, delega.',
+    ].join('\n');
+  }
+  return `Tu equipo (si una tarea encaja claramente mejor con otro bot, delégala con delegate_to_bot en vez de hacerla tú):\n${team}`;
+}
+
 // Runs one bot. Normally in its own chat (threadId = botId). In a group chat, the group runner
 // passes `group` + `convo` (the shared transcript) and manages busy/stop for the whole group.
-export async function runAgent({ botId, input, attachments = [], from = null, source = 'user', depth = 0, runId = newId(), emit = broadcast, controller = new AbortController(), group = null, convo: groupConvo = null }) {
+export async function runAgent({ botId, input, attachments = [], chain = [], from = null, source = 'user', depth = 0, runId = newId(), emit = broadcast, controller = new AbortController(), group = null, convo: groupConvo = null }) {
   const bot = getBot(botId);
   if (!bot) throw new Error('Bot no encontrado');
   const threadId = group ? group.id : botId;
@@ -81,13 +110,16 @@ export async function runAgent({ botId, input, attachments = [], from = null, so
   };
   const update = (s, patch) => { Object.assign(s, patch); emit({ type: 'step', step: s }); };
 
-  const ctx = { bot, depth, runId, emit, runAgent, controller, signal, waitUntilFree, isBusy: (id) => busy.has(id) };
+  // chain = bots already waiting in this task (to never delegate back up the chain and deadlock)
+  const ctx = { bot, depth, runId, emit, runAgent, controller, signal, waitUntilFree, isBusy: (id) => busy.has(id), chain: [...chain, bot.id] };
   const tools = toolsFor(bot, depth);
   const label = `${providerById(bot.provider)?.label || bot.provider} · ${bot.model}`;
   let final = null;
   let error = null;
   let partial = '';
   const spent = { input: 0, output: 0, cost: 0 }; // this answer's own model calls
+  let lastModel = null; // the model that actually answered (may differ after a fallback)
+  let sticky = null; // once a model failed in this answer, keep using the one that worked
 
   try {
     for (let i = 0; i < MAX_STEPS && final === null; i++) {
@@ -103,16 +135,54 @@ export async function runAgent({ botId, input, attachments = [], from = null, so
         partial += delta;
         emit({ type: 'delta', botId: threadId, speaker: botId, runId, text: delta });
       };
-      const res = await callModel({ providerId: bot.provider, model: bot.model, system: systemPrompt(bot, group), messages: convo, tools, onText, signal });
-      update(thinking, { status: 'done', label: `Pensando (${label})`, ms: Date.now() - t0 });
+      // Coordinator, first step: it must decide explicitly — delegate, or say why it answers itself.
+      const decide = i === 0 && depth === 0 && !group && delegationMode(bot) === 'coordinator' && tools.some((t) => t.name === 'delegate_to_bot');
+      const callArgs = { system: systemPrompt(bot, group), messages: convo, signal, tools: decide ? [...tools, ANSWER_MYSELF] : tools, forceTool: decide };
+      let used = sticky || { provider: bot.provider, model: bot.model };
+      let res;
+      try {
+        try {
+          res = await callModel({ providerId: used.provider, model: used.model, onText, ...callArgs });
+        } catch (e) {
+          // Some models (many Ollama/OpenRouter ones) don't support forced tool use: ask normally.
+          if (!callArgs.forceTool || ![400, 422].includes(e.status)) throw e;
+          Object.assign(callArgs, { forceTool: false, tools });
+          res = await callModel({ providerId: used.provider, model: used.model, onText, ...callArgs });
+        }
+      } catch (e) {
+        // Overloaded / rate-limited / retired model: try other models automatically.
+        if (bot.autoFallback === false || !shouldFallBack(e)) throw e;
+        let lastErr = e;
+        for (const alt of fallbackModels(bot.provider, bot.model, { otherProvidersOnly: [401, 403].includes(e.status) })) {
+          if (signal.aborted) throw stopped();
+          step({ kind: 'note', label: `${used.model} no responde (${lastErr.status || 'sin conexión'}) → probando ${alt.provider}/${alt.model}`, status: 'done' });
+          used = alt;
+          partial = '';
+          emit({ type: 'draft', botId: threadId, speaker: botId, runId, text: '' }); // drop the half-written text
+          try { res = await callModel({ providerId: alt.provider, model: alt.model, onText, ...callArgs }); sticky = alt; break; } catch (e2) {
+            lastErr = e2;
+            if (!shouldFallBack(e2)) throw e2;
+          }
+        }
+        if (!res) throw lastErr;
+      }
+      lastModel = `${used.provider}/${used.model}`;
+      update(thinking, { status: 'done', label: `Pensando (${lastModel === `${bot.provider}/${bot.model}` ? label : lastModel})`, ms: Date.now() - t0 });
       if (res.usage) {
         spent.input += res.usage.input || 0;
         spent.output += res.usage.output || 0;
-        spent.cost += recordUsage({ botId: bot.id, provider: bot.provider, model: bot.model, input: res.usage.input, output: res.usage.output });
+        spent.cost += recordUsage({ botId: bot.id, provider: used.provider, model: used.model, input: res.usage.input, output: res.usage.output });
       }
 
       if (!res.toolCalls.length) { final = res.text || '(sin respuesta)'; break; }
       convo.push({ role: 'assistant', content: res.text, toolCalls: res.toolCalls, raw: res.raw });
+      // "I'll answer myself": acknowledge and let it answer on the next step.
+      const own = res.toolCalls.filter((c) => c.name === ANSWER_MYSELF.name);
+      for (const c of own) {
+        step({ kind: 'note', label: `Responde él mismo: ${c.args?.motivo || 'no encaja con nadie del equipo'}`, status: 'done' });
+        convo.push({ role: 'tool', toolCallId: c.id, name: c.name, content: 'De acuerdo. Responde ahora directamente al usuario.' });
+      }
+      res.toolCalls = res.toolCalls.filter((c) => c.name !== ANSWER_MYSELF.name);
       if (res.text) step({ kind: 'note', label: res.text.slice(0, 200), status: 'done' });
 
       for (const call of res.toolCalls) {
@@ -126,7 +196,8 @@ export async function runAgent({ botId, input, attachments = [], from = null, so
             if (typeof document !== 'undefined' && document.hidden) {
               notify({ kind: 'routine', threadId, title: `🔐 ${bot.name} necesita tu permiso`, body: describeCall(call) });
             }
-            const decision = await requestApproval({ call, bot, threadId, label: describeCall(call), signal });
+            // Unattended routines don't wait forever: no answer in 30 min = denied.
+            const decision = await requestApproval({ call, bot, threadId, label: describeCall(call), signal, timeoutMs: source === 'routine' ? 30 * 60_000 : 0 });
             if (decision === 'deny') {
               out = 'El usuario NO ha dado permiso para esta acción. No la hagas ni la intentes de otra forma; díselo y sigue con lo demás.';
               update(s, { status: 'error', label: `${describeCall(call)} — denegado`, waiting: false, detail: 'Denegado por ti' });
@@ -170,9 +241,10 @@ export async function runAgent({ botId, input, attachments = [], from = null, so
     // The bot (or group) was deleted while working: don't bring its conversation back.
     return { id: newId(), role: 'assistant', botId, content: final, steps, stopped: true, error: !!error };
   }
-  const reply = { id: newId(), role: 'assistant', botId, content: final, steps, usage: spent.input || spent.output ? spent : undefined, stopped: signal.aborted, model: `${bot.provider}/${bot.model}`, error: !!error, source, createdAt: now() };
-  thread.push(reply);
-  if (thread.length > 500) thread.splice(0, thread.length - 500);
+  const reply = { id: newId(), role: 'assistant', botId, content: final, steps, usage: spent.input || spent.output ? spent : undefined, stopped: signal.aborted, model: lastModel || `${bot.provider}/${bot.model}`, error: !!error, source, createdAt: now() };
+  const live = messagesOf(threadId); // not `thread`: the chat may have been cleared meanwhile
+  live.push(reply);
+  if (live.length > 500) live.splice(0, live.length - 500);
   save();
   emit({ type: 'message', botId: threadId, message: reply });
   // Let you know when a bot answers while you're in another tab (routines notify on their own).

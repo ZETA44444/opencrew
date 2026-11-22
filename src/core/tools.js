@@ -82,12 +82,12 @@ function htmlToText(html) {
 
 const ALL_TOOLS = {
   delegate_to_bot: {
-    description: 'Delega una tarea a otro bot del equipo y espera su respuesta. Úsalo cuando otro bot sea más adecuado para la tarea.',
+    description: 'Encarga una tarea al bot especialista del equipo y espera su resultado. Úsalo siempre que otro bot sea el especialista en lo que se pide (redactar, investigar, programar…). Pásale el encargo completo con todo el contexto, porque él no ve esta conversación.',
     parameters: {
       type: 'object',
       properties: {
         bot_name: { type: 'string', description: 'Nombre exacto del bot del equipo' },
-        task: { type: 'string', description: 'La tarea, con todo el contexto que necesite' },
+        task: { type: 'string', description: 'El encargo completo: qué hacer, para qué, formato, extensión y todo el contexto del usuario (el otro bot no ve esta conversación)' },
       },
       required: ['bot_name', 'task'],
     },
@@ -95,9 +95,16 @@ const ALL_TOOLS = {
       const target = findBotByName(bot_name);
       if (!target) return `No existe ningún bot llamado "${bot_name}". Bots disponibles: ${getDb().bots.map((b) => b.name).join(', ')}`;
       if (target.id === ctx.bot.id) return 'No puedes delegarte una tarea a ti mismo.';
+      // Delegating back to a bot that is already waiting in this task would deadlock.
+      if (ctx.chain?.includes(target.id)) return `No puedes delegar a ${target.name}: está esperando tu resultado en esta misma tarea. Hazlo tú o responde con lo que tengas.`;
       // Never run two jobs at once on the same bot: wait until it finishes what it's doing.
-      if (ctx.isBusy(target.id)) await ctx.waitUntilFree(target.id, ctx.signal);
-      const reply = await ctx.runAgent({ botId: target.id, input: task, from: ctx.bot.name, depth: ctx.depth + 1, runId: ctx.runId, emit: ctx.emit, controller: ctx.controller });
+      if (ctx.isBusy(target.id)) {
+        try { await ctx.waitUntilFree(target.id, ctx.signal); } catch (e) {
+          if (e.busyTimeout) return `${target.name} lleva más de 3 minutos ocupado con otra tarea. Inténtalo más tarde o hazlo tú.`;
+          throw e;
+        }
+      }
+      const reply = await ctx.runAgent({ botId: target.id, input: task, from: ctx.bot.name, depth: ctx.depth + 1, runId: ctx.runId, emit: ctx.emit, controller: ctx.controller, chain: ctx.chain });
       if (reply.stopped) throw new Error('Detenido');
       return `Respuesta de ${target.name} (${target.provider}/${target.model}):\n${reply.content}`;
     },

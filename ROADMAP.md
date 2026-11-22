@@ -67,11 +67,63 @@ Reglas para cada tarea:
 - [x] Uso y coste estimado por bot y por modelo
 - [x] Límite de gasto mensual por bot
 
-## Fase 7 — Servidor opcional 24/7 (para lo que el navegador no puede hacer)
+## Fase 7 — Fiabilidad y control del gasto (en el navegador)
 
-> ⏸ **Pendiente de tu decisión**: estas tareas necesitan un ordenador o servidor encendido siempre (tu Mac, un VPS, Railway/Render/Fly…). Elige dónde quieres alojarlo y la construyo.
+> Primero lo que hace que todo lo demás funcione bien y no gaste de más.
+
+- [x] Delegación de verdad: el bot principal es «coordinador», reparte a los especialistas y no hace él las tareas (decisión obligatoria en su primer paso)
+- [x] Cambio automático de modelo si el elegido está saturado, retirado o sin clave (primero el más barato del mismo proveedor, luego otros proveedores)
+- [ ] **Bot «Tesorero» incluido desde el inicio**: vigila tu gasto por bot y modelo, límites, avisos y errores de cuota; recomienda modelos más baratos.
+      Detecta lo que cada proveedor deja ver con una clave normal (OpenRouter: saldo y límite de la clave; Gemini/Claude/OpenAI: errores de cuota y límites de uso). Google, Anthropic y OpenAI no muestran tu plan de suscripción a una API key normal, así que eso se estima.
+- [ ] **Modelo «Automático» (enrutamiento inteligente)**: opción por bot para que elija solo el modelo más barato que sirve para cada tarea, entre las claves que tienes
+- [ ] Panel de salud de modelos: qué modelos fallan o se saturan y cuál se usó en su lugar
+
+## Fase 8 — Proyectos y memoria compartida
+
+> Base para la memoria entre bots y, más adelante, para las salas multijugador.
+
+- [ ] Proyectos: agrupan bots, chats, archivos y rutinas
+- [ ] Memoria del proyecto: lo que le cuentas a un bot lo saben los demás bots del mismo proyecto
+- [ ] Memorias con permisos: individual, de proyecto o global; memorias privadas que solo ve un bot (p. ej. las de compras no las ve el de correo)
+- [ ] Memoria automática: al terminar una conversación el bot propone qué recordar y tú lo apruebas
+
+## Fase 9 — Disparadores por eventos (sin gastar tokens esperando)
+
+> Que los bots trabajen cuando pasa algo, no revisando cada X minutos.
+
+- [ ] Vigilantes sin IA: comprueban cada poco si hay algo nuevo (GitHub, una web, un RSS, correo cuando haya Gmail) **sin usar el modelo**, y solo despiertan al bot si hay novedades
+- [ ] Filtros: «solo si el correo es de X» o «solo issues con la etiqueta bug»
+- [ ] Webhooks de verdad (aviso instantáneo de Gmail, Slack, GitHub) → necesitan el servidor de la Fase 11
+
+## Fase 10 — Llamadas de voz en tiempo real
+
+- [ ] Llamada en tiempo real con un bot (voz a voz, con tu clave de Gemini u OpenAI)
+- [ ] Llamada de grupo con varios bots, cada uno con su voz; el coordinador reparte el trabajo
+- [ ] Encargos por voz que se hacen en segundo plano y te avisan al terminar
+
+## Fase 11 — Servidor opcional 24/7
+
+> ⏸ **Pendiente de tu decisión**: necesita algo encendido siempre (tu Mac, un VPS, Railway/Render/Fly…).
 
 - [ ] Servidor Node/Docker que reutiliza el mismo núcleo
-- [ ] Rutinas siempre activas aunque cierres el navegador
-- [ ] Disparadores por webhook (Slack, GitHub…)
+- [ ] Rutinas y vigilantes siempre activos aunque cierres el navegador
+- [ ] Webhooks (Gmail, Slack, GitHub) y conectores que no funcionan desde el navegador (Notion)
 - [ ] Ordenador por bot en Docker (navegador y terminal)
+
+## Fase 12 — Control de tu navegador y tu ordenador (con permisos)
+
+- [ ] Extensión de navegador de OpenCrew: el bot puede leer y actuar en tus pestañas, pidiendo permiso por acción
+- [ ] App de escritorio con acceso a archivos y terminal, con permisos por bot y por carpeta
+- [ ] Registro de todo lo que ha hecho cada bot en tu equipo
+
+## Fase 13 — Cuentas y salas multijugador (requiere servidor)
+
+- [ ] Cuentas de usuario y sincronización entre dispositivos
+- [ ] Salas de proyecto: invitar a otras personas y a sus bots para trabajar juntos
+- [ ] Permisos por rol en la sala (quién puede usar qué bot, qué memoria ve cada uno)
+
+## Fase 14 — Monetización
+
+- [ ] Suscripción con créditos incluidos (sin necesidad de API keys propias); usar tus propias claves sigue siendo gratis
+- [ ] Enrutamiento inteligente en el servidor para suscriptores: el modelo más barato que sirve para cada tarea
+- [ ] Planes, límites por plan y panel de administración

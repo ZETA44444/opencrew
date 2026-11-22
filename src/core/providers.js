@@ -116,7 +116,7 @@ async function request(url, headers, body, label, signal, attempts = 3) {
       if (signal?.aborted) throw abortError();
       if (i < attempts) { await sleep(2000 * i); continue; }
       const local = /localhost|127\.0\.0\.1/.test(url);
-      throw new Error(`${label}: sin respuesta (${e.name === 'TimeoutError' ? 'tardó demasiado' : e.message}).${local ? ' ¿Está Ollama abierto? Arráncalo con OLLAMA_ORIGINS="*" ollama serve' : ' Prueba otro modelo.'}`);
+      throw Object.assign(new Error(`${label}: sin respuesta (${e.name === 'TimeoutError' ? 'tardó demasiado' : e.message}).${local ? ' ¿Está Ollama abierto? Arráncalo con OLLAMA_ORIGINS="*" ollama serve' : ' Prueba otro modelo.'}`), { status: 0 });
     }
     if (res.ok) return res;
     const text = await res.text();
@@ -129,7 +129,7 @@ async function request(url, headers, body, label, signal, attempts = 3) {
       : res.status === 429 ? ' → Has llegado al límite de uso de tu clave. Espera un poco o usa otro modelo.'
       : res.status === 404 ? ' → Ese modelo ya no existe. Elige otro en el selector de modelo.'
       : res.status === 401 || res.status === 403 ? ' → La API key no es válida o no tiene permiso. Revísala en Ajustes.' : '';
-    throw new Error(`${label} ${res.status}: ${msg}${hint}`);
+    throw Object.assign(new Error(`${label} ${res.status}: ${msg}${hint}`), { status: res.status });
   }
 }
 
@@ -185,7 +185,7 @@ const media = (m) => (m.attachments || []).filter((a) => a.dataUrl && (a.kind ==
 const parseArgs = (s) => { try { return JSON.parse(s || '{}'); } catch { return {}; } };
 
 // ---------- Anthropic ----------
-async function callAnthropic({ model, apiKey, system, messages, tools, onText, signal }) {
+async function callAnthropic({ model, apiKey, system, messages, tools, onText, signal, forceTool }) {
   const out = [];
   for (const m of normalize(messages)) {
     if (m.role === 'user') {
@@ -217,6 +217,7 @@ async function callAnthropic({ model, apiKey, system, messages, tools, onText, s
     {
       model, max_tokens: 8192, system, messages: out, stream: true,
       ...(tools.length && { tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })) }),
+      ...(tools.length && forceTool && { tool_choice: { type: 'any' } }),
     }, 'Anthropic', signal);
   let text = '';
   const blocks = {};
@@ -232,14 +233,14 @@ async function callAnthropic({ model, apiKey, system, messages, tools, onText, s
       if (ev.delta.type === 'text_delta') { text += ev.delta.text; onText?.(ev.delta.text); }
       else if (ev.delta.type === 'input_json_delta' && blocks[ev.index]) blocks[ev.index].json += ev.delta.partial_json;
     } else if (ev.type === 'message_delta') usage.output = ev.usage?.output_tokens || usage.output;
-    else if (ev.type === 'error') throw new Error(`Anthropic: ${ev.error?.message || 'error en el streaming'}`);
+    else if (ev.type === 'error') throw Object.assign(new Error(`Anthropic: ${ev.error?.message || 'error en el streaming'}`), { status: ev.error?.type === 'overloaded_error' ? 529 : ev.error?.type === 'rate_limit_error' ? 429 : 500 });
   }
   const toolCalls = Object.values(blocks).map((b) => ({ id: b.id, name: b.name, args: parseArgs(b.json) }));
   return { text, toolCalls, usage };
 }
 
 // ---------- OpenAI-compatible (OpenAI, xAI, OpenRouter, Ollama) ----------
-async function callOpenAI({ provider, model, apiKey, system, messages, tools, onText, signal }) {
+async function callOpenAI({ provider, model, apiKey, system, messages, tools, onText, signal, forceTool }) {
   const out = [{ role: 'system', content: system }];
   for (const m of normalize(messages)) {
     if (m.role === 'user') {
@@ -266,12 +267,13 @@ async function callOpenAI({ provider, model, apiKey, system, messages, tools, on
   const res = await request(`${provider.baseUrl}/chat/completions`, headers, {
     model, messages: out, stream: true, stream_options: { include_usage: true },
     ...(tools.length && { tools: tools.map((t) => ({ type: 'function', function: t })) }),
+    ...(tools.length && forceTool && { tool_choice: 'required' }),
   }, provider.label, signal);
   let text = '';
   const calls = [];
   let usage;
   for await (const ev of sse(res, signal)) {
-    if (ev.error) throw new Error(`${provider.label}: ${ev.error.message || 'error en el streaming'}`);
+    if (ev.error) throw Object.assign(new Error(`${provider.label}: ${ev.error.message || 'error en el streaming'}`), { status: Number(ev.error.code) || 503 });
     const delta = ev.choices?.[0]?.delta || {};
     if (delta.content) { text += delta.content; onText?.(delta.content); }
     for (const tc of delta.tool_calls || []) {
@@ -312,7 +314,7 @@ function geminiSchema(s) {
   return o;
 }
 
-async function callGemini({ model, apiKey, system, messages, tools, onText, signal }) {
+async function callGemini({ model, apiKey, system, messages, tools, onText, signal, forceTool }) {
   const contents = [];
   for (const m of normalize(messages)) {
     if (m.role === 'user') {
@@ -340,12 +342,13 @@ async function callGemini({ model, apiKey, system, messages, tools, onText, sign
     systemInstruction: { parts: [{ text: system }] },
     contents,
     ...(tools.length && { tools: [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description, parameters: geminiSchema(t.parameters) })) }] }),
+    ...(tools.length && forceTool && { toolConfig: { functionCallingConfig: { mode: 'ANY' } } }),
   }, 'Gemini', signal);
   const parts = [];
   let usage;
   let blocked;
   for await (const ev of sse(res, signal)) {
-    if (ev.error) throw new Error(`Gemini: ${ev.error.message}`);
+    if (ev.error) throw Object.assign(new Error(`Gemini: ${ev.error.message}`), { status: Number(ev.error.code) || 503 });
     for (const p of ev.candidates?.[0]?.content?.parts || []) {
       parts.push(p);
       if (p.text && !p.thought) onText?.(p.text);
@@ -444,13 +447,30 @@ async function callDemo({ system, messages, tools, onText, signal }) {
     onText, signal);
 }
 
+// When a model is overloaded, rate-limited, retired or not answering, these are tried next:
+// other models of the same provider first, then the default model of other providers you have a key for.
+export function fallbackModels(providerId, model, { otherProvidersOnly = false } = {}) {
+  const out = [];
+  if (otherProvidersOnly) model = null;
+  const same = modelsOf(providerId).filter((m) => m !== model);
+  // Cheapest/most available first.
+  const pref = [/flash-lite-latest/, /flash-latest/, /lite|mini|haiku|fast|nano/, /-latest$/, /./];
+  if (!otherProvidersOnly) for (const re of pref) for (const m of same) if (re.test(m) && !out.some((o) => o.model === m) && out.length < 2) out.push({ provider: providerId, model: m });
+  for (const p of PROVIDERS) {
+    if (p.id === providerId || p.noKey || !getKey(p.id)) continue;
+    out.push({ provider: p.id, model: defaultModel(p.id) });
+  }
+  return out.slice(0, 4);
+}
+export const shouldFallBack = (e) => !!e && e.name !== 'AbortError' && [0, 401, 403, 404, 408, 429, 500, 502, 503, 504, 529].includes(e.status);
+
 // onText(delta) is called as text arrives; signal (AbortSignal) stops the call.
-export async function callModel({ providerId, model, system, messages, tools, onText, signal }) {
+export async function callModel({ providerId, model, system, messages, tools, onText, signal, forceTool = false }) {
   const provider = providerById(providerId);
   if (!provider) throw new Error(`Proveedor desconocido: ${providerId}`);
   const apiKey = getKey(providerId);
-  if (!provider.noKey && !apiKey) throw new Error(`Falta la API key de ${provider.label}. Añádela en Ajustes y claves.`);
-  const args = { provider, model, apiKey, system, messages, tools, onText, signal };
+  if (!provider.noKey && !apiKey) throw Object.assign(new Error(`Falta la API key de ${provider.label}. Añádela en Ajustes y claves.`), { status: 401 });
+  const args = { provider, model, apiKey, system, messages, tools, onText, signal, forceTool };
   switch (provider.kind) {
     case 'anthropic': return callAnthropic(args);
     case 'gemini': return callGemini(args);
