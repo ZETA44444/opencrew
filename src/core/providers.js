@@ -358,6 +358,8 @@ async function callDemo({ system, messages, tools, onText, signal }) {
   if (sk && has('save_skill')) return { text: '', toolCalls: [{ id: newId(), name: 'save_skill', args: { name: sk[1].trim(), description: 'Guardada desde el chat', steps: sk[2].trim() } }] };
   const us = userText.match(/usa (?:la )?skill «?([^»]+?)»?$/i);
   if (us && has('use_skill')) return { text: '', toolCalls: [{ id: newId(), name: 'use_skill', args: { name: us[1].trim() } }] };
+  const im = userText.match(/^(?:genera|dibuja|crea)(?:me)? (?:una )?imagen (?:de |con )?(.+)/i);
+  if (im && has('generate_image')) return { text: '', toolCalls: [{ id: newId(), name: 'generate_image', args: { prompt: im[1] } }] };
   const js = userText.match(/^(?:ejecuta|run)(?: este código)?:\s*([\s\S]+)/i);
   if (js && has('run_javascript')) return { text: '', toolCalls: [{ id: newId(), name: 'run_javascript', args: { code: js[1] } }] };
   const se = userText.match(/^(?:busca|buscar|search)(?: en internet)?:?\s+(.+)/i);

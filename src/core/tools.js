@@ -5,6 +5,7 @@ import { broadcast } from './events.js';
 import { computeNext } from './routines.js';
 import { webSearch } from './search.js';
 import { runJavaScript, formatRun } from './sandbox.js';
+import { generateImage } from './images.js';
 
 const PALETTE = ['#7dd3fc', '#fca5a5', '#86efac', '#fcd34d', '#c4b5fd', '#f9a8d4', '#fdba74', '#e5e5e5'];
 const SHAPES = ['circle', 'square', 'diamond', 'hexagon', 'triangle'];
@@ -110,6 +111,30 @@ const ALL_TOOLS = {
     description: 'Busca en internet información actual (noticias, precios, datos, documentación). Devuelve un resumen y las fuentes con sus URLs; luego puedes leer una fuente con fetch_url.',
     parameters: { type: 'object', properties: { query: { type: 'string', description: 'Qué buscar, como lo escribirías en Google' } }, required: ['query'] },
     async run({ query }) { return webSearch(query); },
+  },
+  generate_image: {
+    description: 'Genera una imagen a partir de una descripción (ilustraciones, portadas, logos, fotos de producto…). La imagen se guarda en Archivos y se muestra en el chat.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', description: 'Descripción detallada de la imagen: tema, estilo, colores, composición' },
+        filename: { type: 'string', description: 'Nombre corto para el archivo, sin extensión (opcional)' },
+      },
+      required: ['prompt'],
+    },
+    async run({ prompt, filename }, ctx) {
+      const img = await generateImage(String(prompt), { demoMode: ctx.bot.provider === 'demo' });
+      const ext = (img.dataUrl.match(/^data:image\/([\w+]+)/)?.[1] || 'png').replace('svg+xml', 'svg').replace('jpeg', 'jpg');
+      const base = safeName(filename || String(prompt).slice(0, 40)).replace(/\.[^.]*$/, '').replace(/\s+/g, '-').toLowerCase() || 'imagen';
+      const name = `${base}.${ext}`;
+      const list = artifactsOf(ctx.bot.id);
+      const existing = list.find((a) => a.name === name);
+      if (existing) Object.assign(existing, { content: img.dataUrl, updatedAt: now() });
+      else list.unshift({ name, content: img.dataUrl, updatedAt: now() });
+      save();
+      ctx.emit({ type: 'artifacts', botId: ctx.bot.id });
+      return `Archivo guardado: ${name} (imagen generada con ${img.via}). Ya se ve en el chat; no hace falta describirla entera.`;
+    },
   },
   run_javascript: {
     description: 'Ejecuta código JavaScript en un sandbox aislado (sin internet ni acceso a la app, máx. 10 s). Úsalo para cálculos exactos, procesar datos, fechas o comprobar código. Muestra resultados con console.log o con return.',
@@ -349,6 +374,7 @@ export function describeCall(call) {
     case 'save_memory': return 'Guardando en memoria';
     case 'fetch_url': return `Leyendo ${a.url}`;
     case 'run_javascript': return 'Ejecutando código';
+    case 'generate_image': return 'Generando una imagen';
     case 'web_search': return `Buscando «${a.query}»`;
     case 'write_artifact': return `Creando ${a.filename}`;
     case 'get_current_time': return 'Mirando la hora';

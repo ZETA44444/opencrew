@@ -44,7 +44,7 @@ Reglas para cada tarea:
 - [x] Búsqueda en internet (Gemini con Google Search, Claude con web search, o Tavily)
 - [x] Ejecutar código JavaScript en un sandbox (cálculos, datos)
 - [x] Páginas y dashboards: los artefactos HTML se ven dentro de la app
-- [ ] Generar imágenes (Gemini / OpenAI)
+- [x] Generar imágenes (Gemini / OpenAI)
 - [ ] Voz: dictar mensajes y escuchar las respuestas
 - [ ] Adjuntar archivos e imágenes al chat
 

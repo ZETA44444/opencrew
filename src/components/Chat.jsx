@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Avatar, { GroupAvatar } from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
+import { api } from '../api.js';
 
 export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, missed = [], botsById = {}, onResolveMissed, onOpenArtifact, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
@@ -233,7 +234,7 @@ function Message({ m, bot, showName, onShowSteps, onOpenArtifact, canRetry, canE
   const tools = (m.steps || []).filter((s) => s.kind === 'tool').length;
   // Files this answer created, so you can open them right from the chat.
   const files = [...new Map((m.steps || [])
-    .filter((s) => s.tool === 'write_artifact' && s.status === 'done')
+    .filter((s) => (s.tool === 'write_artifact' || s.tool === 'generate_image') && s.status === 'done')
     .map((s) => [s.detail?.match(/Archivo guardado: (.+?) \(/)?.[1] || s.args?.filename, s.botId])).entries()]
     .filter(([n]) => n);
   return (
@@ -244,8 +245,9 @@ function Message({ m, bot, showName, onShowSteps, onOpenArtifact, canRetry, canE
         <Markdown text={m.content} />
         {files.length > 0 && (
           <div className="file-chips">
-            {files.map(([name, botId]) => (
-              <button key={name} className="file-chip" onClick={() => onOpenArtifact(botId, name)}>
+            {files.map(([name, botId]) => (/\.(png|jpe?g|webp|gif|svg)$/i.test(name)
+              ? <ImageThumb key={name} botId={botId} name={name} onOpen={() => onOpenArtifact(botId, name)} />
+              : <button key={name} className="file-chip" onClick={() => onOpenArtifact(botId, name)}>
                 <span className="file-chip-icon">{/\.html?$/i.test(name) ? '◧' : '▤'}</span>{name}
               </button>
             ))}
@@ -261,5 +263,16 @@ function Message({ m, bot, showName, onShowSteps, onOpenArtifact, canRetry, canE
         </div>
       </div>
     </div>
+  );
+}
+
+// Generated images are shown right in the chat.
+function ImageThumb({ botId, name, onOpen }) {
+  const [src, setSrc] = useState(null);
+  useEffect(() => { api.getArtifact(botId, name).then((a) => setSrc(/^data:image\//.test(a.content) ? a.content : null)); }, [botId, name]);
+  return (
+    <button className="image-thumb" onClick={onOpen} title={name}>
+      {src ? <img src={src} alt={name} /> : <span className="muted small">{name}</span>}
+    </button>
   );
 }

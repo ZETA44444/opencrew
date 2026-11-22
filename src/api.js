@@ -237,8 +237,16 @@ export const api = {
   openArtifact(botId, name, download = false) {
     const a = artifactsOf(botId).find((x) => x.name === name);
     if (!a) return;
-    // Always plain text: an HTML file written by a bot must never run with access to your keys.
-    const url = URL.createObjectURL(new Blob([a.content], { type: 'text/plain;charset=utf-8' }));
+    // Images are stored as data URLs; everything else is downloaded/opened as plain text,
+    // so an HTML file written by a bot never runs with access to your keys.
+    let blob;
+    const m = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(a.content);
+    if (m && m[1].startsWith('image/')) {
+      const bytes = m[2] ? Uint8Array.from(atob(m[3]), (c) => c.charCodeAt(0)) : new TextEncoder().encode(decodeURIComponent(m[3]));
+      blob = new Blob([bytes], { type: download ? m[1] : 'text/plain' });
+      if (!download) { download = true; } // never open bot-made SVG as a page
+    } else blob = new Blob([a.content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     if (download) link.download = a.name; else link.target = '_blank';

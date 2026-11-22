@@ -9,6 +9,7 @@ const TOOL_LABELS = {
   fetch_url: 'Leer páginas web',
   web_search: 'Buscar en internet',
   run_javascript: 'Ejecutar código (sandbox)',
+  generate_image: 'Generar imágenes',
   write_artifact: 'Crear archivos',
   get_current_time: 'Ver la hora',
   save_skill: 'Guardar skills',

@@ -34,12 +34,14 @@ export default function ArtifactViewer({ botId, name, onClose }) {
   useEffect(() => { api.getArtifact(botId, name).then(setFile); }, [botId, name]);
 
   const kind = ext(name);
-  const canPreview = ['html', 'htm', 'md', 'markdown', 'csv', 'tsv', 'json', 'svg'].includes(kind);
   const content = file?.content ?? '';
+  const isImage = /^data:image\//.test(content);
+  const canPreview = isImage || ['html', 'htm', 'md', 'markdown', 'csv', 'tsv', 'json', 'svg'].includes(kind);
 
   let body;
   if (!file) body = <div className="muted">Cargando…</div>;
-  else if (mode === 'code' || !canPreview) body = <pre className="artifact-code">{content}</pre>;
+  else if (isImage && mode !== 'code') body = <div className="artifact-image"><img src={content} alt={name} /></div>;
+  else if (mode === 'code' || !canPreview) body = <pre className="artifact-code">{isImage ? `${content.slice(0, 200)}…` : content}</pre>;
   else if (kind === 'html' || kind === 'htm') body = <HtmlPreview html={content} />;
   else if (kind === 'svg') body = <HtmlPreview html={`<body style="margin:0;display:grid;place-items:center;min-height:100vh;background:#fff">${content}</body>`} />;
   else if (kind === 'md' || kind === 'markdown') body = <div className="artifact-md"><Markdown text={content} /></div>;
