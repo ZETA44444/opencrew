@@ -26,6 +26,7 @@ export default function App() {
   const [queued, setQueued] = useState([]);
   const [memProposals, setMemProposals] = useState([]);
   const [call, setCall] = useState(false);
+  const [toasts, setToasts] = useState([]);
   const [viewer, setViewer] = useState(null); // { botId, name } of the open file
   const [projectId, setProjectId] = useState(() => localStorageGet('oc.project') || ''); // queued messages of the selected bot
   const [modal, setModal] = useState(null); // {type:'bot', bot?} | {type:'settings'}
@@ -52,6 +53,17 @@ export default function App() {
     api.queue(selectedId).then(setQueued).catch(console.error);
     api.memoryProposals(selectedId).then(setMemProposals).catch(console.error);
   }, [selectedId]);
+
+  // In-app notices (e.g. a voice task finished in the background).
+  useEffect(() => {
+    const add = (e) => {
+      const t = { id: Math.random().toString(36).slice(2), ...e.detail };
+      setToasts((ts) => [...ts, t].slice(-3));
+      setTimeout(() => setToasts((ts) => ts.filter((x) => x.id !== t.id)), 12_000);
+    };
+    window.addEventListener('oc-toast', add);
+    return () => window.removeEventListener('oc-toast', add);
+  }, []);
 
   // Clicking a notification opens that chat.
   useEffect(() => {
@@ -220,6 +232,15 @@ export default function App() {
         />
       )}
       {call && bot && <CallOverlay bot={bot} rate={state.settings.voice?.rate || 1} native={state.settings.voice?.native === 'gemini'} onClose={() => setCall(false)} />}
+      {toasts.length > 0 && (
+        <div className="toasts" role="status">
+          {toasts.map((t) => (
+            <button key={t.id} className="toast" onClick={() => { if (t.threadId) setSelectedId(t.threadId); setToasts((ts) => ts.filter((x) => x.id !== t.id)); }}>
+              <b>{t.title}</b>{t.body && <span className="muted small">{t.body}</span>}
+            </button>
+          ))}
+        </div>
+      )}
       {viewer && <ArtifactViewer botId={viewer.botId} name={viewer.name} onClose={() => setViewer(null)} />}
       {modal?.type === 'project' && (
         <ProjectModal

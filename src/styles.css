@@ -501,3 +501,9 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .call-btn { width: 60px; height: 60px; border-radius: 50%; background: var(--bg-3); border: 1px solid var(--line-2); display: grid; place-items: center; font-size: 22px; }
 .call-btn.hang { width: 70px; height: 70px; background: #ef4444; border-color: #ef4444; color: #fff; }
 .call-hint { text-align: center; }
+
+/* In-app notices */
+.toasts { position: fixed; right: 16px; bottom: 16px; z-index: 120; display: flex; flex-direction: column; gap: 8px; max-width: min(360px, calc(100vw - 32px)); }
+.toast { text-align: left; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 14px; background: var(--bg-2); border: 1px solid var(--line-2); box-shadow: 0 8px 30px rgba(0,0,0,.45); color: var(--text); animation: toast-in .2s ease-out; }
+.toast span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+@keyframes toast-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }

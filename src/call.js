@@ -1,15 +1,50 @@
 // Voice call with a bot (or a group of bots): listen → detect when you stop talking → send →
 // read the answer aloud with that bot's voice → listen again. Works with any model.
 import { api } from './api.js';
-import { getBot } from './core/store.js';
+import { getBot, messagesOf } from './core/store.js';
+import { busy } from './core/agent.js';
+import { notify } from './core/notify.js';
 import { dictationSupported, preferCloudDictation, cloudDictationAvailable, transcribe, speakAsync, stopSpeaking, voiceForBot, toSpeech } from './voice.js';
 
 const Recognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
 const SILENCE_MS = 1100;
+// «…en segundo plano», «avísame cuando termines», «cuelga y sigue»…
+export const BACKGROUND_CUE = /(en segundo plano|av[ií]s(a|ad)me cuando (termines|acabes|est[eé]|lo tengas)|cuando (termines|acabes|lo tengas),? av[ií]sa|y (luego|despu[eé]s) me (avisas|cuentas)|cuelga y sigue|sigue sin m[ií])/i;
+
+// Background voice tasks: when the bot finishes, you get a notification, an in-app notice and a short spoken summary.
+const watching = new Set();
+export function finishInBackground(threadId, { rate = 1, speak = true } = {}) {
+  if (watching.has(threadId) || !busy.has(threadId)) return false;
+  watching.add(threadId);
+  const startAt = messagesOf(threadId).length;
+  const unsub = api.subscribe((ev) => {
+    if (ev.botId !== threadId || ev.type !== 'status' || ev.busy) return;
+    unsub();
+    // The reply is saved right after the «not busy» status, so read it a moment later.
+    setTimeout(() => {
+      watching.delete(threadId);
+      const last = messagesOf(threadId).slice(startAt).filter((m) => m.role === 'assistant' && !m.from).pop();
+      const owner = getBot(threadId);
+      const bot = getBot(last?.botId) || owner;
+      const name = bot?.name || 'Tu bot';
+      const ok = last && !last.error && !last.stopped;
+      const text = last?.content || '';
+      const title = ok ? `✓ ${name} ha terminado tu encargo` : `⚠️ ${name} no pudo terminar tu encargo`;
+      notify({ kind: 'routine', threadId, title, body: text });
+      window.dispatchEvent(new CustomEvent('oc-toast', { detail: { title, body: toSpeech(text).slice(0, 160), threadId } }));
+      if (speak && ok) {
+        const first = toSpeech(text).split(/(?<=[.!?])\s+/).slice(0, 2).join(' ').slice(0, 280);
+        speakAsync(`${name} ha terminado. ${first}`, { voiceName: voiceForBot(bot), rate });
+      }
+    }, 300);
+  });
+  return true;
+}
+
 
 export class CallSession {
-  constructor({ threadId, onState, onLine, onError, rate = 1 }) {
-    Object.assign(this, { threadId, onState, onLine, onError, rate });
+  constructor({ threadId, onState, onLine, onError, onBackground, rate = 1 }) {
+    Object.assign(this, { threadId, onState, onLine, onError, onBackground, rate });
     this.state = 'idle';
     this.closed = false;
     this.speakQueue = [];
@@ -21,7 +56,7 @@ export class CallSession {
   async start() {
     // Listen for the bots' answers in this chat.
     this.unsub = api.subscribe((ev) => {
-      if (this.closed) return;
+      if (this.closed || this.background) return;
       if (ev.type === 'message' && ev.botId === this.threadId && ev.message.role === 'assistant' && !ev.message.from) {
         const bot = getBot(ev.message.botId) || getBot(this.threadId);
         this.onLine?.({ who: bot?.name || 'Bot', text: ev.message.content });
@@ -29,8 +64,8 @@ export class CallSession {
         this.drain();
       }
       if (ev.type === 'status' && ev.botId === this.threadId && !ev.busy) {
-        this.botDone = true;
-        this.drain();
+        // The final reply is emitted right after this status: wait a moment so it gets spoken before listening again.
+        setTimeout(() => { if (this.closed || this.background) return; this.botDone = true; this.drain(); }, 300);
       }
     });
     this.listen();
@@ -65,6 +100,23 @@ export class CallSession {
     this.onLine?.({ who: 'Tú', text: t });
     this.set('thinking');
     this.botDone = false;
+    if (BACKGROUND_CUE.test(t)) {
+      // Hand it off: the bot keeps working, the call ends and you get told when it's done.
+      const bot = getBot(this.threadId);
+      const run = api.chat(this.threadId, t).catch((e) => this.onError?.(e.message));
+      await new Promise((r) => setTimeout(r, 50));
+      if (busy.has(this.threadId)) {
+        this.background = true;
+        finishInBackground(this.threadId, { rate: this.rate });
+        this.onLine?.({ who: bot?.name || 'Bot', text: 'Vale, me pongo con ello. Te aviso cuando termine.' });
+        this.set('speaking');
+        await speakAsync('Vale, me pongo con ello. Te aviso cuando termine.', { voiceName: voiceForBot(bot), rate: this.rate });
+        this.onBackground?.();
+        return;
+      }
+      await run;
+      return;
+    }
     try { await api.chat(this.threadId, t); } catch (e) { this.onError?.(e.message); this.listen(); }
   }
 
@@ -156,7 +208,9 @@ export class CallSession {
   }
 
   hangup() {
+    if (this.closed) return;
     this.closed = true;
+    if (!this.background && busy.has(this.threadId)) finishInBackground(this.threadId, { rate: this.rate });
     this.stopListening();
     stopSpeaking();
     this.unsub?.();
