@@ -25,9 +25,9 @@ let lastBackupDay = '';
 async function dailyBackup() {
   const day = new Date().toISOString().slice(0, 10);
   if (day === lastBackupDay) return;
-  lastBackupDay = day;
   try {
     await copyFile(FILE, `${DATA}backups/db-${day}.json`);
+    lastBackupDay = day; // only once the copy really exists
     const old = (await readdir(`${DATA}backups`)).filter((f) => f.startsWith('db-')).sort().slice(0, -7);
     await Promise.all(old.map((f) => unlink(`${DATA}backups/${f}`)));
   } catch { /* first run: nothing to back up yet */ }
