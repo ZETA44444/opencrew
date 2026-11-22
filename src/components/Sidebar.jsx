@@ -1,12 +1,39 @@
+import { useEffect, useState } from 'react';
 import Avatar from './Avatar.jsx';
 
-export default function Sidebar({ bots, busy, selectedId, onSelect, onNew, onSettings, noKeys }) {
+let deferredPrompt = null;
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; window.dispatchEvent(new Event('oc-installable')); });
+}
+
+function useInstall() {
+  const [can, setCan] = useState(!!deferredPrompt);
+  useEffect(() => {
+    const on = () => setCan(true);
+    const off = () => setCan(false);
+    window.addEventListener('oc-installable', on);
+    window.addEventListener('appinstalled', off);
+    return () => { window.removeEventListener('oc-installable', on); window.removeEventListener('appinstalled', off); };
+  }, []);
+  const install = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice.catch(() => {});
+    deferredPrompt = null;
+    setCan(false);
+  };
+  return [can, install];
+}
+
+export default function Sidebar({ bots, busy, selectedId, onSelect, onNew, onSettings, noKeys, onClose }) {
+  const [canInstall, install] = useInstall();
   const sorted = [...bots].sort((a, b) => Number(!!b.starred) - Number(!!a.starred));
   return (
     <aside className="sidebar">
       <div className="brand">
         <Logo />
         <span>OpenCrew</span>
+        <button className="icon-btn mobile-only close-nav" onClick={onClose} aria-label="Cerrar menú">×</button>
       </div>
       <button className="new-bot" onClick={onNew}>
         <span className="plus">+</span> Nuevo bot
@@ -27,6 +54,12 @@ export default function Sidebar({ bots, busy, selectedId, onSelect, onNew, onSet
           </button>
         ))}
       </nav>
+      {canInstall && (
+        <button className="settings-btn" onClick={install}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>
+          Instalar app
+        </button>
+      )}
       <button className={`settings-btn ${noKeys ? 'attention' : ''}`} onClick={onSettings}>
         <GearIcon /> Ajustes y claves
         {noKeys && <span className="badge">sin claves</span>}

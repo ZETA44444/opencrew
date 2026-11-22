@@ -105,7 +105,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
             ref={taRef}
             rows={1}
             value={text}
-            placeholder={busy ? `${bot.name} está trabajando… escribe y se pondrá en cola` : `Escribe a ${bot.name}…  (usa @Nombre para delegar)`}
+            placeholder={busy ? 'Escribe y se pondrá en cola…' : `Mensaje para ${bot.name}…`}
             onChange={(e) => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`; }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }

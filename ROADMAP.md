@@ -22,7 +22,7 @@ Reglas para cada tarea:
 - [x] Reintentar la última respuesta y editar el último mensaje
 - [x] Cola de mensajes («Queue»): escribir mientras el bot trabaja y que lo haga después
 - [x] Guardar archivos y datos grandes en IndexedDB (sin el límite de 5 MB)
-- [ ] Versión móvil pulida e instalable (PWA)
+- [x] Versión móvil pulida e instalable (PWA)
 
 ## Fase 2 — Trabajo en equipo
 

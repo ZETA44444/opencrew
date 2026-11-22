@@ -90,7 +90,9 @@ export default function App() {
         onNew={() => setModal({ type: 'bot' })}
         onSettings={() => setModal({ type: 'settings' })}
         noKeys={noKeys}
+        onClose={() => setNavOpen(false)}
       />
+      {(navOpen || panelOpen) && <div className="scrim" onClick={() => { setNavOpen(false); if (window.innerWidth <= 1100) setPanelOpen(false); }} />}
       {bot ? (
         <Chat
           bot={bot}
