@@ -1,7 +1,7 @@
 // Routines: prompts that a bot runs on its own on a schedule.
 // schedule = { type: 'interval', minutes } | { type: 'daily', time: 'HH:MM', days: [0..6] }  (0 = domingo)
 import { getDb, getBot, newId, now, save } from './store.js';
-import { runAgent } from './agent.js';
+import { runAgent, busy } from './agent.js';
 import { broadcast } from './events.js';
 import { notify } from './notify.js';
 
@@ -30,6 +30,13 @@ export async function runRoutine(routine) {
   if (running.has(routine.id)) return;
   const bot = getBot(routine.botId);
   if (!bot) return;
+  // The bot is busy (you're chatting with it, or another job): try again in a minute.
+  if (busy.has(bot.id)) {
+    routine.nextRunAt = new Date(Date.now() + 60_000).toISOString();
+    save();
+    broadcast({ type: 'routines' });
+    return;
+  }
   running.add(routine.id);
   const run = { id: newId(), routineId: routine.id, botId: routine.botId, startedAt: now(), status: 'running' };
   const db = getDb();

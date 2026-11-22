@@ -65,7 +65,7 @@ export default function App() {
         if (ev.message.role === 'assistant') setDrafts(({ [ev.botId]: _, ...rest }) => rest);
         if (ev.botId === selectedRef.current) setMessages((m) => (m.some((x) => x.id === ev.message.id) ? m : [...m, ev.message]));
         // Read new answers aloud if enabled (only the chat you're looking at, not while hidden).
-        if (ev.message.role === 'assistant' && ev.botId === selectedRef.current && voiceRef.current.autoSpeak && !document.hidden && ev.message.source !== 'routine') {
+        if (ev.message.role === 'assistant' && ev.botId === selectedRef.current && voiceRef.current.autoSpeak && !document.hidden && ev.message.source !== 'routine' && !ev.message.error && !ev.message.stopped) {
           speak(ev.message.content, voiceRef.current);
         }
       } else if (ev.type === 'step') {

@@ -318,7 +318,7 @@ function Message({ m, bot, showName, onShowSteps, onOpenArtifact, canRetry, canE
               : <span key={i} className="file-chip"><span className="file-chip-icon">{a.kind === 'pdf' ? 'PDF' : 'TXT'}</span>{a.name}</span>))}
           </div>
         )}
-        <div className="bubble">{String(m.content).split('\n\n[Archivo adjunto:')[0]}</div>
+        <div className="bubble">{String(m.content).split(/(?:^|\n\n)\[Archivo adjunto:/)[0] || '📎'}</div>
         {canEdit && <button className="msg-action" onClick={() => setEditing(m.content)} title="Editar y volver a enviar">✎ Editar</button>}
       </div>
     );

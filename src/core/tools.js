@@ -95,6 +95,8 @@ const ALL_TOOLS = {
       const target = findBotByName(bot_name);
       if (!target) return `No existe ningún bot llamado "${bot_name}". Bots disponibles: ${getDb().bots.map((b) => b.name).join(', ')}`;
       if (target.id === ctx.bot.id) return 'No puedes delegarte una tarea a ti mismo.';
+      // Never run two jobs at once on the same bot: wait until it finishes what it's doing.
+      if (ctx.isBusy(target.id)) await ctx.waitUntilFree(target.id, ctx.signal);
       const reply = await ctx.runAgent({ botId: target.id, input: task, from: ctx.bot.name, depth: ctx.depth + 1, runId: ctx.runId, emit: ctx.emit, controller: ctx.controller });
       if (reply.stopped) throw new Error('Detenido');
       return `Respuesta de ${target.name} (${target.provider}/${target.model}):\n${reply.content}`;

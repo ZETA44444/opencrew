@@ -10,6 +10,17 @@ export const busy = new Set();
 // One AbortController per run; nested (delegated) runs share their parent's.
 const controllers = new Map(); // botId -> AbortController of the run it is working on
 
+// Resolves when the bot/thread is free (or rejects if the run asking for it is stopped).
+export function waitUntilFree(id, signal) {
+  if (!busy.has(id)) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const t = setInterval(() => {
+      if (signal?.aborted) { clearInterval(t); reject(stopped()); }
+      else if (!busy.has(id)) { clearInterval(t); resolve(); }
+    }, 400);
+  });
+}
+
 export function stopBot(botId) {
   const c = controllers.get(botId);
   if (c) c.abort();
@@ -68,7 +79,7 @@ export async function runAgent({ botId, input, attachments = [], from = null, so
   };
   const update = (s, patch) => { Object.assign(s, patch); emit({ type: 'step', step: s }); };
 
-  const ctx = { bot, depth, runId, emit, runAgent, controller, signal };
+  const ctx = { bot, depth, runId, emit, runAgent, controller, signal, waitUntilFree, isBusy: (id) => busy.has(id) };
   const tools = toolsFor(bot, depth);
   const label = `${providerById(bot.provider)?.label || bot.provider} · ${bot.model}`;
   let final = null;
@@ -130,6 +141,10 @@ export async function runAgent({ botId, input, attachments = [], from = null, so
     }
   }
 
+  if (!getBot(botId) || (group && !getGroup(group.id))) {
+    // The bot (or group) was deleted while working: don't bring its conversation back.
+    return { id: newId(), role: 'assistant', botId, content: final, steps, stopped: true, error: !!error };
+  }
   const reply = { id: newId(), role: 'assistant', botId, content: final, steps, stopped: signal.aborted, model: `${bot.provider}/${bot.model}`, error: !!error, source, createdAt: now() };
   thread.push(reply);
   if (thread.length > 500) thread.splice(0, thread.length - 500);

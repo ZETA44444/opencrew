@@ -20,13 +20,19 @@ async function rpc(c, method, params, { notify = false } = {}) {
   try {
     res = await fetch(c.url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(60_000) });
   } catch (e) {
-    throw new Error(`No se pudo conectar con ${c.url} (${e.message}). Comprueba la URL y que el servidor permita conexiones desde navegadores (CORS).`);
+    const err = new Error(`No se pudo conectar con ${c.url} (${e.message}). Comprueba la URL y que el servidor permita conexiones desde navegadores (CORS).`);
+    err.retryable = true; // the request never reached the server
+    throw err;
   }
   const sid = res.headers.get('mcp-session-id');
   if (sid) sessions.set(c.id, { ...(sessions.get(c.id) || {}), sessionId: sid });
   if (notify) return null;
   if (res.status === 401 || res.status === 403) throw new Error('El servidor pide autorización: añade un token válido al conector.');
-  if (!res.ok) throw new Error(`El servidor respondió ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  if (!res.ok) {
+    const err = new Error(`El servidor respondió ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    err.retryable = (res.status === 404 || res.status === 400) && !!s?.sessionId; // expired session
+    throw err;
+  }
   const type = res.headers.get('content-type') || '';
   let msg;
   if (type.includes('text/event-stream')) {
@@ -84,8 +90,12 @@ export async function addConnector({ name, url, token }) {
   if (!/^https?:$/.test(u.protocol)) throw new Error('La URL debe empezar por https://');
   const c = { id: newId(), name: String(name || u.hostname).trim().slice(0, 40), url: u.href, token: token || '', enabled: true, tools: [], status: 'new', createdAt: now() };
   connectors().push(c);
-  save();
-  return refreshConnector(c.id);
+  const result = await refreshConnector(c.id);
+  if (result.status === 'error') {
+    removeConnector(c.id); // don't leave a broken copy behind on every failed attempt
+    throw new Error(result.lastError);
+  }
+  return result;
 }
 
 export function updateConnector(id, patch) {
@@ -135,7 +145,9 @@ export async function callConnectorTool(key, args) {
     const r = await rpc(c, 'tools/call', { name: t.name, arguments: args || {} });
     return formatResult(r);
   } catch (e) {
-    // Session may have expired: retry once with a fresh one.
+    // Only retry when the session expired or the request never arrived; a tool that ran and
+    // failed must not run twice (it may already have done something).
+    if (!e.retryable) return `Error de ${c.name}: ${e.message}`;
     sessions.delete(c.id);
     try { await ensureSession(c); return formatResult(await rpc(c, 'tools/call', { name: t.name, arguments: args || {} })); } catch (e2) { return `Error de ${c.name}: ${e2.message}`; }
   }

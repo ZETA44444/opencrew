@@ -146,6 +146,7 @@ export const api = {
   },
 
   async deleteBot(id) {
+    stopBot(id);
     const d = db();
     d.bots = d.bots.filter((b) => b.id !== id);
     delete d.messages[id];
@@ -187,6 +188,7 @@ export const api = {
   },
 
   async deleteGroup(id) {
+    stopBot(id);
     const d = db();
     d.groups = d.groups.filter((g) => g.id !== id);
     delete d.messages[id];

@@ -1,4 +1,5 @@
 import { getDb, save } from './core/store.js';
+import { broadcast } from './core/events.js';
 // Voice: dictation (speech → text) and reading answers aloud (text → speech), using the browser's
 // built-in Web Speech API. Nothing extra to install and no API key needed.
 
@@ -83,6 +84,7 @@ export function setDictationMode(mode) {
   const s = getDb().settings;
   s.voice = { ...(s.voice || {}), dictation: mode };
   save();
+  broadcast({ type: 'bots' }); // refresh the app state so Ajustes shows (and keeps) the new mode
 }
 
 const toBase64 = (blob) => new Promise((resolve, reject) => {
@@ -132,7 +134,7 @@ export function startCloudDictation({ onStatus, onEnd, onError }) {
   (async () => {
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (stopped) { stream.getTracks().forEach((t) => t.stop()); return; }
+      if (stopped) { stream.getTracks().forEach((t) => t.stop()); onEnd?.(''); return; }
       const chunks = [];
       rec = new MediaRecorder(stream);
       rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
