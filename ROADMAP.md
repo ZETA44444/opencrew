@@ -30,7 +30,7 @@ Reglas para cada tarea:
 - [x] El jefe de gabinete puede crear y configurar bots nuevos (herramienta `create_bot`)
 - [x] Skills: biblioteca compartida de procesos guardados («cómo hacer X»)
 - [x] Bot principal proactivo: al abrir la app propone tareas que puede hacer por ti
-- [ ] Más plantillas de bots (correo, SEO, redes, ventas, finanzas, soporte)
+- [x] Más plantillas de bots (correo, SEO, redes, ventas, finanzas, soporte)
 
 ## Fase 3 — Rutinas avanzadas
 

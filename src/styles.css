@@ -321,3 +321,17 @@ textarea { resize: vertical; line-height: 1.45; }
 .proposal-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .proposal { border: 1px solid var(--line-2); border-radius: 999px; padding: 6px 12px; font-size: 13px; color: var(--text); background: var(--bg); text-align: left; }
 .proposal:hover { background: var(--bg-3); }
+
+/* ---------- template gallery ---------- */
+.template-gallery { display: flex; flex-direction: column; gap: 8px; }
+.template-gallery .section-title { margin-top: 0; }
+.cat-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.cat-tabs button { border: 1px solid var(--line-2); border-radius: 999px; padding: 4px 12px; font-size: 12.5px; color: var(--text-2); }
+.cat-tabs button.on { background: var(--text); color: #000; border-color: var(--text); }
+.template-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.template-card { display: flex; gap: 10px; align-items: flex-start; text-align: left; border: 1px solid var(--line); background: var(--bg-2); border-radius: 12px; padding: 10px; }
+.template-card:hover { border-color: var(--line-2); background: var(--bg-3); }
+.template-card.on { border-color: var(--text); }
+.template-title { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+.tier { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+@media (max-width: 760px) { .template-grid { grid-template-columns: 1fr; } }

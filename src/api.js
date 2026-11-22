@@ -115,6 +115,7 @@ export const api = {
   async createBot(input) {
     const b = pick(input || {}, BOT_FIELDS);
     if (!b.name?.trim()) throw new Error('El bot necesita un nombre');
+    if (db().bots.some((x) => x.name.toLowerCase() === b.name.trim().toLowerCase())) throw new Error(`Ya existe un bot llamado ${b.name.trim()}. Elige otro nombre.`);
     const bot = {
       id: newId(), title: 'Asistente', description: '', instructions: '', color: '#e5e5e5', shape: 'circle',
       provider: 'demo', model: 'demo', memory: [], starred: false, ...b, name: b.name.trim(), createdAt: now(),

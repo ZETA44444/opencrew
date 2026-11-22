@@ -1,13 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import Avatar, { COLORS, SHAPES } from './Avatar.jsx';
-
-const TEMPLATES = [
-  { name: 'Iris', title: 'Asistente de correo', description: 'Ordena el correo, resume lo importante y redacta respuestas.', instructions: 'Prioriza lo urgente. Propón borradores, nunca envíes nada sin permiso.', color: '#fcd34d', shape: 'circle' },
-  { name: 'Scout', title: 'Analista SEO', description: 'Analiza webs, palabras clave y competencia.', instructions: 'Lee las páginas con fetch_url y da recomendaciones concretas.', color: '#c4b5fd', shape: 'triangle' },
-  { name: 'Echo', title: 'Social media', description: 'Escribe posts para X, LinkedIn e Instagram.', instructions: 'Escribe en tono cercano. Da 3 variantes por post.', color: '#f9a8d4', shape: 'square' },
-  { name: 'Ledger', title: 'Finanzas personales', description: 'Ayuda a organizar gastos y presupuestos (no da asesoría de inversión).', instructions: 'Usa tablas en markdown. Guarda los presupuestos con write_artifact.', color: '#fdba74', shape: 'hexagon' },
-];
+import { TEMPLATE_CATEGORIES, modelForTier } from '../templates.js';
 
 const TOOL_LABELS = {
   delegate_to_bot: 'Delegar a otros bots',
@@ -30,8 +24,15 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
     provider: firstWithKey?.id || 'demo', model: firstWithKey?.defaultModel || 'demo', tools: tools.filter((t) => !MANAGER.includes(t)), starred: false,
   });
   const [err, setErr] = useState('');
+  const [cat, setCat] = useState(0);
+  const [picked, setPicked] = useState(null);
   const set = (patch) => setF((x) => ({ ...x, ...patch }));
   const provider = providers.find((p) => p.id === f.provider);
+  const applyTemplate = (t) => {
+    const { tier, ...rest } = t;
+    setPicked(t.name);
+    set({ ...rest, model: f.provider === 'demo' ? 'demo' : modelForTier(provider, tier) });
+  };
 
   const submit = async () => {
     setErr('');
@@ -51,12 +52,23 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
         </div>
         <div className="modal-body">
           {isNew && (
-            <div className="templates">
-              {TEMPLATES.map((t) => (
-                <button key={t.name} onClick={() => set(t)}>
-                  <Avatar bot={t} size={22} /> <span>{t.title}</span>
-                </button>
-              ))}
+            <div className="template-gallery">
+              <div className="section-title">Empieza con una plantilla</div>
+              <div className="cat-tabs">
+                {TEMPLATE_CATEGORIES.map((c, i) => <button key={c.name} className={cat === i ? 'on' : ''} onClick={() => setCat(i)}>{c.name}</button>)}
+              </div>
+              <div className="template-grid">
+                {TEMPLATE_CATEGORIES[cat].items.map((t) => (
+                  <button key={t.name} className={`template-card ${picked === t.name ? 'on' : ''}`} onClick={() => applyTemplate(t)}>
+                    <Avatar bot={t} size={26} />
+                    <div>
+                      <div className="template-title">{t.title}</div>
+                      <div className="muted small">{t.description}</div>
+                      <div className="tier">{t.tier === 'fast' ? '⚡ modelo rápido y barato' : '🧠 modelo potente'}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           <div className="avatar-editor">
