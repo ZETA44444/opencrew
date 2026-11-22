@@ -38,16 +38,73 @@ function fill(d) {
   return d;
 }
 
-let db;
-try {
-  const raw = localStorage.getItem(KEY);
-  db = raw ? fill(JSON.parse(raw)) : seed();
-} catch {
-  db = seed();
+// ---------- persistence: IndexedDB (no 5 MB limit), with migration from the old localStorage copy ----------
+const IDB_NAME = 'opencrew';
+const IDB_STORE = 'kv';
+const IDB_KEY = 'db';
+
+function openIdb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
 }
 
+function idb(mode, fn) {
+  return idbHandle.then((h) => new Promise((resolve, reject) => {
+    const tx = h.transaction(IDB_STORE, mode);
+    const req = fn(tx.objectStore(IDB_STORE));
+    tx.oncomplete = () => resolve(req?.result);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  }));
+}
+
+let idbHandle;
+let db;
+let storage = 'indexeddb';
+
+// Resolves once the data is loaded. main.jsx waits for it before rendering.
+export const ready = (async () => {
+  try {
+    idbHandle = openIdb();
+    const stored = await idb('readonly', (st) => st.get(IDB_KEY));
+    if (stored) db = fill(stored);
+    else {
+      let legacy = null;
+      try { legacy = localStorage.getItem(KEY); } catch { /* ignore */ }
+      db = legacy ? fill(JSON.parse(legacy)) : seed();
+      await idb('readwrite', (st) => st.put(db, IDB_KEY));
+      if (legacy) try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+    }
+    navigator.storage?.persist?.().catch(() => {}); // ask the browser not to evict our data
+  } catch (e) {
+    // Private windows / blocked storage: fall back to localStorage.
+    console.warn('IndexedDB no disponible, uso localStorage:', e);
+    storage = 'localstorage';
+    try {
+      const raw = localStorage.getItem(KEY);
+      db = raw ? fill(JSON.parse(raw)) : seed();
+    } catch { db = seed(); }
+  }
+})();
+
 let lastSaveError = null;
-export function save() {
+let timer = null;
+let writing = Promise.resolve();
+
+function flush() {
+  clearTimeout(timer);
+  timer = null;
+  if (storage === 'indexeddb') {
+    const snapshot = structuredClone(db);
+    writing = writing.then(() => idb('readwrite', (st) => st.put(snapshot, IDB_KEY)))
+      .then(() => { lastSaveError = null; })
+      .catch((e) => { lastSaveError = e; console.error('No se pudo guardar:', e); });
+    return writing;
+  }
   try {
     localStorage.setItem(KEY, JSON.stringify(db));
     lastSaveError = null;
@@ -55,8 +112,26 @@ export function save() {
     lastSaveError = e;
     console.error('No se pudo guardar en el navegador:', e);
   }
+  return Promise.resolve();
 }
-save();
+
+// Writes are batched (many changes in a row become one write).
+export function save() {
+  if (!timer) timer = setTimeout(flush, 120);
+}
+export const saveNow = () => flush();
+
+if (typeof window !== 'undefined') {
+  // Don't lose the last changes if the tab is closed right after a change.
+  window.addEventListener('pagehide', () => { if (timer) flush(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && timer) flush(); });
+}
+
+export const storageKind = () => storage;
+export async function storageUsage() {
+  const est = await navigator.storage?.estimate?.().catch(() => null);
+  return est ? { used: est.usage, quota: est.quota } : null;
+}
 
 export const saveError = () => lastSaveError;
 export const getDb = () => db;
@@ -75,11 +150,11 @@ export function exportData({ includeKeys = false } = {}) {
   return { app: 'opencrew', version: 1, exportedAt: now(), data: copy };
 }
 
-export function importData(json) {
+export async function importData(json) {
   const data = json?.data;
   if (json?.app !== 'opencrew' || !data?.bots) throw new Error('Este archivo no es una copia de seguridad de OpenCrew');
   const keys = db.keys;
   db = fill(data);
   if (!Object.keys(db.keys).length) db.keys = keys; // keep current keys if the backup has none
-  save();
+  return flush();
 }

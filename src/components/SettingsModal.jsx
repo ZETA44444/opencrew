@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 
 export default function SettingsModal({ providers, settings, onClose, onSaved }) {
@@ -9,6 +9,9 @@ export default function SettingsModal({ providers, settings, onClose, onSaved })
   const [webReader, setWebReader] = useState(settings?.webReader !== false);
   const [backupMsg, setBackupMsg] = useState('');
   const fileRef = useRef(null);
+  const [storage, setStorage] = useState(null);
+  useEffect(() => { api.storageInfo().then(setStorage).catch(() => {}); }, []);
+  const mb = (n) => `${(n / 1024 / 1024).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`;
 
   const save = async () => {
     setSaving(true);
@@ -113,6 +116,12 @@ export default function SettingsModal({ providers, settings, onClose, onSaved })
             <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => { restore(e.target.files?.[0]); e.target.value = ''; }} />
           </div>
           {backupMsg && <div className="small muted">{backupMsg}</div>}
+          {storage && (
+            <div className="small muted">
+              Almacenamiento: {storage.kind === 'indexeddb' ? 'IndexedDB' : 'localStorage (modo limitado)'}
+              {storage.used != null && ` · usando ${mb(storage.used)} de ${mb(storage.quota)} disponibles`}
+            </div>
+          )}
         </div>
         <div className="modal-foot">
           <span className="spacer" />

@@ -1,6 +1,6 @@
 // The app's "backend", running inside the browser. Same function names the UI
 // used when there was a Node server, so the components barely changed.
-import { getDb, getBot, newId, now, save, messagesOf, exportData, importData } from './core/store.js';
+import { getDb, getBot, newId, now, save, messagesOf, exportData, importData, storageKind, storageUsage } from './core/store.js';
 import { publicProviders, providerById, callModel, refreshModels, refreshAllModels, defaultModel } from './core/providers.js';
 import { runAgent, busy, stopBot } from './core/agent.js';
 import { broadcast, subscribe } from './core/events.js';
@@ -193,8 +193,9 @@ export const api = {
   },
 
   exportData,
+  storageInfo: async () => ({ kind: storageKind(), ...(await storageUsage()) }),
   async importData(json) {
-    importData(json);
+    await importData(json);
     broadcast({ type: 'bots' });
   },
 
