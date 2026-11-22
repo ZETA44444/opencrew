@@ -53,7 +53,10 @@ export async function runRoutine(routine) {
   }
 }
 
+let started = false;
 export function startScheduler() {
+  if (started) return;
+  started = true;
   const tick = () => {
     const t = Date.now();
     for (const r of getDb().routines) {

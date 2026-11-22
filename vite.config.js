@@ -1,10 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// base './' so the same build works on GitHub Pages (/opencrew/) and locally.
 export default defineConfig({
+  base: './',
   plugins: [react()],
-  server: {
-    port: 5173,
-    proxy: { '/api': { target: 'http://127.0.0.1:3001', changeOrigin: true } },
-  },
+  server: { port: 5173 },
 });

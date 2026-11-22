@@ -22,7 +22,7 @@ export const PROVIDERS = [
     baseUrl: 'https://openrouter.ai/api/v1', keyUrl: 'https://openrouter.ai/keys',
     models: ['openrouter/auto'] },
   { id: 'ollama', label: 'Ollama (local, gratis)', kind: 'openai', noKey: true,
-    baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1',
+    baseUrl: 'http://localhost:11434/v1',
     models: ['llama3.2', 'qwen3'] },
   { id: 'demo', label: 'Demo (sin clave)', kind: 'demo', noKey: true, models: ['demo'] },
 ];
@@ -30,13 +30,7 @@ export const PROVIDERS = [
 export const providerById = (id) => PROVIDERS.find((p) => p.id === id);
 
 export function getKey(providerId) {
-  const p = providerById(providerId);
-  if (!p) return '';
-  const saved = getDb().keys[providerId];
-  if (saved) return saved;
-  if (p.env && process.env[p.env]) return process.env[p.env];
-  if (providerId === 'gemini' && process.env.GOOGLE_API_KEY) return process.env.GOOGLE_API_KEY;
-  return '';
+  return getDb().keys[providerId] || '';
 }
 
 // Models fetched live from each provider's API (so the list never goes stale).
@@ -60,7 +54,7 @@ export async function refreshModels(providerId) {
         .map((m) => m.name.replace(/^models\//, ''))
         .filter((id) => id.startsWith('gemini') && !SKIP_MODEL.test(id));
     } else if (p.kind === 'anthropic') {
-      const res = await fetch('https://api.anthropic.com/v1/models?limit=100', { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, signal: AbortSignal.timeout(15_000) });
+      const res = await fetch('https://api.anthropic.com/v1/models?limit=100', { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, signal: AbortSignal.timeout(15_000) });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error?.message || res.status);
       ids = (data.data || []).map((m) => m.id);
@@ -71,7 +65,7 @@ export async function refreshModels(providerId) {
       ids = (data.data || []).map((m) => m.id).filter((id) => !SKIP_MODEL.test(id));
     }
   } catch (e) {
-    console.warn(`No se pudo leer la lista de modelos de ${p.label}: ${e.message}`);
+    if (!p.noKey) console.warn(`No se pudo leer la lista de modelos de ${p.label}: ${e.message}`);
     return null;
   }
   if (!ids.length) return null;
@@ -81,7 +75,10 @@ export async function refreshModels(providerId) {
   return ids;
 }
 
-export const refreshAllModels = () => Promise.all(PROVIDERS.map((p) => refreshModels(p.id)));
+// Only ask providers we can use: ones with a key, and Ollama only if some bot uses it.
+export const refreshAllModels = () => Promise.all(PROVIDERS
+  .filter((p) => (p.noKey ? getDb().bots.some((b) => b.provider === p.id) : !!getKey(p.id)))
+  .map((p) => refreshModels(p.id)));
 
 export const modelsOf = (providerId) => liveModels[providerId] || providerById(providerId)?.models || [];
 
@@ -95,7 +92,7 @@ export function defaultModel(providerId) {
 export const publicProviders = () => PROVIDERS.map((p) => ({
   id: p.id, label: p.label, models: modelsOf(p.id), defaultModel: defaultModel(p.id), live: !!liveModels[p.id], keyUrl: p.keyUrl, noKey: !!p.noKey,
   hasKey: p.noKey ? true : !!getKey(p.id),
-  keySource: p.noKey ? null : getDb().keys[p.id] ? 'app' : getKey(p.id) ? 'env' : null,
+  keySource: p.noKey ? null : getKey(p.id) ? 'app' : null,
 }));
 
 // ---------- helpers ----------
@@ -115,7 +112,8 @@ async function postJson(url, headers, body, label, attempts = 3) {
       });
     } catch (e) {
       if (i < attempts) { await sleep(2000 * i); continue; }
-      throw new Error(`${label}: sin respuesta (${e.name === 'TimeoutError' ? 'tardó demasiado' : e.message}). Prueba otro modelo.`);
+      const local = /localhost|127\.0\.0\.1/.test(url);
+      throw new Error(`${label}: sin respuesta (${e.name === 'TimeoutError' ? 'tardó demasiado' : e.message}).${local ? ' ¿Está Ollama abierto? Arráncalo con OLLAMA_ORIGINS="*" ollama serve' : ' Prueba otro modelo.'}`);
     }
     const text = await res.text();
     let data;
@@ -161,7 +159,7 @@ async function callAnthropic({ model, apiKey, system, messages, tools }) {
     }
   }
   const data = await postJson('https://api.anthropic.com/v1/messages',
-    { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
     {
       model, max_tokens: 8192, system, messages: out,
       ...(tools.length && { tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })) }),
@@ -185,7 +183,7 @@ async function callOpenAI({ provider, model, apiKey, system, messages, tools }) 
     } else if (m.role === 'tool') out.push({ role: 'tool', tool_call_id: m.toolCallId, content: m.content });
   }
   const headers = apiKey ? { authorization: `Bearer ${apiKey}` } : {};
-  if (provider.id === 'openrouter') { headers['HTTP-Referer'] = 'https://github.com/opencrew'; headers['X-Title'] = 'OpenCrew'; }
+  if (provider.id === 'openrouter') headers['X-Title'] = 'OpenCrew';
   const data = await postJson(`${provider.baseUrl}/chat/completions`, headers, {
     model, messages: out,
     ...(tools.length && { tools: tools.map((t) => ({ type: 'function', function: t })) }),
@@ -268,7 +266,7 @@ async function callDemo({ system, messages, tools }) {
     return { text: '', toolCalls: [{ id: newId(), name: 'write_artifact', args: { filename: 'nota-demo.md', content: `# Nota\n\n${userText}\n` } }] };
   }
   return {
-    text: `**(modo demo)** Hola, soy ${me}. No estoy conectado a ningún modelo real todavía.\n\nHas dicho: _"${userText.slice(0, 200)}"_\n\nPara que piense de verdad, abre **Ajustes → Claves**, añade tu API key y cambia mi modelo en la pestaña **Bot**. Prueba también:\n- \`@Nova investiga algo\` (delegar)\n- \`recuerda que me gusta el café\` (memoria)\n- \`guarda un archivo con ideas\` (artefacto)`,
+    text: `**(modo demo)** Hola, soy ${me}. No estoy conectado a ningún modelo real todavía.\n\nHas dicho: _"${userText.slice(0, 200)}"_\n\nPara que piense de verdad, abre **Ajustes y claves**, añade tu API key y cámbiame el modelo en el selector de abajo. Prueba también:\n- \`@Nova investiga algo\` (delegar)\n- \`recuerda que me gusta el café\` (memoria)\n- \`guarda un archivo con ideas\` (artefacto)`,
     toolCalls: [],
   };
 }

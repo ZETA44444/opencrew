@@ -36,11 +36,10 @@ export default function App() {
     api.messages(selectedId).then(setMessages).catch(console.error);
   }, [selectedId]);
 
-  // Live events from the server.
+  // Live events from the in-browser agent engine.
   useEffect(() => {
-    const es = new EventSource('/api/events');
-    es.onmessage = (e) => {
-      const ev = JSON.parse(e.data);
+    const unsubscribe = api.subscribe((raw) => {
+      const ev = structuredClone(raw);
       if (ev.type === 'message' && ev.botId === selectedRef.current) {
         setMessages((m) => (m.some((x) => x.id === ev.message.id) ? m : [...m, ev.message]));
       } else if (ev.type === 'step') {
@@ -60,8 +59,8 @@ export default function App() {
       } else if (ev.type === 'artifacts') {
         setArtifactsTick((t) => t + 1);
       }
-    };
-    return () => es.close();
+    });
+    return unsubscribe;
   }, [refresh]);
 
   if (!state) return <div className="loading">Cargando OpenCrew…</div>;
@@ -124,7 +123,7 @@ export default function App() {
         />
       )}
       {modal?.type === 'settings' && (
-        <SettingsModal providers={state.providers} onClose={() => setModal(null)} onSaved={refresh} />
+        <SettingsModal providers={state.providers} settings={state.settings} onClose={() => setModal(null)} onSaved={refresh} />
       )}
     </div>
   );

@@ -148,9 +148,9 @@ function Artifacts({ bot, tick }) {
       {files.map((f) => (
         <div key={f.name} className="file">
           <span className="file-icon">▤</span>
-          <a href={`/api/bots/${bot.id}/artifacts/${encodeURIComponent(f.name)}`} target="_blank" rel="noreferrer">{f.name}</a>
+          <button className="file-name" onClick={() => api.openArtifact(bot.id, f.name)}>{f.name}</button>
           <span className="muted small">{(f.size / 1024).toFixed(1)} KB</span>
-          <a className="icon-btn" href={`/api/bots/${bot.id}/artifacts/${encodeURIComponent(f.name)}?download=1`} title="Descargar">↓</a>
+          <button className="icon-btn" onClick={() => api.openArtifact(bot.id, f.name, true)} title="Descargar">↓</button>
           <button className="icon-btn" onClick={() => confirm(`¿Borrar ${f.name}?`) && api.deleteArtifact(bot.id, f.name).then(load)} title="Borrar">×</button>
         </div>
       ))}

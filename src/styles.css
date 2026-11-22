@@ -181,8 +181,9 @@ code { background: var(--bg-3); padding: 1px 5px; border-radius: 5px; font-size:
 .mem-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 6px; background: var(--bg-2); }
 .mem-item span { flex: 1; line-height: 1.4; }
 .file { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 6px; background: var(--bg-2); }
-.file a:not(.icon-btn) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; }
-.file a:not(.icon-btn):hover { text-decoration: underline; }
+.file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.file-name:hover { text-decoration: underline; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .file-icon { color: var(--text-3); }
 
 /* ---------- forms & buttons ---------- */

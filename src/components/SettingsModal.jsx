@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from '../api.js';
 
-export default function SettingsModal({ providers, onClose, onSaved }) {
+export default function SettingsModal({ providers, settings, onClose, onSaved }) {
   const [keys, setKeys] = useState({});
   const [list, setList] = useState(providers);
   const [tests, setTests] = useState({});
   const [saving, setSaving] = useState(false);
+  const [webReader, setWebReader] = useState(settings?.webReader !== false);
+  const [backupMsg, setBackupMsg] = useState('');
+  const fileRef = useRef(null);
 
   const save = async () => {
     setSaving(true);
@@ -30,17 +33,41 @@ export default function SettingsModal({ providers, onClose, onSaved }) {
     onSaved();
   };
 
+  const download = () => {
+    const data = api.exportData();
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `opencrew-copia-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    setBackupMsg('Copia descargada (sin tus API keys).');
+  };
+
+  const restore = async (file) => {
+    if (!file) return;
+    try {
+      const json = JSON.parse(await file.text());
+      if (!confirm('Esto reemplaza tus bots, chats y rutinas actuales por los de la copia. ¿Seguir?')) return;
+      await api.importData(json);
+      setBackupMsg('Copia restaurada.');
+      onSaved();
+    } catch (e) {
+      setBackupMsg(`No se pudo restaurar: ${e.message}`);
+    }
+  };
+
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal wide">
         <div className="modal-head">
-          <h3>Ajustes · Claves de IA</h3>
+          <h3>Ajustes y claves</h3>
           <button className="icon-btn" onClick={onClose} aria-label="Cerrar">×</button>
         </div>
         <div className="modal-body">
           <p className="muted small">
-            Pega aquí tus propias API keys. Se guardan solo en tu ordenador (<code>data/db.json</code>) y nunca se devuelven al navegador.
-            También puedes ponerlas en el archivo <code>.env</code>. Luego, en cada bot, elige qué proveedor y modelo usa.
+            Pega aquí tus propias API keys. Se guardan <b>solo en este navegador</b> y solo se envían al proveedor de IA
+            correspondiente cuando un bot lo usa. Después, en cada bot, elige qué modelo usa.
           </p>
           {list.filter((p) => !p.noKey).map((p) => {
             const t = tests[p.id];
@@ -48,16 +75,14 @@ export default function SettingsModal({ providers, onClose, onSaved }) {
               <div key={p.id} className="key-row">
                 <div className="key-head">
                   <strong>{p.label}</strong>
-                  {p.hasKey
-                    ? <span className="pill ok">configurada{p.keySource === 'env' ? ' (.env)' : ''}</span>
-                    : <span className="pill">sin clave</span>}
+                  {p.hasKey ? <span className="pill ok">configurada</span> : <span className="pill">sin clave</span>}
                   <a href={p.keyUrl} target="_blank" rel="noreferrer" className="link small">Conseguir clave ↗</a>
                 </div>
                 <div className="key-input">
                   <input type="password" autoComplete="off" placeholder={p.hasKey ? '•••••••• (escribe para reemplazar)' : 'Pega tu API key'}
                     value={keys[p.id] || ''} onChange={(e) => setKeys({ ...keys, [p.id]: e.target.value })} />
                   <button className="btn small" onClick={() => test(p)} disabled={!p.hasKey && !keys[p.id]}>Probar</button>
-                  {p.keySource === 'app' && <button className="btn small ghost" onClick={() => remove(p)}>Quitar</button>}
+                  {p.hasKey && <button className="btn small ghost" onClick={() => remove(p)}>Quitar</button>}
                 </div>
                 {t && (t.loading ? <div className="muted small">Probando {p.defaultModel}…</div>
                   : t.ok ? <div className="small run-ok">✓ Funciona con {t.model} · respondió «{t.reply}» en {(t.ms / 1000).toFixed(1)}s</div>
@@ -67,8 +92,27 @@ export default function SettingsModal({ providers, onClose, onSaved }) {
           })}
           <div className="key-row">
             <div className="key-head"><strong>Ollama (modelos locales gratis)</strong><span className="pill ok">sin clave</span></div>
-            <div className="muted small">Instala Ollama, ejecuta <code>ollama pull llama3.2</code> y elige «Ollama» en el bot.</div>
+            <div className="muted small">
+              Instala Ollama, ejecuta <code>ollama pull llama3.2</code> y arráncalo permitiendo esta web:
+              <code>OLLAMA_ORIGINS="*" ollama serve</code>. Luego elige «Ollama» en el bot.
+            </div>
           </div>
+
+          <div className="section-title">Lectura de páginas web</div>
+          <label className="check">
+            <input type="checkbox" checked={webReader} onChange={(e) => { setWebReader(e.target.checked); api.updateSettings({ webReader: e.target.checked }); }} />
+            Usar el lector público r.jina.ai cuando una web no deja leerse desde el navegador
+          </label>
+          <div className="muted small">La mayoría de webs bloquean que otra página las lea. Si lo desactivas, los bots solo podrán leer webs que lo permitan.</div>
+
+          <div className="section-title">Copia de seguridad</div>
+          <div className="muted small">Tus bots, chats y rutinas viven en este navegador. Descarga una copia para no perderlos o para pasarlos a otro ordenador.</div>
+          <div className="settings-actions">
+            <button className="btn small" onClick={download}>Descargar copia</button>
+            <button className="btn small" onClick={() => fileRef.current?.click()}>Restaurar copia…</button>
+            <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => { restore(e.target.files?.[0]); e.target.value = ''; }} />
+          </div>
+          {backupMsg && <div className="small muted">{backupMsg}</div>}
         </div>
         <div className="modal-foot">
           <span className="spacer" />

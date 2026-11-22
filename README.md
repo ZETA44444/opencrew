@@ -17,65 +17,56 @@
 - 🔑 **Tus claves se quedan en tu máquina** (`data/db.json` o `.env`), nunca se envían al navegador.
 - 🧪 **Modo demo** para probarlo todo sin ninguna clave.
 
-## Empezar (3 minutos)
+## Úsala ya (sin instalar nada)
 
-Necesitas [Node.js 20+](https://nodejs.org).
+👉 **https://zeta44444.github.io/opencrew/**
 
-```bash
-git clone https://github.com/ZETA44444/opencrew.git
-cd opencrew
-npm install
-npm run dev
-```
-
-Abre **http://localhost:5173**. Los bots empiezan en modo demo.
-
-### Añadir tu API key
+Funciona entera en tu navegador. Los bots empiezan en modo demo; para que piensen de verdad:
 
 1. Consigue una clave:
    - **Gemini** (tiene capa gratuita): https://aistudio.google.com/apikey
    - **Claude**: https://console.anthropic.com/settings/keys
    - OpenAI, xAI (Grok) u OpenRouter: enlaces en la propia app.
 2. En la app: **Ajustes y claves** → pega la clave → **Probar** → **Guardar claves**.
-   (O copia `.env.example` a `.env` y ponla ahí.)
-3. En cada bot, elige el modelo en el selector de abajo del chat.
+3. En cada bot, elige el modelo en el selector de debajo del chat.
+
+Tus claves, bots y chats se guardan **solo en tu navegador**. Usa **Ajustes → Descargar copia** para no perderlos.
+
+## Desarrollo local
+
+```bash
+git clone https://github.com/ZETA44444/opencrew.git
+cd opencrew
+npm install
+npm run dev        # http://localhost:5173
+npm run deploy     # publica en GitHub Pages
+```
 
 ## Cómo funciona
 
 ```
-Navegador (React)  ──HTTP + eventos en directo──▶  Servidor Node (Express)
-                                                    ├─ agent.js     bucle: modelo → herramientas → modelo
-                                                    ├─ providers.js Claude · Gemini · OpenAI · xAI · OpenRouter · Ollama · demo
-                                                    ├─ tools.js     delegar · memoria · web · archivos · hora
-                                                    ├─ routines.js  programador de rutinas
-                                                    └─ store.js     data/db.json
+Tu navegador
+ ├─ src/components   interfaz (Sidebar, Chat, Panel derecho, modales)
+ ├─ src/api.js       "backend" dentro del navegador
+ └─ src/core
+     ├─ agent.js      bucle: modelo → herramientas → modelo
+     ├─ providers.js  Claude · Gemini · OpenAI · xAI · OpenRouter · Ollama · demo (llamadas directas)
+     ├─ tools.js      delegar · memoria · leer webs · archivos · hora
+     ├─ routines.js   rutinas (se ejecutan mientras la app está abierta)
+     └─ store.js      base de datos en localStorage
 ```
 
 Cada bot tiene `provider` y `model`. Cuando un bot delega, el bot destino se ejecuta con **su propio** modelo, así que puedes mezclar modelos caros para pensar y baratos para tareas simples.
 
-## Estructura
+## Seguridad y privacidad
 
-```
-server/   API, bucle de agente, proveedores de IA, herramientas, rutinas
-src/      interfaz React (Sidebar, Chat, Panel derecho, modales)
-docs/     análisis de Grok Bot
-data/     tu base de datos local y archivos de los bots (no se sube a git)
-```
-
-## Seguridad
-
-- El servidor solo escucha en `127.0.0.1` por defecto.
-- Las claves se guardan en texto plano en `data/db.json` en tu ordenador. No compartas esa carpeta.
-- `fetch_url` bloquea direcciones locales/privadas.
+- No hay servidor de OpenCrew: tus claves solo viajan de tu navegador al proveedor de IA que elijas.
+- Las webs que bloquean la lectura directa se leen a través de `r.jina.ai` (se puede desactivar en Ajustes).
+- Los archivos que crean los bots se abren siempre como texto plano, nunca como código ejecutable.
 
 ## Hoja de ruta
 
-- [ ] Chats de grupo con varios bots
-- [ ] Conectores (Gmail, Calendar, Notion…) vía MCP
-- [ ] Ordenador/navegador por bot en Docker
-- [ ] Aprobaciones antes de acciones sensibles
-- [ ] Respuestas en streaming token a token
-- [ ] Disparadores por webhook
+Ver [ROADMAP.md](ROADMAP.md).
 
 ## Licencia
 

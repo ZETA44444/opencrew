@@ -1,10 +1,23 @@
 // Tools every bot can use. Each tool: { name, description, parameters (JSON schema), run(args, ctx) }
-import fs from 'node:fs';
-import path from 'node:path';
-import { DATA_DIR, getDb, findBotByName, save } from './store.js';
+import { getDb, findBotByName, save, now } from './store.js';
 
-export const artifactsDir = (botId) => path.join(DATA_DIR, 'artifacts', botId);
-const safeName = (n) => path.basename(String(n || 'archivo.txt')).replace(/[^\w.\-áéíóúñÁÉÍÓÚÑ ]/g, '_').slice(0, 80) || 'archivo.txt';
+export const artifactsOf = (botId) => (getDb().artifacts[botId] ??= []);
+const safeName = (n) => String(n || 'archivo.txt').split(/[\\/]/).pop().replace(/[^\w.\-áéíóúñÁÉÍÓÚÑ ]/g, '_').slice(0, 80) || 'archivo.txt';
+
+async function readUrl(u) {
+  // 1) Direct fetch (works for sites that allow CORS).
+  try {
+    const res = await fetch(u, { signal: AbortSignal.timeout(15_000) });
+    const type = res.headers.get('content-type') || '';
+    const body = await res.text();
+    return { status: res.status, text: type.includes('html') ? htmlToText(body) : body };
+  } catch (e) {
+    // 2) Most sites block browsers from reading them directly (CORS). Fall back to a public reader.
+    if (!getDb().settings.webReader) throw new Error('La web no permite leerla desde el navegador y el lector web está desactivado en Ajustes.');
+    const res = await fetch(`https://r.jina.ai/${u.href}`, { signal: AbortSignal.timeout(30_000) });
+    return { status: res.status, text: await res.text(), via: 'r.jina.ai' };
+  }
+}
 
 function isPrivateHost(host) {
   return /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$)/i.test(host) ||
@@ -55,11 +68,8 @@ const ALL_TOOLS = {
       let u;
       try { u = new URL(url); } catch { return 'URL no válida.'; }
       if (!/^https?:$/.test(u.protocol) || isPrivateHost(u.hostname)) return 'Solo se permiten URLs públicas http(s).';
-      const res = await fetch(u, { headers: { 'user-agent': 'Mozilla/5.0 (OpenCrew bot)' }, signal: AbortSignal.timeout(20_000), redirect: 'follow' });
-      const type = res.headers.get('content-type') || '';
-      const body = await res.text();
-      const text = type.includes('html') ? htmlToText(body) : body;
-      return `HTTP ${res.status} · ${u.href}\n\n${text.slice(0, 12_000)}`;
+      const r = await readUrl(u);
+      return `HTTP ${r.status} · ${u.href}${r.via ? ` (leído vía ${r.via})` : ''}\n\n${r.text.slice(0, 12_000)}`;
     },
   },
   write_artifact: {
@@ -73,16 +83,19 @@ const ALL_TOOLS = {
       required: ['filename', 'content'],
     },
     async run({ filename, content }, ctx) {
-      const dir = artifactsDir(ctx.bot.id);
-      fs.mkdirSync(dir, { recursive: true });
       const name = safeName(filename);
-      fs.writeFileSync(path.join(dir, name), String(content ?? ''));
+      const text = String(content ?? '');
+      const list = artifactsOf(ctx.bot.id);
+      const existing = list.find((a) => a.name === name);
+      if (existing) Object.assign(existing, { content: text, updatedAt: now() });
+      else list.unshift({ name, content: text, updatedAt: now() });
+      save();
       ctx.emit({ type: 'artifacts', botId: ctx.bot.id });
-      return `Archivo guardado: ${name} (${Buffer.byteLength(String(content ?? ''))} bytes)`;
+      return `Archivo guardado: ${name} (${new Blob([text]).size} bytes)`;
     },
   },
   get_current_time: {
-    description: 'Devuelve la fecha y hora actual del servidor.',
+    description: 'Devuelve la fecha y hora actual.',
     parameters: { type: 'object', properties: {} },
     async run() { return new Date().toString(); },
   },

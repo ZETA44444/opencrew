@@ -1,11 +1,6 @@
-// Tiny JSON-file database. Everything lives in data/db.json (git-ignored).
-import fs from 'node:fs';
-import path from 'node:path';
-import crypto from 'node:crypto';
-
-export const DATA_DIR = path.resolve(process.env.DATA_DIR || 'data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
-fs.mkdirSync(DATA_DIR, { recursive: true });
+// Local database stored in the browser (localStorage). Nothing leaves your machine
+// except the calls each bot makes to the AI provider you chose for it.
+const KEY = 'opencrew.db.v1';
 
 export const newId = () => crypto.randomUUID().replace(/-/g, '').slice(0, 12);
 export const now = () => new Date().toISOString();
@@ -33,24 +28,37 @@ function seed() {
       'Da código completo y funcional. Guarda los archivos largos con write_artifact.',
       '#86efac', 'hexagon'),
   ];
-  return { keys: {}, bots, messages: {}, routines: [], runs: [] };
+  return fill({ bots });
+}
+
+function fill(d) {
+  d.keys ??= {}; d.bots ??= []; d.messages ??= {}; d.routines ??= []; d.runs ??= [];
+  d.artifacts ??= {}; d.settings ??= {};
+  d.settings.webReader ??= true;
+  return d;
 }
 
 let db;
-if (fs.existsSync(DB_FILE)) {
-  db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-  db.keys ??= {}; db.bots ??= []; db.messages ??= {}; db.routines ??= []; db.runs ??= [];
-} else {
+try {
+  const raw = localStorage.getItem(KEY);
+  db = raw ? fill(JSON.parse(raw)) : seed();
+} catch {
   db = seed();
 }
 
+let lastSaveError = null;
 export function save() {
-  const tmp = DB_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
-  fs.renameSync(tmp, DB_FILE);
+  try {
+    localStorage.setItem(KEY, JSON.stringify(db));
+    lastSaveError = null;
+  } catch (e) {
+    lastSaveError = e;
+    console.error('No se pudo guardar en el navegador:', e);
+  }
 }
 save();
 
+export const saveError = () => lastSaveError;
 export const getDb = () => db;
 export const getBot = (id) => db.bots.find((b) => b.id === id);
 export const findBotByName = (name) => {
@@ -59,3 +67,19 @@ export const findBotByName = (name) => {
     db.bots.find((b) => b.name.toLowerCase().startsWith(n) || n.startsWith(b.name.toLowerCase()));
 };
 export const messagesOf = (botId) => (db.messages[botId] ??= []);
+
+// Backup: everything except API keys unless asked.
+export function exportData({ includeKeys = false } = {}) {
+  const copy = JSON.parse(JSON.stringify(db));
+  if (!includeKeys) copy.keys = {};
+  return { app: 'opencrew', version: 1, exportedAt: now(), data: copy };
+}
+
+export function importData(json) {
+  const data = json?.data;
+  if (json?.app !== 'opencrew' || !data?.bots) throw new Error('Este archivo no es una copia de seguridad de OpenCrew');
+  const keys = db.keys;
+  db = fill(data);
+  if (!Object.keys(db.keys).length) db.keys = keys; // keep current keys if the backup has none
+  save();
+}
