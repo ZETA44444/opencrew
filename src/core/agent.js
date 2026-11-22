@@ -8,6 +8,7 @@ import { needsApproval, requestApproval } from './approvals.js';
 import { recordUsage, checkBudget, monthCost } from './usage.js';
 import { recordModelResult, recordFallback, recentlyDown } from './health.js';
 import { routeModel } from './router.js';
+import { maybeProposeMemories } from './automemory.js';
 
 const MAX_STEPS = 8;
 export const busy = new Set();
@@ -310,6 +311,8 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
   if (live.length > 500) live.splice(0, live.length - 500);
   save();
   emit({ type: 'message', botId: threadId, message: reply });
+  // Propose things worth remembering (in the background, only after your own messages).
+  if (ownsThread && depth === 0 && source === 'user' && !error && !signal.aborted) setTimeout(() => maybeProposeMemories(botId), 500);
   // Let you know when a bot answers while you're in another tab (routines notify on their own).
   if (depth === 0 && source !== 'routine' && typeof document !== 'undefined' && document.hidden) {
     notify({ kind: 'reply', threadId, title: group ? `${bot.name} en ${group.name}` : bot.name, body: final });

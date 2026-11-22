@@ -10,6 +10,7 @@ import { searchBackend } from './core/search.js';
 import { githubWhoAmI } from './core/github.js';
 import { usageRows, priceFor, setPrice, clearUsage, monthCost } from './core/usage.js';
 import { healthRows, clearHealth } from './core/health.js';
+import { proposalsFor, resolveProposal } from './core/automemory.js';
 import { pendingApprovals, resolveApproval, revokeAlways, setApprovalsEnabled, SENSITIVE } from './core/approvals.js';
 import { addConnector, refreshConnector, updateConnector, removeConnector } from './core/mcp.js';
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
@@ -167,6 +168,9 @@ export const api = {
     broadcast({ type: 'bots' });
     return { ok: true };
   },
+
+  async memoryProposals(botId) { return clone(proposalsFor(botId)); },
+  async resolveMemoryProposal(botId, id, action, scope) { resolveProposal(botId, id, action, scope); },
 
   async setGlobalMemory(memory) {
     db().globalMemory = memory;

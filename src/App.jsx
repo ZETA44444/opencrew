@@ -23,6 +23,7 @@ export default function App() {
   const [artifactsTick, setArtifactsTick] = useState(0);
   const [drafts, setDrafts] = useState({}); // botId -> text being streamed right now
   const [queued, setQueued] = useState([]);
+  const [memProposals, setMemProposals] = useState([]);
   const [viewer, setViewer] = useState(null); // { botId, name } of the open file
   const [projectId, setProjectId] = useState(() => localStorageGet('oc.project') || ''); // queued messages of the selected bot
   const [modal, setModal] = useState(null); // {type:'bot', bot?} | {type:'settings'}
@@ -47,6 +48,7 @@ export default function App() {
     setPinnedSteps(null);
     api.messages(selectedId).then(setMessages).catch(console.error);
     api.queue(selectedId).then(setQueued).catch(console.error);
+    api.memoryProposals(selectedId).then(setMemProposals).catch(console.error);
   }, [selectedId]);
 
   // Clicking a notification opens that chat.
@@ -86,6 +88,8 @@ export default function App() {
         setState((st) => st && { ...st, busy: ev.busy ? [...new Set([...st.busy, ev.botId])] : st.busy.filter((b) => b !== ev.botId) });
       } else if (ev.type === 'bots' || ev.type === 'routines' || ev.type === 'skills' || ev.type === 'suggestions' || ev.type === 'connectors' || ev.type === 'approvals') {
         refresh();
+      } else if (ev.type === 'memoryProposals') {
+        if (ev.botId === selectedRef.current) api.memoryProposals(ev.botId).then(setMemProposals);
       } else if (ev.type === 'queue') {
         if (ev.botId === selectedRef.current) api.queue(ev.botId).then(setQueued);
       } else if (ev.type === 'artifacts') {
@@ -146,6 +150,9 @@ export default function App() {
           busy={state.busy.includes(bot.id)}
           draft={drafts[bot.id]}
           onStop={() => api.stop(bot.id)}
+          memProposals={group ? [] : memProposals}
+          inProject={!group && state.projects.some((p) => p.botIds.includes(bot.id))}
+          onResolveMemory={(id, action, scope) => api.resolveMemoryProposal(bot.id, id, action, scope)}
           approvals={state.approvals}
           onResolveApproval={(id, decision) => api.resolveApproval(id, decision)}
           onOpenThread={(id) => setSelectedId(id)}

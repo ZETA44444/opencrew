@@ -151,6 +151,13 @@ export default function SettingsModal({ providers, settings, services, sensitive
           </label>
           <div className="muted small">Usa una llamada corta a su modelo como mucho cada 12 horas.</div>
 
+          <div className="section-title">Memoria automática</div>
+          <label className="check">
+            <input type="checkbox" checked={settings?.autoMemory !== false} onChange={(e) => { api.updateSettings({ autoMemory: e.target.checked }); onSaved(); }} />
+            Al chatear, los bots me proponen qué recordar (no guardan nada sin mi aprobación)
+          </label>
+          <div className="muted small">Usa el modelo más barato que tengas y solo cada varios mensajes o cuando dices algo como «me llamo…» o «prefiero…».</div>
+
           <div className="section-title">Permisos</div>
           <label className="check">
             <input type="checkbox" checked={settings?.approvals?.enabled !== false} onChange={(e) => { api.setApprovalsEnabled(e.target.checked); onSaved(); }} />

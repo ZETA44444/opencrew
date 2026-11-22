@@ -6,7 +6,7 @@ import { fmtCost } from './UsageModal.jsx';
 import { readAttachment, packMessage, MAX_FILES } from '../attachments.js';
 import { dictationSupported, startDictation, speak, stopSpeaking, speechSupported, startCloudDictation, cloudDictationAvailable, preferCloudDictation, setDictationMode } from '../voice.js';
 
-export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, missed = [], botsById = {}, onResolveMissed, onOpenArtifact, approvals = [], onResolveApproval, onOpenThread, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
+export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, missed = [], botsById = {}, onResolveMissed, onOpenArtifact, approvals = [], onResolveApproval, onOpenThread, memProposals = [], inProject = false, onResolveMemory, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const [listening, setListening] = useState(false);
@@ -176,6 +176,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
             )}
           </div>
         )}
+        {memProposals.length > 0 && <MemoryProposals items={memProposals} botName={bot.name} inProject={inProject} onResolve={onResolveMemory} />}
         {missed.length > 0 && (
           <div className="missed">
             <div className="proposals-head">
@@ -398,3 +399,28 @@ function ImageThumb({ botId, name, onOpen }) {
 let voiceSettings = { voiceName: '', rate: 1, autoSpeak: false };
 export const setVoiceSettings = (v) => { voiceSettings = { ...voiceSettings, ...v }; };
 function useVoiceSettings() { return voiceSettings; }
+
+const SCOPE_LABEL = { global: '🌐 Todo el equipo', project: '📁 Proyecto', bot: '🔒 Solo este bot' };
+
+// «🧠 X propone recordar»: you choose where to save each fact, or discard it.
+function MemoryProposals({ items, botName, inProject, onResolve }) {
+  const [scopes, setScopes] = useState({});
+  return (
+    <div className="memprops">
+      <div className="proposals-head"><span>🧠 {botName} propone recordar</span><button className="link" onClick={() => items.forEach((it) => onResolve(it.id, 'discard'))} title="Descartar todo">×</button></div>
+      {items.map((it) => {
+        const scope = scopes[it.id] || (it.scope === 'project' && !inProject ? 'global' : it.scope);
+        return (
+          <div key={it.id} className="memprop">
+            <span className="memprop-text">{it.text}</span>
+            <select value={scope} onChange={(e) => setScopes({ ...scopes, [it.id]: e.target.value })}>
+              {Object.entries(SCOPE_LABEL).filter(([k]) => k !== 'project' || inProject).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <button className="btn small primary" onClick={() => onResolve(it.id, 'save', scope)}>Guardar</button>
+            <button className="btn small ghost" onClick={() => onResolve(it.id, 'discard')}>No</button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

@@ -466,3 +466,10 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .vis-list { display: flex; flex-direction: column; gap: 4px; padding: 8px 2px 2px; }
 .vis-list label.check { display: flex; align-items: center; gap: 6px; }
 .reads-shared { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+
+/* ---------- memory proposals ---------- */
+.memprops { border: 1px solid #c4b5fd55; background: #c4b5fd10; border-radius: 16px; padding: 10px 12px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+.memprops .proposals-head { margin-bottom: 2px; color: #ddd6fe; }
+.memprop { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.memprop-text { flex: 1; min-width: 160px; font-size: 13px; }
+.memprop select { font-size: 12px; padding: 4px 6px; border-radius: 8px; }
