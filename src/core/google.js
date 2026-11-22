@@ -1,5 +1,5 @@
-// Gmail and Google Calendar for bots, signing in with Google in this browser (no server).
-// The access token lasts ~1 hour and is kept only in this browser. Reading is available once
+// Gmail and Google Calendar for bots, signing in with Google in this browser, or through your
+// server (then the sign-in doesn't expire). A browser-only sign-in lasts ~1 hour. Reading is available once
 // connected; sending emails and creating events must be switched on and asks for approval.
 import { getDb, save } from './store.js';
 import { broadcast } from './events.js';
@@ -18,7 +18,14 @@ export const clientId = () => cfg().clientId || DEFAULT_CLIENT_ID;
 export const googleConnected = () => !!tok()?.token;
 export const googleExpired = () => !!tok() && Date.now() > (tok().exp || 0) - 60_000;
 export const googleCanWrite = () => !!cfg().write;
-export const googleStatus = () => ({ connected: googleConnected(), expired: googleExpired(), email: cfg().email || '', write: googleCanWrite(), botIds: cfg().botIds, clientId: cfg().clientId || '' });
+// Permanent sign-in (server only): Google gives a refresh token that the server uses to renew access.
+const serverSecret = () => (typeof window === 'undefined' && globalThis.OPENCREW_GOOGLE_SECRET) || '';
+const refreshToken = () => getDb().keys.googleRefresh || '';
+export const googleStatus = () => ({
+  connected: googleConnected(), expired: googleExpired() && !(refreshToken() && serverSecret()), email: cfg().email || '',
+  write: googleCanWrite(), botIds: cfg().botIds, clientId: cfg().clientId || '',
+  permanent: !!(refreshToken() && serverSecret()), serverOAuth: !!serverSecret(),
+});
 
 // ---------- sign-in (Google Identity Services token flow) ----------
 let gisLoading;
@@ -65,7 +72,63 @@ export async function connectGoogle() {
   return storeGoogleToken(await requestGoogleToken(clientId(), { again: googleConnected() }));
 }
 
+// ---------- permanent sign-in through your server (authorization code flow) ----------
+const pendingStates = new Map(); // state -> expiry
+const redirectUri = () => `${globalThis.OPENCREW_PUBLIC_URL || ''}/oauth/google/callback`;
+
+export function googleServerAuthUrl() {
+  if (!serverSecret()) throw new Error('Tu servidor no tiene configurado el secreto de Google (GOOGLE_CLIENT_SECRET).');
+  const state = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  for (const [k, exp] of pendingStates) if (exp < Date.now()) pendingStates.delete(k);
+  pendingStates.set(state, Date.now() + 10 * 60_000);
+  const q = new URLSearchParams({
+    client_id: clientId(), redirect_uri: redirectUri(), response_type: 'code', scope: SCOPES,
+    access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state,
+  });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${q}`;
+}
+
+async function tokenRequest(params) {
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: clientId(), client_secret: serverSecret(), ...params }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error_description || data.error || `Google ${res.status}`), { code: data.error });
+  return data;
+}
+
+// Called by the server when Google redirects back with ?code=…&state=…
+export async function finishGoogleServerAuth(code, state) {
+  const exp = pendingStates.get(state);
+  pendingStates.delete(state);
+  if (!exp || exp < Date.now()) throw new Error('El enlace de inicio de sesión ha caducado. Vuelve a pulsar «Conectar» en la app.');
+  const data = await tokenRequest({ code, grant_type: 'authorization_code', redirect_uri: redirectUri() });
+  if (data.refresh_token) getDb().keys.googleRefresh = data.refresh_token;
+  return storeGoogleToken(data);
+}
+
+let refreshing = null;
+async function refreshAccess() {
+  refreshing ??= tokenRequest({ grant_type: 'refresh_token', refresh_token: refreshToken() })
+    .then((data) => {
+      getDb().keys.googleToken = { token: data.access_token, exp: Date.now() + (Number(data.expires_in) || 3600) * 1000, scope: data.scope || tok()?.scope || '' };
+      save();
+    })
+    .catch((e) => {
+      if (e.code === 'invalid_grant') { delete getDb().keys.googleRefresh; save(); broadcast({ type: 'connectors' }); }
+      throw new Error(`No se pudo renovar la sesión de Google: ${String(e.message).replace(/\.$/, "")}. Vuelve a conectar Google en Apps conectadas.`);
+    })
+    .finally(() => { refreshing = null; });
+  return refreshing;
+}
+
 export function disconnectGoogle() {
+  const r = refreshToken();
+  if (r) fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(r)}`, { method: 'POST' }).catch(() => {});
+  delete getDb().keys.googleRefresh;
   const t = tok()?.token;
   if (t) globalThis.google?.accounts?.oauth2?.revoke?.(t, () => {});
   if (t && typeof window === 'undefined') fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(t)}`, { method: 'POST' }).catch(() => {});
@@ -81,8 +144,9 @@ export function updateGoogle(patch) {
   broadcast({ type: 'connectors' });
 }
 
-async function gapi(url, { method = 'GET', body } = {}) {
+async function gapi(url, { method = 'GET', body, retried = false } = {}) {
   if (!googleConnected()) throw new Error('Google no está conectado: conéctalo en Apps conectadas.');
+  if (googleExpired() && refreshToken() && serverSecret()) await refreshAccess();
   if (googleExpired()) throw new Error('La sesión de Google ha caducado (dura 1 hora). Pulsa «Reconectar» en Apps conectadas y vuelve a pedírmelo.');
   const res = await fetch(url, {
     method,
@@ -92,7 +156,10 @@ async function gapi(url, { method = 'GET', body } = {}) {
   });
   const data = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) {
-    if (res.status === 401) { getDb().keys.googleToken.exp = 0; save(); broadcast({ type: 'connectors' }); }
+    if (res.status === 401) {
+      getDb().keys.googleToken.exp = 0; save(); broadcast({ type: 'connectors' });
+      if (refreshToken() && serverSecret() && !retried) return gapi(url, { method, body, retried: true }); // renew once and retry
+    }
     const hint = res.status === 401 ? ' (sesión caducada: reconecta Google en Apps conectadas)' : res.status === 403 ? ' (falta permiso: reconecta y acepta todos los permisos)' : '';
     throw new Error(`Google ${res.status}: ${data?.error?.message || 'error'}${hint}`);
   }

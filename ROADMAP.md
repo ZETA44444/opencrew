@@ -106,9 +106,10 @@ Reglas para cada tarea:
 
 - [x] Servidor Node/Docker que reutiliza el mismo núcleo (en `server/`; funcionando en https://2-25-19-252.sslip.io con HTTPS, token de acceso, copias diarias y `run_javascript` en contenedores sin red). La app se conecta en Ajustes → Servidor
 - [x] Rutinas y vigilantes siempre activos aunque cierres el navegador (cuando la app está conectada al servidor)
-- [ ] Webhooks (Gmail, Slack, GitHub) y conectores que no funcionan desde el navegador (Notion)
-- [ ] OpenAI Realtime y Gemini Live a través del servidor (claves temporales)
-- [ ] Sesión de Google permanente en el servidor (sin reconectar cada hora)
+- [x] Webhooks al instante (GitHub con firma, Slack y cualquier servicio): vigilante «Webhook», los avisos seguidos se agrupan en un solo mensaje
+- [x] Notion a través del servidor (buscar, leer páginas y bases de datos, crear páginas y añadir contenido con permiso)
+- [x] Voz nativa a través del servidor con claves temporales: Gemini Live y OpenAI Realtime (tu clave nunca llega al navegador)
+- [x] Sesión de Google permanente a través del servidor (se renueva sola). ⏸ Necesita que añadas el secreto de tu cliente de Google al servidor (pasos en server/README.md)
 - [ ] Ordenador por bot en Docker (navegador y terminal)
 
 ## Fase 12 — Control de tu navegador y tu ordenador (con permisos)

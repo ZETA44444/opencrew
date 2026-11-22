@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api } from '../api.js';
+import { api, serverMode } from '../api.js';
 
 export default function ConnectorsModal({ connectors, services = {}, bots = [], onClose }) {
   const [form, setForm] = useState(null);
@@ -44,11 +44,30 @@ export default function ConnectorsModal({ connectors, services = {}, bots = [], 
       setGErr(/origin|redirect_uri|invalid_client|idpiframe/i.test(e.message) ? `${e.message}. Revisa que este sitio (${location.origin}) esté en «Orígenes de JavaScript autorizados» de tu Client ID.` : e.message);
     } finally { setGBusy(false); }
   };
+  // Server with Google's secret: sign in once and it never expires (the server renews it).
+  const connectPermanent = async () => {
+    setGErr('');
+    const w = window.open('', 'opencrew-google', 'width=520,height=700'); // open now, inside the click
+    try {
+      const url = await api.googleServerAuthUrl();
+      if (w) w.location.href = url; else location.href = url;
+    } catch (e) { w?.close(); setGErr(e.message); }
+  };
   const toggleBot = (id, on) => {
     const all = bots.map((b) => b.id);
     const cur = g.botIds || all;
     const next = on ? [...new Set([...cur, id])] : cur.filter((x) => x !== id);
     api.updateGoogle({ botIds: next.length === all.length ? null : next });
+  };
+
+  const [nToken, setNToken] = useState('');
+  const [nInfo, setNInfo] = useState('');
+  const [nErr, setNErr] = useState('');
+  const saveNotion = async (value) => {
+    setNErr(''); setNInfo('');
+    await api.saveKeys({ notion: value });
+    setNToken('');
+    if (value) { try { setNInfo(await api.notionWhoAmI()); } catch (e) { setNErr(e.message); } }
   };
 
   const refresh = async (id) => { setBusy(id); await api.refreshConnector(id); setBusy(''); };
@@ -92,14 +111,16 @@ export default function ConnectorsModal({ connectors, services = {}, bots = [], 
           <div className="key-row">
             <div className="key-head">
               <strong>Gmail y Google Calendar</strong>
-              {g.connected ? (g.expired ? <span className="pill err">sesión caducada</span> : <span className="pill ok">conectado{g.email ? ` · ${g.email}` : ''}</span>) : <span className="pill">sin conectar</span>}
+              {g.connected ? (g.expired ? <span className="pill err">sesión caducada</span> : <span className="pill ok">conectado{g.email ? ` · ${g.email}` : ''}{g.permanent ? ' · sin caducar' : ''}</span>) : <span className="pill">sin conectar</span>}
             </div>
             <div className="muted small">
-              Inicia sesión con Google y tus bots podrán buscar y leer tus correos y ver tu agenda. Todo pasa directamente entre este navegador y Google.
-              La sesión dura 1 hora; después pulsa «Reconectar».
+              Inicia sesión con Google y tus bots podrán buscar y leer tus correos y ver tu agenda.
+              {g.serverOAuth ? ' Con tu servidor la sesión no caduca: tus vigilantes de Gmail funcionan 24/7.' : ' La sesión dura 1 hora; después pulsa «Reconectar».'}
             </div>
             <div className="card-actions">
-              <button className="btn small primary" disabled={gBusy} onClick={connectG}>{gBusy ? 'Abriendo Google…' : g.connected ? 'Reconectar' : 'Conectar con Google'}</button>
+              {g.serverOAuth
+                ? <button className="btn small primary" onClick={connectPermanent}>{g.permanent ? 'Volver a conectar' : 'Conectar con Google (sin caducar)'}</button>
+                : <button className="btn small primary" disabled={gBusy} onClick={connectG}>{gBusy ? 'Abriendo Google…' : g.connected ? 'Reconectar' : 'Conectar con Google'}</button>}
               {g.connected && <button className="btn small ghost" onClick={() => api.disconnectGoogle()}>Desconectar</button>}
               <button className="btn small ghost" onClick={() => setGAdv(!gAdv)}>{gAdv ? 'Ocultar opciones' : 'Opciones'}</button>
             </div>
@@ -127,7 +148,43 @@ export default function ConnectorsModal({ connectors, services = {}, bots = [], 
                 </div>
               </label>
             )}
+            {serverMode && !g.serverOAuth && (
+              <details className="small muted">
+                <summary>¿Quieres que no caduque cada hora?</summary>
+                Tu servidor puede renovar la sesión solo. Hace falta añadir el secreto de tu cliente de Google al servidor (te lo explica el asistente de OpenCrew paso a paso).
+              </details>
+            )}
             {gErr && <div className="small run-error">{gErr}</div>}
+          </div>
+
+          <div className="key-row">
+            <div className="key-head">
+              <strong>Notion</strong>
+              {!serverMode ? <span className="pill">necesita tu servidor</span> : services.notion ? <span className="pill ok">conectado{nInfo ? ` · ${nInfo}` : ''}</span> : <span className="pill">sin token</span>}
+              {serverMode && <a href="https://www.notion.so/profile/integrations" target="_blank" rel="noreferrer" className="link small">Crear integración ↗</a>}
+            </div>
+            {!serverMode ? (
+              <div className="muted small">Notion no deja conectarse desde el navegador. Conecta tu servidor en Ajustes → Servidor y podrás usarlo aquí.</div>
+            ) : (
+              <>
+                <div className="muted small">
+                  Crea una integración interna en Notion, copia su token y pégalo aquí. Después, en cada página que quieras que vean tus bots: <b>··· → Conexiones → tu integración</b>.
+                </div>
+                <div className="key-input">
+                  <input type="password" autoComplete="off" placeholder={services.notion ? '•••••••• (escribe para reemplazar)' : 'Token de la integración (ntn_…)'} value={nToken} onChange={(e) => setNToken(e.target.value)} />
+                  <button className="btn small" disabled={!nToken} onClick={() => saveNotion(nToken)}>Guardar</button>
+                  {services.notion && <button className="btn small" onClick={async () => { setNErr(''); try { setNInfo(await api.notionWhoAmI()); } catch (e) { setNErr(e.message); } }}>Probar</button>}
+                  {services.notion && <button className="btn small ghost" onClick={() => saveNotion('')}>Quitar</button>}
+                </div>
+                {services.notion && (
+                  <label className="check small">
+                    <input type="checkbox" checked={!!services.notionWrite} onChange={(e) => api.updateSettings({ notionWrite: e.target.checked })} />
+                    Permitir crear páginas y añadir contenido (siempre te pedirán permiso antes)
+                  </label>
+                )}
+              </>
+            )}
+            {nErr && <div className="small run-error">{nErr}</div>}
           </div>
 
           <div className="section-title">Servidores MCP</div>

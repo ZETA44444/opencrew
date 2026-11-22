@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import Avatar, { GroupAvatar } from './Avatar.jsx';
 import { CallSession } from '../call.js';
-import { LiveSession, liveAvailable } from '../live.js';
+import { LiveSession, RealtimeSession, liveAvailable } from '../live.js';
 
 const LABEL = {
   idle: 'Conectando…', listening: 'Te escucho…', transcribing: 'Entendiendo…', thinking: 'Pensando…',
   speaking: 'Hablando…', error: 'No puedo escucharte', ended: 'Llamada terminada',
 };
 
-export default function CallOverlay({ bot, rate = 1, native = false, onClose }) {
+export default function CallOverlay({ bot, rate = 1, native = '', onClose }) {
   const [state, setState] = useState('idle');
   const [lines, setLines] = useState([]);
   const [err, setErr] = useState('');
@@ -34,9 +34,11 @@ export default function CallOverlay({ bot, rate = 1, native = false, onClose }) 
       }),
     };
     const begin = (s, m) => { session.current = s; window.__ocCall = s; setMode(m); s.start(); };
-    if (native && !bot.isGroup && liveAvailable()) {
-      begin(new LiveSession({
+    if (native && !bot.isGroup && liveAvailable(native)) {
+      const Live = native === 'openai' ? RealtimeSession : LiveSession;
+      begin(new Live({
         ...handlers,
+        botName: bot.name,
         onFallback: (msg) => {
           if (session.current?.closed) return;
           session.current?.hangup();
@@ -57,7 +59,7 @@ export default function CallOverlay({ bot, rate = 1, native = false, onClose }) 
   return (
     <div className="call-overlay" role="dialog" aria-label={`Llamada con ${bot.name}`}>
       <div className="call-top">
-        <span className="muted small">Llamada · {mm}{mode === 'live' && ' · ⚡ voz nativa (Gemini Live)'}</span>
+        <span className="muted small">Llamada · {mm}{mode === 'live' && ` · ⚡ voz nativa (${native === 'openai' ? 'OpenAI Realtime' : 'Gemini Live'})`}</span>
       </div>
       <div className={`call-avatar state-${state}`}>
         {bot.isGroup ? <GroupAvatar members={bot.members} size={120} /> : <Avatar bot={bot} size={120} />}

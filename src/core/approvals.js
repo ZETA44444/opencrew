@@ -16,6 +16,8 @@ export const SENSITIVE = {
   gmail_send: 'Enviar un correo desde tu Gmail',
   gmail_create_draft: 'Guardar un borrador en tu Gmail',
   calendar_create_event: 'Crear un evento en tu calendario',
+  notion_create_page: 'Crear una página en tu Notion',
+  notion_append: 'Añadir contenido a una página de Notion',
   set_bot_limit: 'Cambiar el límite de gasto de un bot',
 };
 

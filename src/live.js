@@ -1,32 +1,27 @@
-// Native low-latency voice with Gemini Live (audio in → audio out over one WebSocket).
-// Optional: needs your Gemini key. Same interface as CallSession so the call screen can use either.
+// Native low-latency voice: Gemini Live (audio over a WebSocket) or OpenAI Realtime (WebRTC).
+// Optional, with your key. In server mode the server hands out a short-lived token, so your
+// key never reaches the browser. Same interface as CallSession so the call screen can use either.
 // The conversation is saved to the chat when you hang up. Tools are not used in this mode.
-import { getBot, getDb, messagesOf, newId, now, save } from './core/store.js';
-import { broadcast } from './core/events.js';
-import { systemPrompt } from './core/agent.js';
-import { isRemote } from './remote.js';
+import { getDb } from './core/store.js';
+import { liveSetup } from './core/livevoice.js';
+import { api } from './api.js';
+import { isRemote, remoteHasKey, rpc } from './remote.js';
 
-const WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
-const VOICES = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede', 'Leda', 'Orus', 'Zephyr'];
+const GEMINI_WS = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
+const GEMINI_WS_TOKEN = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained';
 
-export const liveAvailable = () => !isRemote() && !!getDb().keys.gemini && typeof WebSocket !== 'undefined' && typeof AudioContext !== 'undefined';
-
-// Find a model that supports live audio with your key (newest "native-audio" first).
-let cachedModel = null;
-export async function liveModel() {
-  if (cachedModel) return cachedModel;
-  const key = getDb().keys.gemini;
-  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', { headers: { 'x-goog-api-key': key }, signal: AbortSignal.timeout(15_000) });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.error?.message || `Gemini ${res.status}`);
-  const ids = (data.models || []).filter((m) => m.supportedGenerationMethods?.includes('bidiGenerateContent')).map((m) => m.name.replace(/^models\//, ''));
-  if (!ids.length) throw new Error('Tu clave de Gemini no tiene ningún modelo de voz en directo (Live).');
-  ids.sort((a, b) => (/native-audio/.test(b) - /native-audio/.test(a)) || b.localeCompare(a, undefined, { numeric: true }));
-  return (cachedModel = ids[0]);
+const hasKey = (provider) => (isRemote() ? remoteHasKey(provider) : !!getDb().keys[provider]);
+export function liveAvailable(provider = 'gemini') {
+  if (!hasKey(provider)) return false;
+  return provider === 'openai' ? typeof RTCPeerConnection !== 'undefined' : typeof WebSocket !== 'undefined' && typeof AudioContext !== 'undefined';
 }
+const setupFor = (botId, provider) => (isRemote() ? rpc('liveSetup', [botId, provider]) : liveSetup(botId, provider));
 
-function hashIdx(s, n) { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h) % n; }
-export const liveVoiceFor = (bot) => VOICES[hashIdx(bot.id, VOICES.length)];
+// Save what was said in the call to the bot's chat (here or on your server).
+async function saveTurns(threadId, turns, model) {
+  if (!turns.length) return;
+  await api.appendCallTranscript(threadId, turns, model).catch((e) => console.error('No se pudo guardar la llamada:', e));
+}
 
 const toB64 = (buf) => { let s = ''; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
 const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0)).buffer;
@@ -37,8 +32,8 @@ function floatToPcm16(f32) {
 }
 
 export class LiveSession {
-  constructor({ threadId, onState, onLine, onError, onFallback }) {
-    Object.assign(this, { threadId, onState, onLine, onError, onFallback });
+  constructor({ threadId, botName, onState, onLine, onError, onFallback }) {
+    Object.assign(this, { threadId, botName, onState, onLine, onError, onFallback });
     this.closed = false;
     this.turns = []; // { role, content } saved to the chat on hang-up
     this.userText = '';
@@ -50,16 +45,16 @@ export class LiveSession {
   set(state) { this.state = state; this.onState?.(state); }
 
   async start() {
-    const bot = getBot(this.threadId);
     try {
-      const model = await liveModel();
+      const cfg = await setupFor(this.threadId, 'gemini');
       if (this.closed) return;
-      this.ws = new WebSocket(`${WS_URL}?key=${encodeURIComponent(getDb().keys.gemini)}`);
+      this.model = cfg.model;
+      this.ws = new WebSocket(cfg.token ? `${GEMINI_WS_TOKEN}?access_token=${encodeURIComponent(cfg.token)}` : `${GEMINI_WS}?key=${encodeURIComponent(cfg.key)}`);
       this.ws.binaryType = 'arraybuffer';
       this.ws.onopen = () => this.ws.send(JSON.stringify({ setup: {
-        model: `models/${model}`,
-        generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: liveVoiceFor(bot) } } } },
-        systemInstruction: { parts: [{ text: `${systemPrompt(bot)}\n\nEstás en una llamada de voz: responde breve y natural, como hablando. No puedes usar herramientas en esta llamada; si hace falta una, dile al usuario que te lo pida por chat.` }] },
+        model: `models/${cfg.model}`,
+        generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: cfg.voice } } } },
+        systemInstruction: { parts: [{ text: cfg.system }] },
         inputAudioTranscription: {}, outputAudioTranscription: {},
       } }));
       this.ws.onmessage = (e) => this.onMessage(e.data);
@@ -106,8 +101,7 @@ export class LiveSession {
 
   flushBot() {
     if (!this.botText.trim()) return;
-    const bot = getBot(this.threadId);
-    this.onLine?.({ who: bot?.name || 'Bot', text: this.botText.trim() });
+    this.onLine?.({ who: this.botName || 'Bot', text: this.botText.trim() });
     this.turns.push({ role: 'assistant', content: this.botText.trim() });
     this.botText = '';
   }
@@ -158,14 +152,7 @@ export class LiveSession {
 
   saveTranscript() {
     this.flushUser(); this.flushBot();
-    if (!this.turns.length || !getBot(this.threadId)) return;
-    const thread = messagesOf(this.threadId);
-    for (const t of this.turns) {
-      const m = { id: newId(), role: t.role, content: t.content, createdAt: now(), source: 'call', ...(t.role === 'assistant' && { botId: this.threadId, model: 'gemini-live' }) };
-      thread.push(m);
-      broadcast({ type: 'message', botId: this.threadId, message: m });
-    }
-    save();
+    saveTurns(this.threadId, this.turns, `gemini-live/${this.model || ''}`);
   }
 
   hangup() {
@@ -178,6 +165,88 @@ export class LiveSession {
     this.inCtx?.close().catch(() => {});
     this.outCtx?.close().catch(() => {});
     try { this.ws?.close(); } catch { /* ignore */ }
+    this.set('ended');
+  }
+}
+
+// OpenAI Realtime over WebRTC: the browser sends your microphone and plays the bot's voice;
+// transcripts arrive on a data channel. OpenAI detects when you stop talking and lets you interrupt.
+export class RealtimeSession {
+  constructor({ threadId, botName, onState, onLine, onError, onFallback }) {
+    Object.assign(this, { threadId, botName, onState, onLine, onError, onFallback });
+    this.closed = false;
+    this.turns = [];
+    this.botText = '';
+  }
+
+  set(state) { this.state = state; this.onState?.(state); }
+
+  async start() {
+    try {
+      const cfg = await setupFor(this.threadId, 'openai');
+      if (this.closed) return;
+      if (!cfg.clientSecret) throw new Error('OpenAI no devolvió una clave temporal');
+      this.model = cfg.model;
+      try {
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      } catch { this.onError?.('No hay permiso para usar el micrófono.'); this.set('error'); return; }
+      const pc = (this.pc = new RTCPeerConnection());
+      this.audio = new Audio();
+      this.audio.autoplay = true;
+      pc.ontrack = (e) => { this.audio.srcObject = e.streams[0]; };
+      this.stream.getTracks().forEach((t) => pc.addTrack(t, this.stream));
+      const dc = (this.dc = pc.createDataChannel('oai-events'));
+      dc.onmessage = (e) => { try { this.onEvent(JSON.parse(e.data)); } catch { /* ignore */ } };
+      pc.onconnectionstatechange = () => {
+        if (this.closed) return;
+        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          if (!this.ready) this.onFallback?.('La voz de OpenAI no ha podido conectar. Uso la llamada normal.');
+          else { this.onError?.('Se cortó la voz de OpenAI.'); this.set('error'); }
+        }
+      };
+      await pc.setLocalDescription(await pc.createOffer());
+      const res = await fetch(`https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(cfg.model)}`, {
+        method: 'POST', body: pc.localDescription.sdp,
+        headers: { authorization: `Bearer ${cfg.clientSecret}`, 'content-type': 'application/sdp' },
+      });
+      if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      await pc.setRemoteDescription({ type: 'answer', sdp: await res.text() });
+      this.ready = true;
+      this.set('listening');
+    } catch (e) {
+      if (!this.closed) this.onFallback?.(`La voz de OpenAI no está disponible: ${e.message}. Uso la llamada normal.`);
+    }
+  }
+
+  onEvent(ev) {
+    switch (ev.type) {
+      case 'input_audio_buffer.speech_started': this.set('listening'); break;
+      case 'input_audio_buffer.speech_stopped': this.set('thinking'); break;
+      case 'conversation.item.input_audio_transcription.completed':
+        if (ev.transcript?.trim()) { this.onLine?.({ who: 'Tú', text: ev.transcript.trim() }); this.turns.push({ role: 'user', content: ev.transcript.trim() }); }
+        break;
+      case 'output_audio_buffer.started': case 'response.output_audio.delta': case 'response.audio.delta': this.set('speaking'); break;
+      case 'response.output_audio_transcript.done': case 'response.audio_transcript.done':
+        if (ev.transcript?.trim()) { this.onLine?.({ who: this.botName || 'Bot', text: ev.transcript.trim() }); this.turns.push({ role: 'assistant', content: ev.transcript.trim() }); }
+        break;
+      case 'output_audio_buffer.stopped': case 'output_audio_buffer.cleared': this.set('listening'); break;
+      case 'error': if (ev.error?.message) this.onError?.(`OpenAI: ${ev.error.message}`); break;
+      default:
+    }
+  }
+
+  send(obj) { if (this.dc?.readyState === 'open') this.dc.send(JSON.stringify(obj)); }
+
+  interrupt() { this.send({ type: 'response.cancel' }); this.send({ type: 'output_audio_buffer.clear' }); this.set('listening'); }
+
+  hangup() {
+    if (this.closed) return;
+    this.closed = true;
+    saveTurns(this.threadId, this.turns, `openai-realtime/${this.model || ''}`);
+    try { this.dc?.close(); } catch { /* ignore */ }
+    try { this.pc?.close(); } catch { /* ignore */ }
+    this.stream?.getTracks().forEach((t) => t.stop());
+    if (this.audio) this.audio.srcObject = null;
     this.set('ended');
   }
 }

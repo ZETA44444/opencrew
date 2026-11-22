@@ -8,8 +8,10 @@ import { computeNext, runRoutine, startScheduler, missed, resolveMissed } from '
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
 import { searchBackend } from './core/search.js';
 import { githubWhoAmI } from './core/github.js';
-import { connectGoogle, storeGoogleToken, disconnectGoogle, updateGoogle, googleStatus } from './core/google.js';
+import { connectGoogle, storeGoogleToken, disconnectGoogle, updateGoogle, googleStatus, googleServerAuthUrl } from './core/google.js';
 import { transcribeBase64 } from './core/transcribe.js';
+import { notionWhoAmI } from './core/notion.js';
+import { liveSetup } from './core/livevoice.js';
 import { openArtifactFile } from './artifactFile.js';
 import { usageRows, priceFor, setPrice, clearUsage, monthCost } from './core/usage.js';
 import { healthRows, clearHealth } from './core/health.js';
@@ -24,7 +26,7 @@ const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'sh
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled', 'catchUp'];
 const GROUP_FIELDS = ['name', 'memberIds'];
 const PROJECT_FIELDS = ['name', 'description', 'color', 'botIds', 'groupIds', 'memory'];
-const SERVICE_KEYS = ['tavily', 'github']; // keys for tools, not for chat models
+const SERVICE_KEYS = ['tavily', 'github', 'notion']; // keys for tools, not for chat models
 // A "thread" is a bot's own chat or a group chat; both live in db.messages[id].
 const start = (threadId, text, attachments = []) => (getGroup(threadId)
   ? runGroup({ groupId: threadId, input: text, attachments })
@@ -82,7 +84,7 @@ export const localApi = {
       busy: [...busy],
       tools: TOOL_NAMES,
       settings: db().settings,
-      services: { tavily: !!db().keys.tavily, github: !!db().keys.github, githubWrite: !!db().settings.githubWrite, google: googleStatus(), searchBackend: searchBackend() },
+      services: { tavily: !!db().keys.tavily, github: !!db().keys.github, githubWrite: !!db().settings.githubWrite, google: googleStatus(), notion: !!db().keys.notion, notionWrite: !!db().settings.notionWrite, onServer: typeof window === 'undefined', searchBackend: searchBackend() },
     });
   },
 
@@ -281,9 +283,25 @@ export const localApi = {
 
   // ---------- GitHub ----------
   githubWhoAmI,
+  notionWhoAmI,
   connectGoogle,
   storeGoogleToken,
+  googleServerAuthUrl,
   async transcribeAudio(data, mime, lang) { return transcribeBase64(data, mime, lang); },
+  liveSetup,
+  // What was said in a native voice call, saved to the bot's chat when you hang up.
+  async appendCallTranscript(threadId, turns = [], model = '') {
+    if (!getBot(threadId)) return { ok: false };
+    const thread = messagesOf(threadId);
+    for (const t of turns.slice(0, 200)) {
+      if (!['user', 'assistant'].includes(t.role) || !String(t.content || '').trim()) continue;
+      const m = { id: newId(), role: t.role, content: String(t.content).slice(0, 5000), createdAt: now(), source: 'call', ...(t.role === 'assistant' && { botId: threadId, model }) };
+      thread.push(m);
+      broadcast({ type: 'message', botId: threadId, message: m });
+    }
+    save();
+    return { ok: true };
+  },
   disconnectGoogle,
   updateGoogle,
 

@@ -3,10 +3,10 @@
 // No dependencies: Node 22+ only.
 import http from 'node:http';
 import { readFile, writeFile, rename, mkdir, stat, statfs, readdir, copyFile, unlink } from 'node:fs/promises';
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { runInSandbox } from './sandbox.mjs';
 
-const VERSION = '0.11.0';
+const VERSION = '0.12.0';
 const PORT = Number(process.env.PORT) || 8787;
 const TOKEN = process.env.OPENCREW_TOKEN || '';
 const DATA = (process.env.OPENCREW_DATA || new URL('./data/', import.meta.url).pathname).replace(/\/?$/, '/');
@@ -49,6 +49,8 @@ globalThis.OPENCREW_STORAGE = {
   },
 };
 globalThis.OPENCREW_RUN_JS = runInSandbox;
+globalThis.OPENCREW_GOOGLE_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+globalThis.OPENCREW_PUBLIC_URL = (process.env.OPENCREW_PUBLIC_URL || (process.env.OPENCREW_HOST ? `https://${process.env.OPENCREW_HOST}` : `http://localhost:${PORT}`)).replace(/\/$/, '');
 
 process.on('unhandledRejection', (e) => console.error('Error sin capturar:', e));
 
@@ -56,6 +58,14 @@ const store = await import('../src/core/store.js');
 await store.ready;
 const { subscribe } = await import('../src/core/events.js');
 const { localApi } = await import('../src/localApi.js');
+const { watchers } = await import('../src/core/watchers.js');
+const { receiveWebhook } = await import('../src/core/webhooks.js');
+const { finishGoogleServerAuth } = await import('../src/core/google.js');
+
+const page = (title, text, ok) => `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0b0c;color:#ededed;font:16px/1.5 system-ui,sans-serif;padding:16px;text-align:center}p{color:#a1a1aa;max-width:420px}</style></head>
+<body><main><h1>${ok ? '✓' : '⚠️'} ${title}</h1><p>${text}</p></main>${ok ? '<script>setTimeout(()=>window.close(),2000)</script>' : ''}</body></html>`;
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 await localApi.state(); // starts routines, watchers and the message queue
 
 // Functions that only make sense inside a browser.
@@ -70,6 +80,28 @@ const extra = {
 
 // ---------- HTTP ----------
 const hash = (s) => createHash('sha256').update(String(s)).digest();
+const same = (a, b) => timingSafeEqual(hash(a), hash(b));
+
+// POST /hooks/<watcher id>?k=<secret>  (or GitHub's X-Hub-Signature-256 made with the same secret)
+async function handleHook(req, res, id, url) {
+  const raw = await readBody(req, 2 * 1024 * 1024);
+  const w = watchers().find((x) => x.id === id && x.type === 'webhook');
+  const secret = w?.config?.secret;
+  const sig = String(req.headers['x-hub-signature-256'] || '');
+  const ok = !!secret && ((url.searchParams.get('k') && same(url.searchParams.get('k'), secret))
+    || (sig && same(sig, `sha256=${createHmac('sha256', secret).update(raw).digest('hex')}`)));
+  if (!ok) return send(res, 404, { error: 'No encontrado' });
+  let body = {};
+  const type = String(req.headers['content-type'] || '');
+  try {
+    if (type.includes('application/x-www-form-urlencoded')) {
+      const form = new URLSearchParams(raw);
+      body = form.get('payload') ? JSON.parse(form.get('payload')) : Object.fromEntries(form);
+    } else body = raw ? JSON.parse(raw) : {};
+  } catch { body = { text: raw.slice(0, 2000) }; }
+  const r = receiveWebhook(w, req.headers, body);
+  return send(res, r.status, r.body);
+}
 const authorized = (req) => {
   const m = /^Bearer (.+)$/.exec(req.headers.authorization || '');
   return !!m && timingSafeEqual(hash(m[1]), hash(TOKEN));
@@ -106,13 +138,13 @@ const send = (res, status, data) => {
   res.end(JSON.stringify(data));
 };
 
-function readBody(req) {
+function readBody(req, limit = MAX_BODY) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
     req.on('data', (c) => {
       size += c.length;
-      if (size > MAX_BODY) { reject(Object.assign(new Error('Demasiado grande'), { status: 413 })); req.destroy(); return; }
+      if (size > limit) { reject(Object.assign(new Error('Demasiado grande'), { status: 413 })); req.destroy(); return; }
       chunks.push(c);
     });
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
@@ -140,6 +172,17 @@ const server = http.createServer(async (req, res) => {
       res.end(HOME);
       return;
     }
+    if (url.pathname === '/oauth/google/callback' && req.method === 'GET') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      try {
+        if (url.searchParams.get('error')) throw new Error(url.searchParams.get('error') === 'access_denied' ? 'Has cancelado el permiso.' : url.searchParams.get('error'));
+        const r = await finishGoogleServerAuth(url.searchParams.get('code') || '', url.searchParams.get('state') || '');
+        res.end(page('Google conectado', `Tus bots ya pueden usar el correo y la agenda de ${esc(r.email || 'tu cuenta')} sin caducar. Puedes cerrar esta ventana.`, true));
+      } catch (e) { res.end(page('No se pudo conectar Google', esc(e.message), false)); }
+      return;
+    }
+    const hook = /^\/hooks\/([\w-]{6,40})$/.exec(url.pathname);
+    if (hook && req.method === 'POST') return handleHook(req, res, hook[1], url);
     if (!url.pathname.startsWith('/api/')) return send(res, 404, { error: 'No encontrado' });
     if (!authorized(req)) return send(res, 401, { error: 'Token no válido' });
 

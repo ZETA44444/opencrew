@@ -2,7 +2,7 @@
 // and only wake the bot when there is news. Saves tokens compared with "check every 15 min".
 import { getDb, getBot, newId, now, save } from './store.js';
 import { broadcast } from './events.js';
-import { runAgent, busy } from './agent.js';
+import { runAgent, busy, waitUntilFree } from './agent.js';
 import { notify } from './notify.js';
 import { gmailList, googleConnected } from './google.js';
 
@@ -74,7 +74,7 @@ async function gmailItems(cfg) {
 // ---------- run one check ----------
 export async function checkWatcher(w, { force = false } = {}) {
   const bot = getBot(w.botId);
-  if (!bot) return;
+  if (!bot || w.type === 'webhook') return; // webhooks arrive on their own
   w.lastCheckAt = now();
   w.state ??= {};
   try {
@@ -96,14 +96,7 @@ export async function checkWatcher(w, { force = false } = {}) {
     w.lastError = null;
     if (news.length && (!busy.has(bot.id) || force)) {
       if (webState) w.state = webState;
-      w.lastFiredAt = now();
-      (w.history ??= []).unshift({ at: now(), count: news.length, titles: news.slice(0, 5).map((n) => n.title) });
-      w.history = w.history.slice(0, 20);
-      save();
-      broadcast({ type: 'watchers' });
-      const list = news.slice(0, 10).map((n) => `- ${n.title}${n.url ? ` (${n.url})` : ''}${n.text ? `\n  ${n.text.replace(/\n/g, ' ').slice(0, 400)}` : ''}`).join('\n');
-      notify({ kind: 'routine', threadId: bot.id, title: `🔔 ${w.name}: ${news.length} novedad${news.length > 1 ? 'es' : ''}`, body: news.map((n) => n.title).join(' · ') });
-      await runAgent({ botId: bot.id, input: `🔔 Vigilante «${w.name}»: ${news.length} novedad${news.length > 1 ? 'es' : ''}\n\n${list}\n\n${w.prompt || 'Revisa estas novedades y dime lo importante.'}`, source: 'routine' });
+      await fireWatcher(w, news);
     } else if (news.length && !webState) {
       // The bot was busy: leave the news "unseen" so the next check picks them up.
       w.state.seen = (w.state.seen || []).filter((id) => !news.some((n) => n.id === id));
@@ -113,6 +106,21 @@ export async function checkWatcher(w, { force = false } = {}) {
   }
   save();
   broadcast({ type: 'watchers' });
+}
+
+// Wake the bot with the news (shared by polling watchers and webhooks).
+export async function fireWatcher(w, news, { wait = false } = {}) {
+  const bot = getBot(w.botId);
+  if (!bot) return;
+  if (wait) await waitUntilFree(bot.id, null, 15 * 60_000).catch(() => {});
+  w.lastFiredAt = now();
+  (w.history ??= []).unshift({ at: now(), count: news.length, titles: news.slice(0, 5).map((n) => n.title) });
+  w.history = w.history.slice(0, 20);
+  save();
+  broadcast({ type: 'watchers' });
+  const list = news.slice(0, 10).map((n) => `- ${n.title}${n.url ? ` (${n.url})` : ''}${n.text ? `\n  ${n.text.replace(/\n/g, ' ').slice(0, 400)}` : ''}`).join('\n');
+  notify({ kind: 'routine', threadId: bot.id, title: `🔔 ${w.name}: ${news.length} novedad${news.length > 1 ? 'es' : ''}`, body: news.map((n) => n.title).join(' · ') });
+  await runAgent({ botId: bot.id, input: `🔔 Vigilante «${w.name}»: ${news.length} novedad${news.length > 1 ? 'es' : ''}\n\n${list}\n\n${w.prompt || 'Revisa estas novedades y dime lo importante.'}`, source: 'routine' });
 }
 
 // Filters: «solo si contiene», «ignorar si contiene», etiquetas y autor (GitHub). Comma-separated, any term matches.
@@ -137,7 +145,7 @@ export function startWatchers() {
   const running = new Set();
   const tick = () => {
     for (const w of watchers()) {
-      if (!w.enabled || running.has(w.id)) continue;
+      if (!w.enabled || running.has(w.id) || w.type === 'webhook') continue;
       const every = Math.max(MIN_EVERY[w.type] || 10, Number(w.everyMin) || 15) * 60_000;
       if (w.lastCheckAt && Date.now() - new Date(w.lastCheckAt).getTime() < every) continue;
       running.add(w.id);
@@ -154,11 +162,13 @@ export function saveWatcher(input) {
   const fields = ['botId', 'name', 'type', 'config', 'everyMin', 'prompt', 'enabled', 'filters'];
   const data = Object.fromEntries(fields.filter((k) => input[k] !== undefined).map((k) => [k, input[k]]));
   if (existing) {
+    if (existing.type === 'webhook') delete data.config; // keep its secret address
     if (data.config && JSON.stringify(data.config) !== JSON.stringify(existing.config)) existing.state = {}; // new source: learn again
     Object.assign(existing, data);
   } else {
     if (!getBot(data.botId)) throw new Error('Bot no encontrado');
     if (!data.name?.trim()) throw new Error('Ponle un nombre al vigilante');
+    if (data.type === 'webhook') data.config = { ...(data.config || {}), secret: [...crypto.getRandomValues(new Uint8Array(20))].map((b) => b.toString(16).padStart(2, '0')).join('') };
     list.push({ id: newId(), enabled: true, everyMin: MIN_EVERY[data.type] || 15, state: {}, history: [], createdAt: now(), ...data });
   }
   save();

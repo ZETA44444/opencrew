@@ -524,3 +524,9 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .item-menu button { text-align: left; padding: 8px 10px; border-radius: 8px; font-size: 14px; }
 .item-menu button:hover { background: var(--bg-3); }
 .item-menu button.danger { color: #f87171; }
+
+.hook-info { margin-top: 4px; }
+.hook-info summary { cursor: pointer; color: var(--text-2); }
+.hook-info > * + * { margin-top: 6px; }
+.hook-url { display: flex; gap: 6px; align-items: center; }
+.hook-url code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 11px; background: var(--bg-3); padding: 6px 8px; border-radius: 8px; }

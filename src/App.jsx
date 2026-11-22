@@ -258,7 +258,7 @@ export default function App() {
           onDeleted={() => { setModal(null); refresh(); }}
         />
       )}
-      {call && bot && <CallOverlay bot={bot} rate={state.settings.voice?.rate || 1} native={state.settings.voice?.native === 'gemini'} onClose={() => setCall(false)} />}
+      {call && bot && <CallOverlay bot={bot} rate={state.settings.voice?.rate || 1} native={state.settings.voice?.native || ''} onClose={() => setCall(false)} />}
       {serverMode && serverDown && <div className="server-down" role="status">☁️ Sin conexión con tu servidor · reintentando… (tus bots siguen trabajando allí)</div>}
       {toasts.length > 0 && (
         <div className="toasts" role="status">

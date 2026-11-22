@@ -31,3 +31,18 @@ pulsa **Probar** y luego **Conectar**. La primera vez puedes subir los bots y cl
 ```bash
 ~/opencrew/server/update.sh
 ```
+
+## Google sin caducar (opcional)
+
+1. En Google Cloud → Credenciales → tu «ID de cliente de OAuth» (aplicación web):
+   añade en **URIs de redireccionamiento autorizados**: `https://TU-HOST/oauth/google/callback`.
+2. Copia el **Secreto del cliente** de esa misma pantalla.
+3. En tu Mac (te pedirá pegarlo; no se muestra):
+   `ssh -t opencrew 'read -rsp "Secreto: " S; echo; sed -i "/^GOOGLE_CLIENT_SECRET=/d" ~/opencrew/server/.env; echo "GOOGLE_CLIENT_SECRET=$S" >> ~/opencrew/server/.env; ~/opencrew/server/update.sh >/dev/null && echo Listo'`
+4. En «Pantalla de consentimiento de OAuth», pulsa **Publicar aplicación** (estado «En producción»). En modo «Prueba» Google corta la sesión a los 7 días.
+5. En la app: Apps conectadas → **Conectar con Google (sin caducar)**.
+
+## Webhooks
+
+Crea un vigilante de tipo **Webhook** en el panel de un bot: te da una dirección `https://TU-HOST/hooks/…` y una clave.
+En GitHub: Settings → Webhooks → Payload URL = esa dirección, Content type `application/json`, Secret = la clave.

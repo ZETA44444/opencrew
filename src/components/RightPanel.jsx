@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api.js';
+import { api, serverMode } from '../api.js';
+import { remoteConfig } from '../remote.js';
 import Markdown from './Markdown.jsx';
 
 const TABS = [['progress', 'Progreso'], ['routines', 'Rutinas'], ['memory', 'Memoria'], ['artifacts', 'Archivos']];
@@ -98,12 +99,31 @@ const WATCH_TYPES = {
   web: { label: 'Una página web', hint: 'Avisa cuando cambia el contenido de una web' },
   rss: { label: 'Un RSS / blog', hint: 'Avisa con cada artículo nuevo de un feed' },
   gmail: { label: 'Gmail', hint: 'Avisa con cada correo nuevo que coincida con la búsqueda (necesita Google conectado en Apps conectadas)' },
+  webhook: { label: 'Webhook (al instante)', hint: 'GitHub, Slack o cualquier servicio avisa a tu servidor en el momento; no se comprueba nada cada pocos minutos', server: true },
 };
+const hookUrl = (w) => `${remoteConfig()?.url || ''}/hooks/${w.id}?k=${w.config?.secret || ''}`;
+
+function HookInfo({ w }) {
+  const [copied, setCopied] = useState('');
+  const copy = (what, text) => navigator.clipboard?.writeText(text).then(() => { setCopied(what); setTimeout(() => setCopied(''), 1500); });
+  return (
+    <details className="hook-info">
+      <summary className="small">Dirección del webhook y cómo configurarlo</summary>
+      <div className="hook-url"><code>{hookUrl(w)}</code><button className="btn small" onClick={() => copy('url', hookUrl(w))}>{copied === 'url' ? '✓ Copiada' : 'Copiar'}</button></div>
+      <div className="muted small">
+        <b>GitHub:</b> repositorio → Settings → Webhooks → Add webhook. Payload URL: la dirección de arriba, Content type: <code>application/json</code>,
+        y en Secret pega esta clave <button className="link small" onClick={() => copy('secret', w.config?.secret || '')}>{copied === 'secret' ? '✓ copiada' : 'copiar clave'}</button>. Elige los eventos que quieras.
+      </div>
+      <div className="muted small"><b>Slack u otros:</b> pega la dirección donde pidan una «Request URL» o «Webhook URL». No la compartas: quien la tenga puede avisar a tu bot.</div>
+    </details>
+  );
+}
 const GH_EVENTS = { issues: 'Issues nuevos', pulls: 'Pull requests nuevos', releases: 'Versiones nuevas', commits: 'Commits nuevos' };
 
 function describeWatch(w) {
   if (w.type === 'github') return `${GH_EVENTS[w.config?.event || 'issues']} en ${w.config?.repo}`;
   if (w.type === 'gmail') return `Correos: ${w.config?.query || 'in:inbox'}`;
+  if (w.type === 'webhook') return 'al instante';
   return w.config?.url;
 }
 
@@ -117,7 +137,7 @@ function Watchers({ bot, watchers, refresh }) {
   const [err, setErr] = useState('');
   const save = async () => {
     setErr('');
-    const config = form.type === 'github' ? { repo: form.repo, event: form.event } : form.type === 'gmail' ? { query: form.query || 'in:inbox' } : { url: form.url };
+    const config = form.type === 'github' ? { repo: form.repo, event: form.event } : form.type === 'gmail' ? { query: form.query || 'in:inbox' } : form.type === 'webhook' ? {} : { url: form.url };
     try {
       const filters = { include: form.include, exclude: form.exclude, ...(form.type === 'github' && { labels: form.labels, author: form.author }), ...(form.type === 'gmail' && { author: form.author }) };
       await api.saveWatcher({ botId: bot.id, name: form.name, type: form.type, config, everyMin: Number(form.everyMin), prompt: form.prompt, filters });
@@ -137,13 +157,16 @@ function Watchers({ bot, watchers, refresh }) {
               <span />
             </label>
           </div>
-          <div className="muted small conn-url">{WATCH_TYPES[w.type]?.label}: {describeWatch(w)} · cada {w.everyMin} min</div>
+          <div className="muted small conn-url">{WATCH_TYPES[w.type]?.label}: {describeWatch(w)}{w.type !== 'webhook' && ` · cada ${w.everyMin} min`}</div>
+          {w.type === 'webhook' && <HookInfo w={w} />}
           {describeFilters(w.filters) && <div className="muted small">Filtro: {describeFilters(w.filters)}</div>}
-          <div className="muted small">{w.lastCheckAt ? `Última comprobación: ${new Date(w.lastCheckAt).toLocaleTimeString()}` : 'Aún no se ha comprobado'}{w.ready ? '' : ' · aprendiendo lo que ya existe'}</div>
+          {w.type === 'webhook'
+            ? <div className="muted small">{w.lastCheckAt ? `Último aviso recibido: ${new Date(w.lastCheckAt).toLocaleString()}` : 'Esperando el primer aviso'}</div>
+            : <div className="muted small">{w.lastCheckAt ? `Última comprobación: ${new Date(w.lastCheckAt).toLocaleTimeString()}` : 'Aún no se ha comprobado'}{w.ready ? '' : ' · aprendiendo lo que ya existe'}</div>}
           {w.lastFiredAt && <div className="small run-ok">Última novedad: {new Date(w.lastFiredAt).toLocaleString()} ({w.history?.[0]?.count || 0})</div>}
           {w.lastError && <div className="small run-error">{w.lastError}</div>}
           <div className="card-actions">
-            <button className="btn small" disabled={checking === w.id} onClick={async () => { setChecking(w.id); await api.checkWatcher(w.id); setChecking(null); refresh(); }}>{checking === w.id ? 'Comprobando…' : 'Comprobar ahora'}</button>
+            {w.type !== 'webhook' && <button className="btn small" disabled={checking === w.id} onClick={async () => { setChecking(w.id); await api.checkWatcher(w.id); setChecking(null); refresh(); }}>{checking === w.id ? 'Comprobando…' : 'Comprobar ahora'}</button>}
             <button className="btn small ghost" onClick={() => confirm('¿Borrar vigilante?') && api.deleteWatcher(w.id).then(refresh)}>Borrar</button>
           </div>
         </div>
@@ -152,7 +175,7 @@ function Watchers({ bot, watchers, refresh }) {
         <div className="card form">
           <input placeholder="Nombre (p. ej. Bugs nuevos)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value, everyMin: e.target.value === 'web' ? 30 : e.target.value === 'rss' ? 15 : e.target.value === 'gmail' ? 5 : 10 })}>
-            {Object.entries(WATCH_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            {Object.entries(WATCH_TYPES).filter(([, v]) => !v.server || serverMode).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
           <div className="muted small">{WATCH_TYPES[form.type].hint}</div>
           {form.type === 'github' ? (
@@ -162,16 +185,18 @@ function Watchers({ bot, watchers, refresh }) {
                 {Object.entries(GH_EVENTS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
+          ) : form.type === 'webhook' ? (
+            <div className="muted small">Al guardar te daré la dirección que tienes que pegar en GitHub, Slack, etc.</div>
           ) : form.type === 'gmail' ? (
             <input placeholder="Búsqueda de Gmail (p. ej. is:unread from:cliente.com)" value={form.query} onChange={(e) => setForm({ ...form, query: e.target.value })} />
           ) : (
             <input placeholder={form.type === 'rss' ? 'https://blog.com/feed' : 'https://web.com/precios'} value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} />
           )}
-          <div className="card-row">
+          {form.type !== 'webhook' && <div className="card-row">
             <span className="muted small">Comprobar cada</span>
             <input type="number" min="5" value={form.everyMin} onChange={(e) => setForm({ ...form, everyMin: e.target.value })} style={{ width: 70 }} />
             <span className="muted small">min</span>
-          </div>
+          </div>}
           <details className="filters" open={!!(form.include || form.exclude || form.labels || form.author)}>
             <summary className="muted small">Filtros (opcional)</summary>
             <input placeholder="Solo si contiene… (palabras separadas por comas)" value={form.include} onChange={(e) => setForm({ ...form, include: e.target.value })} />
@@ -187,7 +212,7 @@ function Watchers({ bot, watchers, refresh }) {
           <textarea rows={2} placeholder="Qué debe hacer el bot con las novedades (p. ej. «resúmelas y dime si alguna es urgente»)" value={form.prompt} onChange={(e) => setForm({ ...form, prompt: e.target.value })} />
           {err && <div className="small run-error">{err}</div>}
           <div className="card-actions">
-            <button className="btn small primary" disabled={!form.name || !(form.repo || form.url || form.type === 'gmail')} onClick={save}>Guardar</button>
+            <button className="btn small primary" disabled={!form.name || !(form.repo || form.url || form.type === 'gmail' || form.type === 'webhook')} onClick={save}>Guardar</button>
             <button className="btn small ghost" onClick={() => setForm(null)}>Cancelar</button>
           </div>
         </div>
