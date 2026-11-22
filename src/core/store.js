@@ -37,6 +37,7 @@ function fill(d) {
   d.settings.webReader ??= true;
   d.settings.proactive ??= true;
   d.settings.notifications ??= { routines: true, replies: true };
+  d.settings.approvals ??= { enabled: true, always: {} };
   return d;
 }
 

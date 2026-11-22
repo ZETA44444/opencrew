@@ -81,7 +81,7 @@ export default function App() {
         if (s.depth === 0 && thread === selectedRef.current) setPinnedSteps(null);
       } else if (ev.type === 'status') {
         setState((st) => st && { ...st, busy: ev.busy ? [...new Set([...st.busy, ev.botId])] : st.busy.filter((b) => b !== ev.botId) });
-      } else if (ev.type === 'bots' || ev.type === 'routines' || ev.type === 'skills' || ev.type === 'suggestions' || ev.type === 'connectors') {
+      } else if (ev.type === 'bots' || ev.type === 'routines' || ev.type === 'skills' || ev.type === 'suggestions' || ev.type === 'connectors' || ev.type === 'approvals') {
         refresh();
       } else if (ev.type === 'queue') {
         if (ev.botId === selectedRef.current) api.queue(ev.botId).then(setQueued);
@@ -113,6 +113,7 @@ export default function App() {
       <Sidebar
         bots={state.bots}
         groups={state.groups}
+        waiting={state.approvals.map((a) => a.threadId)}
         skillsCount={state.skills.length}
         connectorsCount={state.connectors.filter((c) => c.enabled && c.status === 'ok').length + (state.services.github ? 1 : 0)}
         onConnectors={() => setModal({ type: 'connectors' })}
@@ -136,6 +137,9 @@ export default function App() {
           busy={state.busy.includes(bot.id)}
           draft={drafts[bot.id]}
           onStop={() => api.stop(bot.id)}
+          approvals={state.approvals}
+          onResolveApproval={(id, decision) => api.resolveApproval(id, decision)}
+          onOpenThread={(id) => setSelectedId(id)}
           onOpenArtifact={(botId, name) => setViewer({ botId, name })}
           missed={state.missed}
           botsById={Object.fromEntries(state.bots.map((b) => [b.id, b]))}
@@ -195,7 +199,7 @@ export default function App() {
       {modal?.type === 'connectors' && <ConnectorsModal connectors={state.connectors} services={state.services} onClose={() => setModal(null)} />}
       {modal?.type === 'skills' && <SkillsModal skills={state.skills} onClose={() => setModal(null)} />}
       {modal?.type === 'settings' && (
-        <SettingsModal providers={state.providers} settings={state.settings} services={state.services} onClose={() => setModal(null)} onSaved={refresh} />
+        <SettingsModal providers={state.providers} settings={state.settings} services={state.services} sensitiveTools={state.sensitiveTools} onClose={() => setModal(null)} onSaved={refresh} />
       )}
     </div>
   );

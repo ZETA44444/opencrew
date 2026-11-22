@@ -4,6 +4,7 @@ import { callModel, providerById } from './providers.js';
 import { toolsFor, runTool, describeCall } from './tools.js';
 import { broadcast } from './events.js';
 import { notify } from './notify.js';
+import { needsApproval, requestApproval } from './approvals.js';
 
 const MAX_STEPS = 8;
 export const busy = new Set();
@@ -111,6 +112,21 @@ export async function runAgent({ botId, input, attachments = [], from = null, so
         const s = step({ kind: 'tool', tool: call.name, label: describeCall(call), args: call.args, status: 'running' });
         let out;
         try {
+          // Sensitive action: stop and ask you first.
+          if (needsApproval(call)) {
+            update(s, { label: `Esperando tu permiso: ${describeCall(call)}`, waiting: true });
+            if (typeof document !== 'undefined' && document.hidden) {
+              notify({ kind: 'routine', threadId, title: `🔐 ${bot.name} necesita tu permiso`, body: describeCall(call) });
+            }
+            const decision = await requestApproval({ call, bot, threadId, label: describeCall(call), signal });
+            if (decision === 'deny') {
+              out = 'El usuario NO ha dado permiso para esta acción. No la hagas ni la intentes de otra forma; díselo y sigue con lo demás.';
+              update(s, { status: 'error', label: `${describeCall(call)} — denegado`, waiting: false, detail: 'Denegado por ti' });
+              convo.push({ role: 'tool', toolCallId: call.id, name: call.name, content: out });
+              continue;
+            }
+            update(s, { label: describeCall(call), waiting: false });
+          }
           out = await runTool(call, ctx);
           update(s, { status: 'done', detail: out.slice(0, 600) });
         } catch (e) {

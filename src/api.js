@@ -8,6 +8,7 @@ import { computeNext, runRoutine, startScheduler, missed, resolveMissed } from '
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
 import { searchBackend } from './core/search.js';
 import { githubWhoAmI } from './core/github.js';
+import { pendingApprovals, resolveApproval, revokeAlways, setApprovalsEnabled, SENSITIVE } from './core/approvals.js';
 import { addConnector, refreshConnector, updateConnector, removeConnector } from './core/mcp.js';
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
 import { askPermission, notifyPermission, notify } from './core/notify.js';
@@ -59,6 +60,8 @@ export const api = {
       routines: db().routines,
       groups: db().groups,
       skills: db().skills,
+      approvals: pendingApprovals(),
+      sensitiveTools: SENSITIVE,
       connectors: db().connectors.map(({ token, ...c }) => ({ ...c, hasToken: !!token })),
       suggestions: db().suggestions || null,
       suggestionsLoading: suggestionsLoading(),
@@ -206,6 +209,11 @@ export const api = {
   // ---------- proactive main bot ----------
   refreshSuggestions: () => refreshSuggestions({ force: true }),
   dismissSuggestion,
+
+  // ---------- approvals ----------
+  resolveApproval,
+  revokeAlways,
+  setApprovalsEnabled,
 
   // ---------- GitHub ----------
   githubWhoAmI,

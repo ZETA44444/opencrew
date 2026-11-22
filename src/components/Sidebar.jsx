@@ -25,7 +25,7 @@ function useInstall() {
   return [can, install];
 }
 
-export default function Sidebar({ bots, groups = [], skillsCount = 0, connectorsCount = 0, onConnectors, busy, selectedId, onSelect, onNew, onNewGroup, onSkills, onSettings, noKeys, onClose }) {
+export default function Sidebar({ bots, groups = [], waiting = [], skillsCount = 0, connectorsCount = 0, onConnectors, busy, selectedId, onSelect, onNew, onNewGroup, onSkills, onSettings, noKeys, onClose }) {
   const [canInstall, install] = useInstall();
   const sorted = [...bots].sort((a, b) => Number(!!b.starred) - Number(!!a.starred));
   return (
@@ -50,7 +50,7 @@ export default function Sidebar({ bots, groups = [], skillsCount = 0, connectors
             <button key={g.id} className={`bot-item ${g.id === selectedId ? 'active' : ''}`} onClick={() => onSelect(g.id)}>
               <div className="avatar-wrap">
                 <GroupAvatar members={members} size={30} />
-                {busy.includes(g.id) && <span className="busy-dot" title="Trabajando" />}
+                {waiting.includes(g.id) ? <span className="busy-dot wait" title="Esperando tu permiso" /> : busy.includes(g.id) && <span className="busy-dot" title="Trabajando" />}
               </div>
               <div className="bot-meta">
                 <div className="bot-name">{g.name}</div>
@@ -64,7 +64,7 @@ export default function Sidebar({ bots, groups = [], skillsCount = 0, connectors
           <button key={b.id} className={`bot-item ${b.id === selectedId ? 'active' : ''}`} onClick={() => onSelect(b.id)}>
             <div className="avatar-wrap">
               <Avatar bot={b} size={30} />
-              {busy.includes(b.id) && <span className="busy-dot" title="Trabajando" />}
+              {waiting.includes(b.id) ? <span className="busy-dot wait" title="Esperando tu permiso" /> : busy.includes(b.id) && <span className="busy-dot" title="Trabajando" />}
             </div>
             <div className="bot-meta">
               <div className="bot-name">{b.name}{b.starred && <span className="star">★</span>}</div>

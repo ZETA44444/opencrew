@@ -63,7 +63,7 @@ Reglas para cada tarea:
 
 ## Fase 6 — Seguridad y control
 
-- [ ] Aprobaciones: «permitir una vez / siempre / denegar» antes de acciones sensibles
+- [x] Aprobaciones: «permitir una vez / siempre / denegar» antes de acciones sensibles
 - [ ] Uso y coste estimado por bot y por modelo
 - [ ] Límite de gasto mensual por bot
 

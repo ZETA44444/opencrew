@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { voices as listVoices, speechSupported, dictationSupported, speak } from '../voice.js';
 
-export default function SettingsModal({ providers, settings, services, onClose, onSaved }) {
+export default function SettingsModal({ providers, settings, services, sensitiveTools = {}, onClose, onSaved }) {
   const [keys, setKeys] = useState({});
   const [list, setList] = useState(providers);
   const [tests, setTests] = useState({});
@@ -150,6 +150,23 @@ export default function SettingsModal({ providers, settings, services, onClose, 
             Al abrir la app, el bot principal (★) propone tareas que puede hacer por ti
           </label>
           <div className="muted small">Usa una llamada corta a su modelo como mucho cada 12 horas.</div>
+
+          <div className="section-title">Permisos</div>
+          <label className="check">
+            <input type="checkbox" checked={settings?.approvals?.enabled !== false} onChange={(e) => { api.setApprovalsEnabled(e.target.checked); onSaved(); }} />
+            Pedirme permiso antes de acciones sensibles (crear bots o rutinas, generar imágenes, escribir en GitHub o en apps conectadas)
+          </label>
+          {Object.keys(settings?.approvals?.always || {}).length > 0 && (
+            <div className="always-list">
+              <div className="muted small">Permitido siempre:</div>
+              {Object.entries(settings.approvals.always).map(([tool, v]) => (
+                <div key={tool} className="mem-item">
+                  <span>{sensitiveTools[tool] || v.label || tool}</span>
+                  <button className="btn small ghost" onClick={() => { api.revokeAlways(tool); onSaved(); }}>Volver a preguntar</button>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="section-title">Voz</div>
           <div className="muted small">

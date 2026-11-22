@@ -73,7 +73,7 @@ export async function refreshConnector(id) {
       cursor = r?.nextCursor;
     } while (cursor && tools.length < 200);
     Object.assign(c, {
-      tools: tools.map((t) => ({ name: t.name, description: t.description || '', inputSchema: t.inputSchema || { type: 'object', properties: {} } })),
+      tools: tools.map((t) => ({ name: t.name, description: t.description || '', inputSchema: t.inputSchema || { type: 'object', properties: {} }, readOnly: !!t.annotations?.readOnlyHint })),
       server: init?.serverInfo?.name || c.server, status: 'ok', lastError: null, updatedAt: now(),
     });
   } catch (e) {

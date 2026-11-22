@@ -5,7 +5,7 @@ import { api } from '../api.js';
 import { readAttachment, packMessage, MAX_FILES } from '../attachments.js';
 import { dictationSupported, startDictation, speak, stopSpeaking, speechSupported, startCloudDictation, cloudDictationAvailable, preferCloudDictation, setDictationMode } from '../voice.js';
 
-export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, missed = [], botsById = {}, onResolveMissed, onOpenArtifact, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
+export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, missed = [], botsById = {}, onResolveMissed, onOpenArtifact, approvals = [], onResolveApproval, onOpenThread, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const [listening, setListening] = useState(false);
@@ -153,6 +153,28 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
           </div>
         )}
         {err && <div className="banner error">{err}</div>}
+        {approvals.length > 0 && (
+          <div className="approvals">
+            {approvals.filter((a) => a.threadId === bot.id).map((a) => (
+              <div key={a.id} className="approval">
+                <div className="approval-head">🔐 <b>{a.botName}</b> pide permiso: {a.label}</div>
+                {Object.keys(a.args).length > 0 && (
+                  <details className="approval-args"><summary>Ver detalles</summary><pre>{JSON.stringify(a.args, null, 2)}</pre></details>
+                )}
+                <div className="approval-actions">
+                  <button className="btn small primary" onClick={() => onResolveApproval(a.id, 'once')}>Permitir una vez</button>
+                  <button className="btn small" onClick={() => onResolveApproval(a.id, 'always')}>Permitir siempre</button>
+                  <button className="btn small ghost danger" onClick={() => onResolveApproval(a.id, 'deny')}>Denegar</button>
+                </div>
+              </div>
+            ))}
+            {approvals.filter((a) => a.threadId !== bot.id).length > 0 && (
+              <button className="approval-elsewhere" onClick={() => onOpenThread(approvals.find((a) => a.threadId !== bot.id).threadId)}>
+                🔐 {approvals.filter((a) => a.threadId !== bot.id).map((a) => a.botName).join(', ')} {approvals.filter((a) => a.threadId !== bot.id).length === 1 ? 'espera' : 'esperan'} tu permiso en otro chat →
+              </button>
+            )}
+          </div>
+        )}
         {missed.length > 0 && (
           <div className="missed">
             <div className="proposals-head">
