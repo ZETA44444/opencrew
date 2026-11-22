@@ -335,3 +335,14 @@ textarea { resize: vertical; line-height: 1.45; }
 .template-title { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
 .tier { font-size: 11px; color: var(--text-3); margin-top: 4px; }
 @media (max-width: 760px) { .template-grid { grid-template-columns: 1fr; } }
+
+/* ---------- routine history ---------- */
+.run-stopped { color: var(--text-2); }
+.run-history { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
+.run { border-radius: 8px; }
+.run-head { display: flex; gap: 8px; width: 100%; font-size: 12px; padding: 5px 6px; border-radius: 8px; text-align: left; }
+.run-head:hover { background: var(--bg-3); }
+.run-status { flex: 1; }
+.run-when, .run-ms { color: var(--text-3); font-family: ui-monospace, monospace; font-size: 11px; }
+.run-body { padding: 4px 6px 8px; color: var(--text); }
+.run-summary { font-size: 12.5px; max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); margin-top: 4px; }

@@ -56,7 +56,7 @@ export const api = {
       skills: db().skills,
       suggestions: db().suggestions || null,
       suggestionsLoading: suggestionsLoading(),
-      runs: db().runs.slice(0, 50),
+      runs: db().runs.slice(0, 300),
       busy: [...busy],
       tools: TOOL_NAMES,
       settings: db().settings,

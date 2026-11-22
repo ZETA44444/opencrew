@@ -34,7 +34,7 @@ Reglas para cada tarea:
 
 ## Fase 3 — Rutinas avanzadas
 
-- [ ] Historial de ejecuciones de cada rutina con su resultado
+- [x] Historial de ejecuciones de cada rutina con su resultado
 - [ ] Notificaciones del navegador cuando una rutina termina
 - [ ] Crear rutinas hablando («todos los lunes a las 9 hazme un resumen…»)
 - [ ] Recuperar rutinas que no se ejecutaron porque la app estaba cerrada

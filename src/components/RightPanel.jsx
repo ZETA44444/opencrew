@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import Markdown from './Markdown.jsx';
 
 const TABS = [['progress', 'Progreso'], ['routines', 'Rutinas'], ['memory', 'Memoria'], ['artifacts', 'Archivos']];
 
@@ -56,8 +57,38 @@ function describeSchedule(s) {
   return `Cada día a las ${s.time}${days}`;
 }
 
+const RUN_LABEL = { ok: '✓ Completada', error: '✗ Error', running: '◌ Ejecutando…', stopped: '⏹ Detenida' };
+const fmtMs = (ms) => (ms == null ? '' : ms < 60_000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms / 60_000)} min`);
+
+function RunHistory({ runs }) {
+  const [open, setOpen] = useState(null);
+  if (!runs.length) return <div className="muted small">Aún no se ha ejecutado.</div>;
+  const ok = runs.filter((r) => r.status === 'ok').length;
+  return (
+    <div className="run-history">
+      <div className="muted small">{runs.length} ejecuciones · {Math.round((ok / runs.length) * 100)} % sin errores</div>
+      {runs.slice(0, 20).map((r) => (
+        <div key={r.id} className={`run run-${r.status}`}>
+          <button className="run-head" onClick={() => setOpen(open === r.id ? null : r.id)}>
+            <span className="run-status">{RUN_LABEL[r.status] || r.status}</span>
+            <span className="run-when">{new Date(r.startedAt).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+            <span className="run-ms">{fmtMs(r.ms)}</span>
+          </button>
+          {open === r.id && (
+            <div className="run-body">
+              {r.model && <div className="muted small">{r.model}</div>}
+              <div className="run-summary"><Markdown text={r.summary || '(sin resultado)'} /></div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Routines({ bot, routines, runs, refresh }) {
   const [form, setForm] = useState(null);
+  const [history, setHistory] = useState(null);
   const save = async () => {
     const schedule = form.type === 'interval' ? { type: 'interval', minutes: Number(form.minutes) } : { type: 'daily', time: form.time, days: form.days };
     await api.createRoutine({ botId: bot.id, name: form.name, prompt: form.prompt, schedule });
@@ -80,9 +111,11 @@ function Routines({ bot, routines, runs, refresh }) {
             </div>
             <div className="muted small">{describeSchedule(r.schedule)}</div>
             {r.enabled && r.nextRunAt && <div className="muted small">Próxima: {new Date(r.nextRunAt).toLocaleString()}</div>}
-            {last && <div className={`small run-${last.status}`}>Última: {last.status === 'running' ? 'ejecutando…' : last.status} · {new Date(last.startedAt).toLocaleString()}</div>}
+            {last && <div className={`small run-${last.status}`}>Última: {RUN_LABEL[last.status] || last.status} · {new Date(last.startedAt).toLocaleString()}</div>}
+            {history === r.id && <RunHistory runs={runs.filter((x) => x.routineId === r.id)} />}
             <div className="card-actions">
               <button className="btn small" onClick={() => api.runRoutine(r.id)}>Ejecutar ahora</button>
+              <button className="btn small ghost" onClick={() => setHistory(history === r.id ? null : r.id)}>{history === r.id ? 'Ocultar historial' : 'Historial'}</button>
               <button className="btn small ghost" onClick={() => confirm('¿Borrar rutina?') && api.deleteRoutine(r.id).then(refresh)}>Borrar</button>
             </div>
           </div>

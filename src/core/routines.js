@@ -33,20 +33,23 @@ export async function runRoutine(routine) {
   const run = { id: newId(), routineId: routine.id, botId: routine.botId, startedAt: now(), status: 'running' };
   const db = getDb();
   db.runs.unshift(run);
-  db.runs = db.runs.slice(0, 200);
+  db.runs = db.runs.slice(0, 500);
   routine.lastRunAt = run.startedAt;
   routine.nextRunAt = computeNext(routine);
   save();
   broadcast({ type: 'routines' });
   try {
     const reply = await runAgent({ botId: routine.botId, input: `⏱ Rutina «${routine.name}»\n\n${routine.prompt}`, source: 'routine' });
-    run.status = reply.error ? 'error' : 'ok';
-    run.summary = reply.content.slice(0, 300);
+    run.status = reply.error ? 'error' : reply.stopped ? 'stopped' : 'ok';
+    run.summary = reply.content.slice(0, 1500);
+    run.replyId = reply.id;
+    run.model = reply.model;
   } catch (e) {
     run.status = 'error';
     run.summary = e.message;
   } finally {
     run.finishedAt = now();
+    run.ms = new Date(run.finishedAt) - new Date(run.startedAt);
     running.delete(routine.id);
     save();
     broadcast({ type: 'routines' });
