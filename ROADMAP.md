@@ -104,9 +104,11 @@ Reglas para cada tarea:
 > ✅ **Decidido: VPS Hostinger KVM 2** (2 vCPU, 8 GB RAM, 100 GB NVMe), Ubuntu 24.04, centro de datos en Europa.
 > ✅ Servidor contratado y preparado: Ubuntu 24.04 actualizado, acceso solo con clave SSH (sin contraseñas), cortafuegos (22/80/443), fail2ban, actualizaciones de seguridad automáticas, 2 GB de swap y Docker. Entrar: `ssh opencrew`. Opcional pendiente: un dominio.
 
-- [ ] Servidor Node/Docker que reutiliza el mismo núcleo
-- [ ] Rutinas y vigilantes siempre activos aunque cierres el navegador
+- [x] Servidor Node/Docker que reutiliza el mismo núcleo (en `server/`; funcionando en https://2-25-19-252.sslip.io con HTTPS, token de acceso, copias diarias y `run_javascript` en contenedores sin red). La app se conecta en Ajustes → Servidor
+- [x] Rutinas y vigilantes siempre activos aunque cierres el navegador (cuando la app está conectada al servidor)
 - [ ] Webhooks (Gmail, Slack, GitHub) y conectores que no funcionan desde el navegador (Notion)
+- [ ] OpenAI Realtime y Gemini Live a través del servidor (claves temporales)
+- [ ] Sesión de Google permanente en el servidor (sin reconectar cada hora)
 - [ ] Ordenador por bot en Docker (navegador y terminal)
 
 ## Fase 12 — Control de tu navegador y tu ordenador (con permisos)
