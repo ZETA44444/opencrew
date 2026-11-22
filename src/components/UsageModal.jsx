@@ -21,7 +21,8 @@ export default function UsageModal({ bots, onClose }) {
   const [range, setRange] = useState(30);
   const [data, setData] = useState(null);
   const [editing, setEditing] = useState(null);
-  const load = () => api.usage(range).then(setData);
+  const [health, setHealth] = useState([]);
+  const load = () => { api.usage(range).then(setData); api.health().then(setHealth); };
   useEffect(() => { load(); }, [range]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const byBot = useMemo(() => (data ? group(data.rows, (r) => r.botId) : []), [data]);
@@ -113,6 +114,22 @@ export default function UsageModal({ bots, onClose }) {
               </table>
             </>
           )}
+          <div className="section-title">Salud de los modelos</div>
+          {health.length === 0 ? <div className="muted small">Aún no hay datos: aparecerán cuando tus bots usen modelos reales.</div> : (
+            <table className="usage-table">
+              <thead><tr><th>Modelo</th><th>Éxito</th><th>Errores</th><th>Sustituido por</th></tr></thead>
+              <tbody>
+                {health.map((r) => (
+                  <tr key={r.key}>
+                    <td className="mono">{r.key}{r.lastError && <div className="muted small">último fallo: {r.lastError.kind} · {new Date(r.lastError.at).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>}</td>
+                    <td><span className={`health-pill ${r.rate >= 0.95 ? 'good' : r.rate >= 0.7 ? 'meh' : 'bad'}`}>{Math.round(r.rate * 100)} %</span><div className="muted small">{r.ok} bien · {r.fail} mal</div></td>
+                    <td className="small">{Object.entries(r.errors || {}).map(([k, n]) => `${k} ×${n}`).join(', ') || '—'}</td>
+                    <td className="small mono">{Object.entries(r.replacedBy || {}).map(([k, n]) => `${k} ×${n}`).join(', ') || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
           <p className="muted small" style={{ margin: 0 }}>
             Los precios son aproximados y puedes cambiarlos pulsando sobre ellos. La factura real es la de tu proveedor de IA.
             El modo demo y Ollama (local) no cuestan nada.
@@ -120,6 +137,7 @@ export default function UsageModal({ bots, onClose }) {
         </div>
         <div className="modal-foot">
           <button className="btn ghost danger" onClick={() => confirm('¿Borrar todo el historial de uso?') && api.clearUsage().then(load)}>Borrar historial</button>
+          {health.length > 0 && <button className="btn ghost" onClick={() => api.clearHealth().then(load)}>Reiniciar salud</button>}
           <span className="spacer" />
           <button className="btn primary" onClick={onClose}>Cerrar</button>
         </div>

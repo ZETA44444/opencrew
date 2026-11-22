@@ -76,7 +76,7 @@ Reglas para cada tarea:
 - [x] **Bot «Tesorero» incluido desde el inicio**: vigila tu gasto por bot y modelo, límites, avisos y errores de cuota; recomienda modelos más baratos.
       Detecta lo que cada proveedor deja ver con una clave normal (OpenRouter: saldo y límite de la clave; Gemini/Claude/OpenAI: errores de cuota y límites de uso). Google, Anthropic y OpenAI no muestran tu plan de suscripción a una API key normal, así que eso se estima.
 - [x] **Modelo «Automático» (enrutamiento inteligente)**: opción por bot para que elija solo el modelo más barato que sirve para cada tarea, entre las claves que tienes
-- [ ] Panel de salud de modelos: qué modelos fallan o se saturan y cuál se usó en su lugar
+- [x] Panel de salud de modelos: qué modelos fallan o se saturan y cuál se usó en su lugar
 
 ## Fase 8 — Proyectos y memoria compartida
 

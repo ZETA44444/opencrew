@@ -442,3 +442,8 @@ input[type=range] { padding: 0; accent-color: #fff; }
 
 .limit { font-size: 11px; color: var(--text-3); margin-top: 3px; }
 .limit.over { color: var(--err); }
+
+.health-pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line-2); }
+.health-pill.good { color: var(--ok); border-color: #4ade8040; }
+.health-pill.meh { color: var(--warn); border-color: #fbbf2440; }
+.health-pill.bad { color: var(--err); border-color: #f8717140; }

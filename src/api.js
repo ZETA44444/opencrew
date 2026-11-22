@@ -9,6 +9,7 @@ import { artifactsOf, TOOL_NAMES } from './core/tools.js';
 import { searchBackend } from './core/search.js';
 import { githubWhoAmI } from './core/github.js';
 import { usageRows, priceFor, setPrice, clearUsage, monthCost } from './core/usage.js';
+import { healthRows, clearHealth } from './core/health.js';
 import { pendingApprovals, resolveApproval, revokeAlways, setApprovalsEnabled, SENSITIVE } from './core/approvals.js';
 import { addConnector, refreshConnector, updateConnector, removeConnector } from './core/mcp.js';
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
@@ -221,6 +222,8 @@ export const api = {
   monthCost,
   async setPrice(provider, model, input, output) { setPrice(provider, model, input, output); },
   async clearUsage() { clearUsage(); },
+  async health() { return clone(healthRows()); },
+  async clearHealth() { clearHealth(); },
 
   // ---------- approvals ----------
   resolveApproval,

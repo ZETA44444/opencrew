@@ -6,7 +6,7 @@ import { broadcast } from './events.js';
 import { notify } from './notify.js';
 import { needsApproval, requestApproval } from './approvals.js';
 import { recordUsage, checkBudget, monthCost } from './usage.js';
-import { recordModelResult } from './health.js';
+import { recordModelResult, recordFallback, recentlyDown } from './health.js';
 import { routeModel } from './router.js';
 
 const MAX_STEPS = 8;
@@ -156,6 +156,15 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
       const decide = i === 0 && depth === 0 && !group && delegationMode(bot) === 'coordinator' && tools.some((t) => t.name === 'delegate_to_bot');
       const callArgs = { system: systemPrompt(bot, group), messages: convo, signal, tools: decide ? [...tools, ANSWER_MYSELF] : tools, forceTool: decide };
       let used = sticky || { provider: bot.provider, model: bot.model };
+      // The bot's model was overloaded a moment ago: start directly with the replacement.
+      if (!sticky && bot.provider !== 'auto' && bot.autoFallback !== false && recentlyDown(`${used.provider}/${used.model}`)) {
+        const alt = fallbackModels(used.provider, used.model).find((a) => !recentlyDown(`${a.provider}/${a.model}`));
+        if (alt) {
+          step({ kind: 'note', label: `${used.model} estaba saturado hace poco → uso ${alt.provider}/${alt.model}`, status: 'done' });
+          used = alt;
+          sticky = alt;
+        }
+      }
       // «Automático»: pick the cheapest model good enough for this step.
       if (!sticky && bot.provider === 'auto') {
         const route = routeModel(convo, i);
@@ -183,10 +192,11 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
         for (const alt of fallbackModels(used.provider, used.model, { otherProvidersOnly: [401, 403].includes(e.status) })) {
           if (signal.aborted) throw stopped();
           step({ kind: 'note', label: `${used.model} no responde (${lastErr.status || 'sin conexión'}) → probando ${alt.provider}/${alt.model}`, status: 'done' });
+          const failed = `${used.provider}/${used.model}`;
           used = alt;
           partial = '';
           emit({ type: 'draft', botId: threadId, speaker: botId, runId, text: '' }); // drop the half-written text
-          try { res = await callModel({ providerId: alt.provider, model: alt.model, onText, ...callArgs }); sticky = alt; break; } catch (e2) {
+          try { res = await callModel({ providerId: alt.provider, model: alt.model, onText, ...callArgs }); sticky = alt; recordFallback(failed, `${alt.provider}/${alt.model}`); break; } catch (e2) {
             lastErr = e2;
             if (e2.name !== 'AbortError') recordModelResult(alt.provider, alt.model, e2);
             if (!shouldFallBack(e2)) throw e2;

@@ -24,6 +24,14 @@ export function recordModelResult(provider, model, error) {
   save();
 }
 
+// Remember which model stepped in when another failed.
+export function recordFallback(from, to) {
+  const r = (h()[from] ??= { ok: 0, fail: 0, errors: {} });
+  r.replacedBy ??= {};
+  r.replacedBy[to] = (r.replacedBy[to] || 0) + 1;
+  save();
+}
+
 export function healthRows() {
   return Object.entries(h()).map(([key, r]) => {
     const [provider, ...m] = key.split('/');
@@ -35,4 +43,12 @@ export function healthRows() {
 export function clearHealth() {
   getDb().health = {};
   save();
+}
+
+// True if the model failed as overloaded/quota/retired recently and hasn't worked since.
+export function recentlyDown(key, ms = 5 * 60_000) {
+  const r = h()[key];
+  if (!r?.lastError || !['saturado', 'límite o cuota agotada', 'modelo retirado'].includes(r.lastError.kind)) return false;
+  if (r.lastOkAt && r.lastOkAt > r.lastError.at) return false;
+  return Date.now() - new Date(r.lastError.at).getTime() < ms;
 }
