@@ -358,6 +358,10 @@ async function callDemo({ system, messages, tools, onText, signal }) {
   if (sk && has('save_skill')) return { text: '', toolCalls: [{ id: newId(), name: 'save_skill', args: { name: sk[1].trim(), description: 'Guardada desde el chat', steps: sk[2].trim() } }] };
   const us = userText.match(/usa (?:la )?skill «?([^»]+?)»?$/i);
   if (us && has('use_skill')) return { text: '', toolCalls: [{ id: newId(), name: 'use_skill', args: { name: us[1].trim() } }] };
+  const rt = userText.match(/(?:todos los|cada) (lunes|martes|miércoles|jueves|viernes|sábados?|domingos?|días?|laborables) a las (\d{1,2})(?::(\d{2}))?,?\s*(.+)/i);
+  if (rt && has('create_routine')) {
+    return { text: '', toolCalls: [{ id: newId(), name: 'create_routine', args: { name: rt[4].slice(0, 40), prompt: rt[4], schedule_type: 'daily', time: `${rt[2]}:${rt[3] || '00'}`, days: /^d[ií]a/i.test(rt[1]) ? 'todos' : rt[1] } }] };
+  }
   const mk = userText.match(/crea(?:r|me)? un bot (?:llamado|que se llame) ([\p{L}\d_-]+)(?:,? (?:que|para) (.+))?/iu);
   if (mk && has('create_bot')) {
     return { text: '', toolCalls: [{ id: newId(), name: 'create_bot', args: { name: mk[1], title: 'Asistente', description: mk[2] || 'Bot creado desde el chat', provider: 'demo' } }] };

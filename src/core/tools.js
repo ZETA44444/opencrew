@@ -2,6 +2,7 @@
 import { getDb, findBotByName, save, now, newId } from './store.js';
 import { providerById, defaultModel, modelsOf, PROVIDERS } from './providers.js';
 import { broadcast } from './events.js';
+import { computeNext } from './routines.js';
 
 const PALETTE = ['#7dd3fc', '#fca5a5', '#86efac', '#fcd34d', '#c4b5fd', '#f9a8d4', '#fdba74', '#e5e5e5'];
 const SHAPES = ['circle', 'square', 'diamond', 'hexagon', 'triangle'];
@@ -14,6 +15,31 @@ function resolveModel(provider, model, fallbackBot) {
   if (!p) throw new Error(`Proveedor desconocido: ${provider}. Usa uno de: ${PROVIDERS.map((x) => x.id).join(', ')}`);
   return { provider: p.id, model: model || defaultModel(p.id) };
 }
+
+// ---------- routines helpers ----------
+const DAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+function parseDays(days) {
+  if (days == null || days === '') return [0, 1, 2, 3, 4, 5, 6];
+  const out = new Set();
+  const whole = String(days).toLowerCase();
+  if (/fin(es)? de semana|finde|weekend/.test(whole)) [0, 6].forEach((x) => out.add(x));
+  if (/laborable|entre semana|weekday/.test(whole)) [1, 2, 3, 4, 5].forEach((x) => out.add(x));
+  const list = Array.isArray(days) ? days : whole.replace(/fin(es)? de semana|entre semana/g, '').split(/\s*,\s*|\s+y\s+|\s+/);
+  for (const d of list) {
+    const t = String(d).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    if (!t) continue;
+    if (/^\d$/.test(t)) out.add(Number(t) % 7);
+    else if (/laborable|entre semana|weekday/.test(t)) [1, 2, 3, 4, 5].forEach((x) => out.add(x));
+    else if (/fin de semana|finde|weekend/.test(t)) [0, 6].forEach((x) => out.add(x));
+    else if (/todos|diario|cada dia|daily/.test(t)) [0, 1, 2, 3, 4, 5, 6].forEach((x) => out.add(x));
+    else {
+      const i = DAY_NAMES.findIndex((n) => n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').startsWith(t.slice(0, 3)));
+      if (i >= 0) out.add(i);
+    }
+  }
+  return out.size ? [...out].sort() : [0, 1, 2, 3, 4, 5, 6];
+}
+const describeSchedule = (s) => (s.type === 'interval' ? `cada ${s.minutes} min` : `a las ${s.time} (${s.days.length === 7 ? 'todos los días' : s.days.map((d) => DAY_NAMES[d]).join(', ')})`);
 
 const providerHelp = () => PROVIDERS.map((p) => `${p.id} (modelos: ${modelsOf(p.id).slice(0, 4).join(', ')})`).join('; ');
 
@@ -147,6 +173,72 @@ const ALL_TOOLS = {
       return `Skill «${sk.name}»${sk.description ? ` — ${sk.description}` : ''}\n\n${sk.steps}`;
     },
   },
+  create_routine: {
+    description: 'Programa una rutina: una tarea que un bot hará solo cada cierto tiempo o cada día a una hora. Úsalo cuando el usuario pida algo recurrente («todos los lunes a las 9…», «cada hora revisa…»).',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Nombre corto (p. ej. «Resumen del lunes»)' },
+        prompt: { type: 'string', description: 'Lo que el bot debe hacer en cada ejecución, explicado completo' },
+        schedule_type: { type: 'string', description: '"daily" (a una hora, ciertos días) o "interval" (cada X minutos)' },
+        time: { type: 'string', description: 'Hora en formato HH:MM (24 h) si es daily' },
+        days: { type: 'string', description: 'Días si es daily: p. ej. "lunes", "lunes,miércoles", "laborables", "fin de semana" o "todos"' },
+        minutes: { type: 'number', description: 'Cada cuántos minutos si es interval' },
+        bot_name: { type: 'string', description: 'Qué bot la hará (por defecto, tú)' },
+      },
+      required: ['name', 'prompt', 'schedule_type'],
+    },
+    async run(a, ctx) {
+      const bot = a.bot_name ? findBotByName(a.bot_name) : ctx.bot;
+      if (!bot) return `No existe ningún bot llamado "${a.bot_name}".`;
+      let schedule;
+      if (String(a.schedule_type).startsWith('interval') || (a.minutes && !a.time)) {
+        schedule = { type: 'interval', minutes: Math.max(5, Math.round(Number(a.minutes) || 60)) };
+      } else {
+        const m = String(a.time || '08:00').match(/(\d{1,2})(?::(\d{2}))?/);
+        const hh = Math.min(23, Number(m?.[1] ?? 8)), mm = Math.min(59, Number(m?.[2] ?? 0));
+        schedule = { type: 'daily', time: `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`, days: parseDays(a.days) };
+      }
+      const routine = { id: newId(), botId: bot.id, name: String(a.name).slice(0, 80), prompt: String(a.prompt), schedule, enabled: true, createdBy: ctx.bot.name, createdAt: now() };
+      routine.nextRunAt = computeNext(routine);
+      getDb().routines.push(routine);
+      save();
+      broadcast({ type: 'routines' });
+      return `Rutina creada: «${routine.name}» para ${bot.name}, ${describeSchedule(schedule)}. Próxima ejecución: ${new Date(routine.nextRunAt).toLocaleString()}. ` +
+        'Recuerda al usuario que las rutinas solo se ejecutan mientras OpenCrew está abierta.';
+    },
+  },
+  list_routines: {
+    description: 'Lista las rutinas programadas del equipo.',
+    parameters: { type: 'object', properties: {} },
+    async run() {
+      const d = getDb();
+      if (!d.routines.length) return 'No hay rutinas programadas.';
+      return d.routines.map((r) => `- «${r.name}» (${d.bots.find((b) => b.id === r.botId)?.name || '?'}, ${describeSchedule(r.schedule)}, ${r.enabled ? 'activa' : 'pausada'})`).join('\n');
+    },
+  },
+  update_routine: {
+    description: 'Pausa, reactiva o borra una rutina por su nombre.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Nombre de la rutina' },
+        action: { type: 'string', description: '"pause", "resume" o "delete"' },
+      },
+      required: ['name', 'action'],
+    },
+    async run({ name, action }) {
+      const d = getDb();
+      const n = String(name || '').toLowerCase();
+      const r = d.routines.find((x) => x.name.toLowerCase() === n) || d.routines.find((x) => x.name.toLowerCase().includes(n));
+      if (!r) return `No hay ninguna rutina llamada "${name}".`;
+      if (action === 'delete') d.routines = d.routines.filter((x) => x !== r);
+      else { r.enabled = action !== 'pause'; r.nextRunAt = computeNext(r); }
+      save();
+      broadcast({ type: 'routines' });
+      return `Rutina «${r.name}» ${action === 'delete' ? 'borrada' : action === 'pause' ? 'pausada' : 'reactivada'}.`;
+    },
+  },
   create_bot: {
     description: 'Crea un bot nuevo en el equipo con su propio trabajo y modelo de IA. Úsalo cuando el usuario pida un bot nuevo o haga falta un especialista que no existe.',
     parameters: {
@@ -248,6 +340,9 @@ export function describeCall(call) {
     case 'get_current_time': return 'Mirando la hora';
     case 'save_skill': return `Guardando la skill «${a.name}»`;
     case 'use_skill': return `Usando la skill «${a.name}»`;
+    case 'create_routine': return `Programando la rutina «${a.name}»`;
+    case 'list_routines': return 'Mirando las rutinas';
+    case 'update_routine': return `Cambiando la rutina «${a.name}»`;
     case 'create_bot': return `Creando el bot ${a.name}`;
     case 'update_bot': return `Configurando a ${a.bot_name}`;
     default: return call.name;

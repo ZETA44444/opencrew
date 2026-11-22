@@ -11,6 +11,9 @@ const TOOL_LABELS = {
   get_current_time: 'Ver la hora',
   save_skill: 'Guardar skills',
   use_skill: 'Usar skills',
+  create_routine: 'Programar rutinas',
+  list_routines: 'Ver rutinas',
+  update_routine: 'Pausar o borrar rutinas',
   create_bot: 'Crear bots nuevos',
   update_bot: 'Configurar otros bots',
 };
