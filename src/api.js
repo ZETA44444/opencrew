@@ -229,6 +229,11 @@ export const api = {
     return artifactsOf(botId).map((a) => ({ name: a.name, size: new Blob([a.content]).size, updatedAt: a.updatedAt }));
   },
 
+  async getArtifact(botId, name) {
+    const a = artifactsOf(botId).find((x) => x.name === name);
+    return a ? clone(a) : { name, content: '(Este archivo ya no existe)' };
+  },
+
   openArtifact(botId, name, download = false) {
     const a = artifactsOf(botId).find((x) => x.name === name);
     if (!a) return;

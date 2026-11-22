@@ -128,7 +128,7 @@ const ALL_TOOLS = {
     },
   },
   write_artifact: {
-    description: 'Guarda un archivo (markdown, código, csv, html…) como artefacto que el usuario puede abrir o descargar.',
+    description: 'Guarda un archivo (markdown, código, csv, json, svg o html) que el usuario puede abrir dentro de la app. Los .html se muestran como página interactiva: úsalos para dashboards, informes visuales o mini-apps (HTML autocontenido; puedes usar scripts de CDNs).',
     parameters: {
       type: 'object',
       properties: {

@@ -7,6 +7,7 @@ import BotModal from './components/BotModal.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
 import GroupModal from './components/GroupModal.jsx';
 import SkillsModal from './components/SkillsModal.jsx';
+import ArtifactViewer from './components/ArtifactViewer.jsx';
 
 export default function App() {
   const [state, setState] = useState(null);
@@ -17,7 +18,8 @@ export default function App() {
   const [pinnedSteps, setPinnedSteps] = useState(null); // steps of a clicked past message
   const [artifactsTick, setArtifactsTick] = useState(0);
   const [drafts, setDrafts] = useState({}); // botId -> text being streamed right now
-  const [queued, setQueued] = useState([]); // queued messages of the selected bot
+  const [queued, setQueued] = useState([]);
+  const [viewer, setViewer] = useState(null); // { botId, name } of the open file // queued messages of the selected bot
   const [modal, setModal] = useState(null); // {type:'bot', bot?} | {type:'settings'}
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 1100);
   const [navOpen, setNavOpen] = useState(false);
@@ -123,6 +125,7 @@ export default function App() {
           busy={state.busy.includes(bot.id)}
           draft={drafts[bot.id]}
           onStop={() => api.stop(bot.id)}
+          onOpenArtifact={(botId, name) => setViewer({ botId, name })}
           missed={state.missed}
           botsById={Object.fromEntries(state.bots.map((b) => [b.id, b]))}
           onResolveMissed={(id, action) => api.resolveMissed(id, action)}
@@ -155,6 +158,7 @@ export default function App() {
           artifactsTick={artifactsTick}
           refresh={refresh}
           onClose={() => setPanelOpen(false)}
+          onOpenArtifact={(botId, name) => setViewer({ botId, name })}
         />
       )}
       {modal?.type === 'bot' && (
@@ -176,6 +180,7 @@ export default function App() {
           onDeleted={() => { setModal(null); refresh(); }}
         />
       )}
+      {viewer && <ArtifactViewer botId={viewer.botId} name={viewer.name} onClose={() => setViewer(null)} />}
       {modal?.type === 'skills' && <SkillsModal skills={state.skills} onClose={() => setModal(null)} />}
       {modal?.type === 'settings' && (
         <SettingsModal providers={state.providers} settings={state.settings} services={state.services} onClose={() => setModal(null)} onSaved={refresh} />

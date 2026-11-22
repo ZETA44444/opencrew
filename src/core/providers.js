@@ -374,6 +374,10 @@ async function callDemo({ system, messages, tools, onText, signal }) {
   if (url && has('fetch_url')) return { text: '', toolCalls: [{ id: newId(), name: 'fetch_url', args: { url: url[0] } }] };
   const rem = userText.match(/^(?:recuerda|remember)(?: que)?[:,]?\s+(.+)/i);
   if (rem && has('save_memory')) return { text: '', toolCalls: [{ id: newId(), name: 'save_memory', args: { fact: rem[1] } }] };
+  if (/^(?:crea|haz)(?:me)? (?:una? )?(?:página|dashboard|panel)/i.test(userText) && has('write_artifact')) {
+    const html = '<!doctype html><html><head><meta charset="utf-8"><title>Dashboard demo</title><style>body{font-family:system-ui;background:#0b0b0c;color:#eee;padding:24px}h1{font-weight:600}.kpis{display:flex;gap:12px}.kpi{background:#1c1c1e;border-radius:12px;padding:14px 18px}.kpi b{display:block;font-size:26px}canvas{margin-top:20px;background:#141415;border-radius:12px}</style></head><body><h1>Dashboard demo</h1><div class="kpis"><div class="kpi">Visitas<b>12.480</b></div><div class="kpi">Ventas<b>312</b></div><div class="kpi">Conversión<b>2,5 %</b></div></div><canvas id="c" width="560" height="220"></canvas><script>const c=document.getElementById("c").getContext("2d");const d=[30,45,38,60,72,66,90];c.strokeStyle="#7dd3fc";c.lineWidth=3;c.beginPath();d.forEach((v,i)=>{const x=30+i*80,y=200-v*2;i?c.lineTo(x,y):c.moveTo(x,y)});c.stroke();</script></body></html>';
+    return { text: '', toolCalls: [{ id: newId(), name: 'write_artifact', args: { filename: 'dashboard.html', content: html } }] };
+  }
   if (/^(?:guarda|crea) (?:un )?(?:archivo|documento)/i.test(userText) && has('write_artifact')) {
     return { text: '', toolCalls: [{ id: newId(), name: 'write_artifact', args: { filename: 'nota-demo.md', content: `# Nota\n\n${userText}\n` } }] };
   }

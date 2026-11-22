@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Avatar, { GroupAvatar } from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
 
-export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, missed = [], botsById = {}, onResolveMissed, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
+export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, missed = [], botsById = {}, onResolveMissed, onOpenArtifact, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const endRef = useRef(null);
@@ -72,7 +72,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
           </div>
         )}
         {messages.map((m, i) => (
-          <Message key={m.id} m={m} bot={(isGroup && bots.find((b) => b.id === m.botId)) || bot} showName={isGroup} onShowSteps={onShowSteps}
+          <Message key={m.id} m={m} bot={(isGroup && bots.find((b) => b.id === m.botId)) || bot} showName={isGroup} onShowSteps={onShowSteps} onOpenArtifact={onOpenArtifact}
             canRetry={!busy && i === messages.length - 1 && m.role === 'assistant'}
             canEdit={!busy && i === lastUserIdx}
             onRetry={() => rerun()}
@@ -200,7 +200,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
   );
 }
 
-function Message({ m, bot, showName, onShowSteps, canRetry, canEdit, onRetry, onEdit }) {
+function Message({ m, bot, showName, onShowSteps, onOpenArtifact, canRetry, canEdit, onRetry, onEdit }) {
   const [editing, setEditing] = useState(null);
   if (m.role === 'user') {
     if (editing !== null) {
@@ -231,12 +231,26 @@ function Message({ m, bot, showName, onShowSteps, canRetry, canEdit, onRetry, on
     );
   }
   const tools = (m.steps || []).filter((s) => s.kind === 'tool').length;
+  // Files this answer created, so you can open them right from the chat.
+  const files = [...new Map((m.steps || [])
+    .filter((s) => s.tool === 'write_artifact' && s.status === 'done')
+    .map((s) => [s.detail?.match(/Archivo guardado: (.+?) \(/)?.[1] || s.args?.filename, s.botId])).entries()]
+    .filter(([n]) => n);
   return (
     <div className={`msg assistant ${m.error ? 'is-error' : ''}`}>
       <Avatar bot={bot} size={28} />
       <div className="assistant-body">
         {showName && <div className="speaker">{bot.name} <span>{bot.title}</span></div>}
         <Markdown text={m.content} />
+        {files.length > 0 && (
+          <div className="file-chips">
+            {files.map(([name, botId]) => (
+              <button key={name} className="file-chip" onClick={() => onOpenArtifact(botId, name)}>
+                <span className="file-chip-icon">{/\.html?$/i.test(name) ? '◧' : '▤'}</span>{name}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="msg-foot">
           <span>{m.model}</span>
           {m.steps?.length > 0 && (

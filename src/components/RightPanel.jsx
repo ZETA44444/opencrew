@@ -4,7 +4,7 @@ import Markdown from './Markdown.jsx';
 
 const TABS = [['progress', 'Progreso'], ['routines', 'Rutinas'], ['memory', 'Memoria'], ['artifacts', 'Archivos']];
 
-export default function RightPanel({ bot, state, steps, pinned, onUnpin, artifactsTick, refresh, onClose }) {
+export default function RightPanel({ bot, state, steps, pinned, onUnpin, artifactsTick, refresh, onClose, onOpenArtifact }) {
   const [tab, setTab] = useState('progress');
   const tabs = bot.isGroup ? TABS.slice(0, 1) : TABS;
   const current = bot.isGroup ? 'progress' : tab;
@@ -20,7 +20,7 @@ export default function RightPanel({ bot, state, steps, pinned, onUnpin, artifac
         {current === 'progress' && <Progress steps={steps} pinned={pinned} onUnpin={onUnpin} />}
         {current === 'routines' && <Routines bot={bot} routines={state.routines.filter((r) => r.botId === bot.id)} runs={state.runs} refresh={refresh} />}
         {current === 'memory' && <Memory bot={bot} refresh={refresh} />}
-        {current === 'artifacts' && <Artifacts bot={bot} tick={artifactsTick} />}
+        {current === 'artifacts' && <Artifacts bot={bot} tick={artifactsTick} onOpen={onOpenArtifact} />}
       </div>
     </aside>
   );
@@ -179,7 +179,7 @@ function Memory({ bot, refresh }) {
   );
 }
 
-function Artifacts({ bot, tick }) {
+function Artifacts({ bot, tick, onOpen }) {
   const [files, setFiles] = useState([]);
   const load = () => api.artifacts(bot.id).then(setFiles).catch(() => setFiles([]));
   useEffect(() => { load(); }, [bot.id, tick]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -189,7 +189,7 @@ function Artifacts({ bot, tick }) {
       {files.map((f) => (
         <div key={f.name} className="file">
           <span className="file-icon">▤</span>
-          <button className="file-name" onClick={() => api.openArtifact(bot.id, f.name)}>{f.name}</button>
+          <button className="file-name" onClick={() => onOpen(bot.id, f.name)}>{f.name}</button>
           <span className="muted small">{(f.size / 1024).toFixed(1)} KB</span>
           <button className="icon-btn" onClick={() => api.openArtifact(bot.id, f.name, true)} title="Descargar">↓</button>
           <button className="icon-btn" onClick={() => confirm(`¿Borrar ${f.name}?`) && api.deleteArtifact(bot.id, f.name).then(load)} title="Borrar">×</button>

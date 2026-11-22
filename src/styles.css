@@ -357,3 +357,25 @@ textarea { resize: vertical; line-height: 1.45; }
 .run-missed { color: var(--warn); }
 .catchup { display: flex; align-items: center; gap: 6px; }
 .catchup select { padding: 2px 6px; font-size: 12px; border-radius: 8px; }
+
+/* ---------- artifact viewer ---------- */
+.file-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.file-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); background: var(--bg-2); border-radius: 10px; padding: 6px 10px; font-size: 12.5px; }
+.file-chip:hover { background: var(--bg-3); }
+.file-chip-icon { color: var(--text-3); }
+.artifact-modal { width: min(980px, 100%); height: min(86vh, 900px); }
+.artifact-modal.full { width: 100%; height: 100%; max-height: none; border-radius: 0; }
+.modal-backdrop:has(.artifact-modal.full) { padding: 0; }
+.artifact-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.artifact-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.seg { display: flex; border: 1px solid var(--line-2); border-radius: 999px; padding: 2px; margin-right: 6px; }
+.seg button { padding: 3px 10px; border-radius: 999px; font-size: 12px; color: var(--text-2); }
+.seg button.on { background: var(--text); color: #000; }
+.artifact-body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
+.artifact-frame { flex: 1; width: 100%; border: 0; background: #fff; }
+.artifact-code { margin: 0; padding: 16px 20px; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.artifact-md { padding: 18px 24px; }
+.artifact-table { padding: 12px; overflow: auto; }
+.artifact-table table { border-collapse: collapse; font-size: 13px; }
+.artifact-table th, .artifact-table td { border: 1px solid var(--line-2); padding: 6px 10px; text-align: left; }
+.artifact-table th { background: var(--bg-2); position: sticky; top: 0; }
