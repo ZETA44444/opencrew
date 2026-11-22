@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import Avatar from './Avatar.jsx';
+import Avatar, { GroupAvatar } from './Avatar.jsx';
 
 let deferredPrompt = null;
 if (typeof window !== 'undefined') {
@@ -25,7 +25,7 @@ function useInstall() {
   return [can, install];
 }
 
-export default function Sidebar({ bots, busy, selectedId, onSelect, onNew, onSettings, noKeys, onClose }) {
+export default function Sidebar({ bots, groups = [], busy, selectedId, onSelect, onNew, onNewGroup, onSettings, noKeys, onClose }) {
   const [canInstall, install] = useInstall();
   const sorted = [...bots].sort((a, b) => Number(!!b.starred) - Number(!!a.starred));
   return (
@@ -38,8 +38,28 @@ export default function Sidebar({ bots, busy, selectedId, onSelect, onNew, onSet
       <button className="new-bot" onClick={onNew}>
         <span className="plus">+</span> Nuevo bot
       </button>
-      <div className="section-label">Bots</div>
       <nav className="bot-list">
+        <div className="section-label sidebar-head">
+          <span>Grupos</span>
+          <button className="icon-btn" onClick={onNewGroup} title="Nuevo chat de grupo" aria-label="Nuevo chat de grupo">+</button>
+        </div>
+        {groups.length === 0 && <button className="bot-item empty-group" onClick={onNewGroup}><span className="bot-sub">Crea un chat con varios bots</span></button>}
+        {groups.map((g) => {
+          const members = g.memberIds.map((id) => bots.find((b) => b.id === id)).filter(Boolean);
+          return (
+            <button key={g.id} className={`bot-item ${g.id === selectedId ? 'active' : ''}`} onClick={() => onSelect(g.id)}>
+              <div className="avatar-wrap">
+                <GroupAvatar members={members} size={30} />
+                {busy.includes(g.id) && <span className="busy-dot" title="Trabajando" />}
+              </div>
+              <div className="bot-meta">
+                <div className="bot-name">{g.name}</div>
+                <div className="bot-sub">{members.map((b) => b.name).join(', ')}</div>
+              </div>
+            </button>
+          );
+        })}
+        <div className="section-label">Bots</div>
         {sorted.map((b) => (
           <button key={b.id} className={`bot-item ${b.id === selectedId ? 'active' : ''}`} onClick={() => onSelect(b.id)}>
             <div className="avatar-wrap">

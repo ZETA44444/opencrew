@@ -5,19 +5,21 @@ const TABS = [['progress', 'Progreso'], ['routines', 'Rutinas'], ['memory', 'Mem
 
 export default function RightPanel({ bot, state, steps, pinned, onUnpin, artifactsTick, refresh, onClose }) {
   const [tab, setTab] = useState('progress');
+  const tabs = bot.isGroup ? TABS.slice(0, 1) : TABS;
+  const current = bot.isGroup ? 'progress' : tab;
   return (
     <aside className="panel">
       <div className="tabs">
-        {TABS.map(([id, label]) => (
-          <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>
+        {tabs.map(([id, label]) => (
+          <button key={id} className={current === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>
         ))}
         <button className="icon-btn close" onClick={onClose} aria-label="Cerrar panel">×</button>
       </div>
       <div className="panel-body">
-        {tab === 'progress' && <Progress steps={steps} pinned={pinned} onUnpin={onUnpin} />}
-        {tab === 'routines' && <Routines bot={bot} routines={state.routines.filter((r) => r.botId === bot.id)} runs={state.runs} refresh={refresh} />}
-        {tab === 'memory' && <Memory bot={bot} refresh={refresh} />}
-        {tab === 'artifacts' && <Artifacts bot={bot} tick={artifactsTick} />}
+        {current === 'progress' && <Progress steps={steps} pinned={pinned} onUnpin={onUnpin} />}
+        {current === 'routines' && <Routines bot={bot} routines={state.routines.filter((r) => r.botId === bot.id)} runs={state.runs} refresh={refresh} />}
+        {current === 'memory' && <Memory bot={bot} refresh={refresh} />}
+        {current === 'artifacts' && <Artifacts bot={bot} tick={artifactsTick} />}
       </div>
     </aside>
   );
@@ -34,7 +36,7 @@ function Progress({ steps, pinned, onUnpin }) {
           <button className="step-head" onClick={() => setOpen((o) => ({ ...o, [s.id]: !o[s.id] }))}>
             <span className="step-icon">{s.status === 'running' ? <span className="spinner" /> : s.status === 'error' ? '!' : '✓'}</span>
             <span className="step-label">
-              {s.depth > 0 && <b>{s.botName} · </b>}{s.label}
+              {(s.depth > 0 || (s.threadId && s.threadId !== s.botId)) && <b>{s.botName} · </b>}{s.label}
             </span>
             {s.ms != null && <span className="step-ms">{(s.ms / 1000).toFixed(1)}s</span>}
           </button>

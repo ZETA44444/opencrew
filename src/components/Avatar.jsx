@@ -8,3 +8,18 @@ export default function Avatar({ bot, size = 32 }) {
     </div>
   );
 }
+
+// Overlapping avatars for a group chat.
+export function GroupAvatar({ members, size = 32 }) {
+  const shown = members.slice(0, 3);
+  const small = Math.round(size * 0.62);
+  return (
+    <div className="group-avatar" style={{ width: size, height: size }}>
+      {shown.map((b, i) => (
+        <div key={b.id} style={{ position: 'absolute', left: i * (size - small) / Math.max(1, shown.length - 1), top: i % 2 ? size - small : 0 }}>
+          <Avatar bot={b} size={small} />
+        </div>
+      ))}
+    </div>
+  );
+}

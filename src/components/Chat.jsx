@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import Avatar from './Avatar.jsx';
+import Avatar, { GroupAvatar } from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
 
 export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
@@ -7,12 +7,16 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
   const [err, setErr] = useState('');
   const endRef = useRef(null);
   const taRef = useRef(null);
-  const provider = providers.find((p) => p.id === bot.provider);
+  const isGroup = !!bot.isGroup;
+  const provider = !isGroup && providers.find((p) => p.id === bot.provider);
   const missingKey = provider && !provider.hasKey;
+  const draftText = draft?.text;
+  const speaker = (isGroup && draft?.speaker && bots.find((b) => b.id === draft.speaker)) || (isGroup ? bot.members[0] : bot);
+  const HeadAvatar = ({ size }) => (isGroup ? <GroupAvatar members={bot.members} size={size} /> : <Avatar bot={bot} size={size} />);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length, busy]);
   // While streaming, keep the bottom in view without smooth-scroll jitter.
-  useEffect(() => { if (draft) endRef.current?.scrollIntoView({ block: 'end' }); }, [draft]);
+  useEffect(() => { if (draftText) endRef.current?.scrollIntoView({ block: 'end' }); }, [draftText]);
   useEffect(() => { setErr(''); taRef.current?.focus(); }, [bot.id]);
 
   const send = async (value = text) => {
@@ -30,7 +34,11 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
   };
 
   const others = bots.filter((b) => b.id !== bot.id);
-  const suggestions = [
+  const suggestions = isGroup ? [
+    `Presentaos todos, ¿qué puede hacer cada uno?`,
+    bot.members[1] && `@${bot.members[1].name} empieza tú con una idea`,
+    `Haced entre todos un plan para lanzar un blog`,
+  ].filter(Boolean) : [
     `¿Qué sabes hacer, ${bot.name}?`,
     others[0] && `@${others[0].name} ${others[0].title === 'Investigadora' ? 'resume https://es.wikipedia.org/wiki/Inteligencia_artificial' : 'preséntate'}`,
     'recuerda que prefiero respuestas cortas',
@@ -40,13 +48,13 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
     <main className="chat">
       <header className="chat-header">
         <button className="icon-btn mobile-only" onClick={onToggleNav} aria-label="Bots">☰</button>
-        <Avatar bot={bot} size={34} />
+        <HeadAvatar size={34} />
         <div className="chat-title">
           <div className="name">{bot.name}</div>
           <div className="sub">{bot.title}</div>
         </div>
         <div className="header-actions">
-          <button className="icon-btn" onClick={onEdit} title="Editar bot">✎</button>
+          <button className="icon-btn" onClick={onEdit} title={isGroup ? 'Editar grupo' : 'Editar bot'}>✎</button>
           <button className="icon-btn" onClick={() => confirm(`¿Borrar la conversación con ${bot.name}?`) && onClear()} title="Borrar conversación">⌫</button>
           <button className="icon-btn" onClick={onTogglePanel} title="Panel lateral">▥</button>
         </div>
@@ -55,7 +63,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
       <div className="messages">
         {messages.length === 0 && (
           <div className="welcome">
-            <Avatar bot={bot} size={64} />
+            <HeadAvatar size={64} />
             <h2>{bot.name}</h2>
             <p>{bot.description || bot.title}</p>
             <div className="suggestions">
@@ -64,7 +72,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
           </div>
         )}
         {messages.map((m, i) => (
-          <Message key={m.id} m={m} bot={bot} onShowSteps={onShowSteps}
+          <Message key={m.id} m={m} bot={(isGroup && bots.find((b) => b.id === m.botId)) || bot} showName={isGroup} onShowSteps={onShowSteps}
             canRetry={!busy && i === messages.length - 1 && m.role === 'assistant'}
             canEdit={!busy && i === lastUserIdx}
             onRetry={() => rerun()}
@@ -72,9 +80,9 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
         ))}
         {busy && (
           <div className="msg assistant">
-            <Avatar bot={bot} size={28} />
-            {draft
-              ? <div className="assistant-body streaming"><Markdown text={draft} /></div>
+            <Avatar bot={speaker} size={28} />
+            {draftText
+              ? <div className="assistant-body streaming">{isGroup && <div className="speaker">{speaker.name}</div>}<Markdown text={draftText} /></div>
               : <div className="typing"><span /><span /><span /></div>}
           </div>
         )}
@@ -105,7 +113,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
             ref={taRef}
             rows={1}
             value={text}
-            placeholder={busy ? 'Escribe y se pondrá en cola…' : `Mensaje para ${bot.name}…`}
+            placeholder={busy ? 'Escribe y se pondrá en cola…' : isGroup ? 'Mensaje al grupo… (@Nombre para hablar con alguien)' : `Mensaje para ${bot.name}…`}
             onChange={(e) => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`; }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -113,6 +121,15 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
             }}
           />
           <div className="composer-bar">
+            {isGroup ? (
+              <div className="members-bar">
+                {bot.members.map((b) => (
+                  <button key={b.id} className="member-chip" title={`${b.provider}/${b.model}`} onClick={() => { setText((t) => `@${b.name} ${t}`); taRef.current?.focus(); }}>
+                    <Avatar bot={b} size={16} /> {b.name}
+                  </button>
+                ))}
+              </div>
+            ) : (
             <select
               className="model-select"
               value={`${bot.provider}::${bot.model}`}
@@ -127,6 +144,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
                 </optgroup>
               ))}
             </select>
+            )}
             {busy && text.trim() && (
               <button className="queue-btn" onClick={() => send()} title="Se enviará cuando termine">+ A la cola</button>
             )}
@@ -146,7 +164,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
   );
 }
 
-function Message({ m, bot, onShowSteps, canRetry, canEdit, onRetry, onEdit }) {
+function Message({ m, bot, showName, onShowSteps, canRetry, canEdit, onRetry, onEdit }) {
   const [editing, setEditing] = useState(null);
   if (m.role === 'user') {
     if (editing !== null) {
@@ -181,6 +199,7 @@ function Message({ m, bot, onShowSteps, canRetry, canEdit, onRetry, onEdit }) {
     <div className={`msg assistant ${m.error ? 'is-error' : ''}`}>
       <Avatar bot={bot} size={28} />
       <div className="assistant-body">
+        {showName && <div className="speaker">{bot.name} <span>{bot.title}</span></div>}
         <Markdown text={m.content} />
         <div className="msg-foot">
           <span>{m.model}</span>

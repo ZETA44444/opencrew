@@ -26,7 +26,7 @@ Reglas para cada tarea:
 
 ## Fase 2 — Trabajo en equipo
 
-- [ ] Chats de grupo: 2–6 bots en una conversación, con @menciones
+- [x] Chats de grupo: 2–6 bots en una conversación, con @menciones
 - [ ] El jefe de gabinete puede crear y configurar bots nuevos (herramienta `create_bot`)
 - [ ] Skills: biblioteca compartida de procesos guardados («cómo hacer X»)
 - [ ] Bot principal proactivo: al abrir la app propone tareas que puede hacer por ti

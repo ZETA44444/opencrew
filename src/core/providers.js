@@ -335,6 +335,14 @@ async function callDemo({ system, messages, tools, onText, signal }) {
   }
   const userText = String(last?.content || '').replace(/^\[Tarea delegada por .+?\]\n/, '');
   const has = (n) => tools.some((t) => t.name === n);
+  if (/chat de grupo/.test(system)) {
+    // Group demo: the lead hands off to whoever you @mention; others just answer.
+    const fromUser = userText.startsWith('[Usuario]: ');
+    const text = userText.replace(/^\[[^\]]+\]: /, '');
+    const other = [...text.matchAll(/@([\p{L}\d_-]+)/gu)].map((m) => m[1]).find((n) => n.toLowerCase() !== me.toLowerCase());
+    if (fromUser && other) return demoStream(`**(modo demo)** Entendido. @${other}, ¿te encargas tú de esta parte?`, onText, signal);
+    return demoStream(`**(modo demo)** Soy ${me}. Aquí va mi parte sobre: _"${text.slice(0, 120)}"_`, onText, signal);
+  }
   const mention = userText.match(/@([\p{L}\d_-]+)/u);
   if (mention && has('delegate_to_bot')) {
     return { text: '', toolCalls: [{ id: newId(), name: 'delegate_to_bot', args: { bot_name: mention[1], task: userText.replace(mention[0], '').trim() } }] };

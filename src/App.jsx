@@ -5,6 +5,7 @@ import Chat from './components/Chat.jsx';
 import RightPanel from './components/RightPanel.jsx';
 import BotModal from './components/BotModal.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
+import GroupModal from './components/GroupModal.jsx';
 
 export default function App() {
   const [state, setState] = useState(null);
@@ -28,7 +29,7 @@ export default function App() {
   // Pick a bot once loaded (or if the selected one was deleted).
   useEffect(() => {
     if (!state) return;
-    if (!state.bots.find((b) => b.id === selectedId)) setSelectedId(state.bots.find((b) => b.starred)?.id || state.bots[0]?.id || null);
+    if (!state.bots.find((b) => b.id === selectedId) && !state.groups.find((g) => g.id === selectedId)) setSelectedId(state.bots.find((b) => b.starred)?.id || state.bots[0]?.id || null);
   }, [state, selectedId]);
 
   useEffect(() => {
@@ -44,9 +45,9 @@ export default function App() {
     const unsubscribe = api.subscribe((raw) => {
       const ev = structuredClone(raw);
       if (ev.type === 'draft') {
-        setDrafts((d) => ({ ...d, [ev.botId]: ev.text }));
+        setDrafts((d) => ({ ...d, [ev.botId]: { text: ev.text, speaker: ev.speaker } }));
       } else if (ev.type === 'delta') {
-        setDrafts((d) => ({ ...d, [ev.botId]: (d[ev.botId] || '') + ev.text }));
+        setDrafts((d) => ({ ...d, [ev.botId]: { text: (d[ev.botId]?.text || '') + ev.text, speaker: ev.speaker } }));
       } else if (ev.type === 'message') {
         if (ev.message.role === 'assistant') setDrafts(({ [ev.botId]: _, ...rest }) => rest);
         if (ev.botId === selectedRef.current) setMessages((m) => (m.some((x) => x.id === ev.message.id) ? m : [...m, ev.message]));
@@ -58,8 +59,9 @@ export default function App() {
           const next = i >= 0 ? list.map((x) => (x.id === s.id ? s : x)) : [...list, s];
           return { ...all, [s.runId]: next };
         });
-        if (s.depth === 0) setRunOf((r) => (r[s.botId] === s.runId ? r : { ...r, [s.botId]: s.runId }));
-        if (s.depth === 0 && s.botId === selectedRef.current) setPinnedSteps(null);
+        const thread = s.threadId || s.botId;
+        if (s.depth === 0) setRunOf((r) => (r[thread] === s.runId ? r : { ...r, [thread]: s.runId }));
+        if (s.depth === 0 && thread === selectedRef.current) setPinnedSteps(null);
       } else if (ev.type === 'status') {
         setState((st) => st && { ...st, busy: ev.busy ? [...new Set([...st.busy, ev.botId])] : st.busy.filter((b) => b !== ev.botId) });
       } else if (ev.type === 'bots' || ev.type === 'routines') {
@@ -75,7 +77,14 @@ export default function App() {
 
   if (!state) return <div className="loading">Cargando OpenCrew…</div>;
 
-  const bot = state.bots.find((b) => b.id === selectedId);
+  const group = state.groups.find((g) => g.id === selectedId);
+  // A group is shown with the same Chat component, as a "bot" with several members.
+  const bot = group
+    ? (() => {
+      const members = group.memberIds.map((id) => state.bots.find((b) => b.id === id)).filter(Boolean);
+      return { id: group.id, name: group.name, title: `${members.length} bots · ${members.map((b) => b.name).join(', ')}`, description: 'Chat de grupo', isGroup: true, members };
+    })()
+    : state.bots.find((b) => b.id === selectedId);
   const liveSteps = bot && runOf[bot.id] ? steps[runOf[bot.id]] || [] : [];
   const shownSteps = pinnedSteps || liveSteps;
   const noKeys = !state.providers.some((p) => !p.noKey && p.hasKey);
@@ -84,10 +93,12 @@ export default function App() {
     <div className={`app ${panelOpen ? '' : 'panel-closed'} ${navOpen ? 'nav-open' : ''}`}>
       <Sidebar
         bots={state.bots}
+        groups={state.groups}
         busy={state.busy}
         selectedId={selectedId}
         onSelect={(id) => { setSelectedId(id); setNavOpen(false); }}
         onNew={() => setModal({ type: 'bot' })}
+        onNewGroup={() => setModal({ type: 'group' })}
         onSettings={() => setModal({ type: 'settings' })}
         noKeys={noKeys}
         onClose={() => setNavOpen(false)}
@@ -107,7 +118,7 @@ export default function App() {
           onRerun={(text) => api.rerunLast(bot.id, text).then(() => api.messages(bot.id)).then(setMessages)}
           onSend={(text) => api.chat(bot.id, text)}
           onChangeModel={(provider, model) => api.updateBot(bot.id, { provider, model }).then(refresh)}
-          onEdit={() => setModal({ type: 'bot', bot })}
+          onEdit={() => setModal(group ? { type: 'group', group } : { type: 'bot', bot })}
           onClear={() => api.clear(bot.id).then(() => setMessages([]))}
           onShowSteps={(s) => { setPinnedSteps(s); setPanelOpen(true); }}
           onTogglePanel={() => setPanelOpen((o) => !o)}
@@ -136,6 +147,15 @@ export default function App() {
           tools={state.tools}
           onClose={() => setModal(null)}
           onSaved={(b) => { setModal(null); refresh().then(() => setSelectedId(b.id)); }}
+          onDeleted={() => { setModal(null); refresh(); }}
+        />
+      )}
+      {modal?.type === 'group' && (
+        <GroupModal
+          group={modal.group}
+          bots={state.bots}
+          onClose={() => setModal(null)}
+          onSaved={(g) => { setModal(null); refresh().then(() => setSelectedId(g.id)); }}
           onDeleted={() => { setModal(null); refresh(); }}
         />
       )}

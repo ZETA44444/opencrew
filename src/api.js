@@ -2,13 +2,18 @@
 // used when there was a Node server, so the components barely changed.
 import { getDb, getBot, newId, now, save, messagesOf, exportData, importData, storageKind, storageUsage } from './core/store.js';
 import { publicProviders, providerById, callModel, refreshModels, refreshAllModels, defaultModel } from './core/providers.js';
-import { runAgent, busy, stopBot } from './core/agent.js';
+import { runAgent, runGroup, getGroup, busy, stopBot } from './core/agent.js';
 import { broadcast, subscribe } from './core/events.js';
 import { computeNext, runRoutine, startScheduler } from './core/routines.js';
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
 
 const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools'];
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled'];
+const GROUP_FIELDS = ['name', 'memberIds'];
+// A "thread" is a bot's own chat or a group chat; both live in db.messages[id].
+const start = (threadId, text) => (getGroup(threadId)
+  ? runGroup({ groupId: threadId, input: text })
+  : runAgent({ botId: threadId, input: text })).catch((e) => console.error(e));
 const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => obj[k] !== undefined).map((k) => [k, obj[k]]));
 const db = getDb;
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -18,11 +23,11 @@ const queueOf = (botId) => ((db().queues ??= {})[botId] ??= []);
 
 function drain(botId) {
   const q = queueOf(botId);
-  if (busy.has(botId) || !q.length || !getBot(botId)) return;
+  if (busy.has(botId) || !q.length || !(getBot(botId) || getGroup(botId))) return;
   const next = q.shift();
   save();
   broadcast({ type: 'queue', botId });
-  runAgent({ botId, input: next.text }).catch((e) => console.error(e));
+  start(botId, next.text);
 }
 
 let booted = false;
@@ -45,6 +50,7 @@ export const api = {
       bots: db().bots,
       providers: publicProviders(),
       routines: db().routines,
+      groups: db().groups,
       runs: db().runs.slice(0, 50),
       busy: [...busy],
       tools: TOOL_NAMES,
@@ -57,8 +63,8 @@ export const api = {
   async clear(botId) { db().messages[botId] = []; save(); return { ok: true }; },
 
   async chat(botId, text) {
-    const bot = getBot(botId);
-    if (!bot) throw new Error('Bot no encontrado');
+    const bot = getBot(botId) || getGroup(botId);
+    if (!bot) throw new Error('Chat no encontrado');
     if (!text.trim()) throw new Error('Mensaje vacío');
     if (busy.has(bot.id)) {
       queueOf(bot.id).push({ id: newId(), text: text.trim(), at: now() });
@@ -66,7 +72,7 @@ export const api = {
       broadcast({ type: 'queue', botId: bot.id });
       return { ok: true, queued: true };
     }
-    runAgent({ botId: bot.id, input: text.trim() }).catch((e) => console.error(e));
+    start(bot.id, text.trim());
     return { ok: true };
   },
 
@@ -81,8 +87,8 @@ export const api = {
 
   // Re-run the last user message (optionally with new text). Removes it and everything after it first.
   async rerunLast(botId, newText) {
-    const bot = getBot(botId);
-    if (!bot) throw new Error('Bot no encontrado');
+    const bot = getBot(botId) || getGroup(botId);
+    if (!bot) throw new Error('Chat no encontrado');
     if (busy.has(botId)) throw new Error(`${bot.name} está ocupado, espera a que termine`);
     const thread = messagesOf(botId);
     let i = thread.length - 1;
@@ -93,7 +99,8 @@ export const api = {
     if (!text) throw new Error('Mensaje vacío');
     thread.splice(i);
     save();
-    runAgent({ botId, input: text, from: old.from, source: old.source === 'routine' ? 'routine' : 'user' }).catch((e) => console.error(e));
+    if (getGroup(botId)) start(botId, text);
+    else runAgent({ botId, input: text, from: old.from, source: old.source === 'routine' ? 'routine' : 'user' }).catch((e) => console.error(e));
     return clone(thread);
   },
 
@@ -129,7 +136,46 @@ export const api = {
     delete d.messages[id];
     delete d.artifacts[id];
     if (d.queues) delete d.queues[id];
+    for (const g of d.groups) g.memberIds = g.memberIds.filter((m) => m !== id);
     d.routines = d.routines.filter((r) => r.botId !== id);
+    save();
+    broadcast({ type: 'bots' });
+    return { ok: true };
+  },
+
+  // ---------- group chats ----------
+  async createGroup(input) {
+    const g = pick(input || {}, GROUP_FIELDS);
+    if (!g.name?.trim()) throw new Error('El grupo necesita un nombre');
+    const memberIds = (g.memberIds || []).filter((id) => getBot(id)).slice(0, 6);
+    if (memberIds.length < 2) throw new Error('Elige al menos 2 bots');
+    const group = { id: newId(), name: g.name.trim(), memberIds, createdAt: now() };
+    db().groups.push(group);
+    save();
+    broadcast({ type: 'bots' });
+    return clone(group);
+  },
+
+  async updateGroup(id, patch) {
+    const g = getGroup(id);
+    if (!g) throw new Error('Grupo no encontrado');
+    const p = pick(patch || {}, GROUP_FIELDS);
+    if (p.memberIds) {
+      p.memberIds = p.memberIds.filter((m) => getBot(m)).slice(0, 6);
+      if (p.memberIds.length < 2) throw new Error('Elige al menos 2 bots');
+    }
+    if (p.name !== undefined && !p.name.trim()) throw new Error('El grupo necesita un nombre');
+    Object.assign(g, p);
+    save();
+    broadcast({ type: 'bots' });
+    return clone(g);
+  },
+
+  async deleteGroup(id) {
+    const d = db();
+    d.groups = d.groups.filter((g) => g.id !== id);
+    delete d.messages[id];
+    if (d.queues) delete d.queues[id];
     save();
     broadcast({ type: 'bots' });
     return { ok: true };
