@@ -22,7 +22,7 @@
 Necesitas [Node.js 20+](https://nodejs.org).
 
 ```bash
-git clone https://github.com/TU_USUARIO/opencrew.git
+git clone https://github.com/ZETA44444/opencrew.git
 cd opencrew
 npm install
 npm run dev
