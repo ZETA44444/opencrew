@@ -447,3 +447,10 @@ input[type=range] { padding: 0; accent-color: #fff; }
 .health-pill.good { color: var(--ok); border-color: #4ade8040; }
 .health-pill.meh { color: var(--warn); border-color: #fbbf2440; }
 .health-pill.bad { color: var(--err); border-color: #f8717140; }
+
+/* ---------- projects ---------- */
+.project-switch { display: flex; align-items: center; gap: 8px; margin: 0 2px 10px; padding: 6px 8px 6px 12px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--bg-2); }
+.project-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.project-switch select { flex: 1; min-width: 0; background: none; border: 0; padding: 2px 0; font-weight: 550; cursor: pointer; }
+.project-switch .icon-btn { width: 26px; height: 26px; }
+label.member-row { flex-direction: row; justify-content: flex-start; cursor: pointer; }

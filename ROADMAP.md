@@ -82,7 +82,7 @@ Reglas para cada tarea:
 
 > Base para la memoria entre bots y, más adelante, para las salas multijugador.
 
-- [ ] Proyectos: agrupan bots, chats, archivos y rutinas
+- [x] Proyectos: agrupan bots, chats, archivos y rutinas
 - [ ] Memoria del proyecto: lo que le cuentas a un bot lo saben los demás bots del mismo proyecto
 - [ ] Memorias con permisos: individual, de proyecto o global; memorias privadas que solo ve un bot (p. ej. las de compras no las ve el de correo)
 - [ ] Memoria automática: al terminar una conversación el bot propone qué recordar y tú lo apruebas

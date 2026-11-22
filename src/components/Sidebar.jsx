@@ -25,15 +25,28 @@ function useInstall() {
   return [can, install];
 }
 
-export default function Sidebar({ bots, groups = [], waiting = [], skillsCount = 0, connectorsCount = 0, onConnectors, onUsage, busy, selectedId, onSelect, onNew, onNewGroup, onSkills, onSettings, noKeys, onClose }) {
+export default function Sidebar({ bots, groups = [], projects = [], projectId = '', onProject, onNewProject, onEditProject, waiting = [], skillsCount = 0, connectorsCount = 0, onConnectors, onUsage, busy, selectedId, onSelect, onNew, onNewGroup, onSkills, onSettings, noKeys, onClose }) {
   const [canInstall, install] = useInstall();
-  const sorted = [...bots].sort((a, b) => Number(!!b.starred) - Number(!!a.starred));
+  const project = projects.find((p) => p.id === projectId);
+  // Inside a project, only its bots and group chats are listed.
+  const visibleBots = project ? bots.filter((b) => project.botIds.includes(b.id)) : bots;
+  const visibleGroups = project ? groups.filter((g) => project.groupIds.includes(g.id)) : groups;
+  const sorted = [...visibleBots].sort((a, b) => Number(!!b.starred) - Number(!!a.starred));
   return (
     <aside className="sidebar">
       <div className="brand">
         <Logo />
         <span>OpenCrew</span>
         <button className="icon-btn mobile-only close-nav" onClick={onClose} aria-label="Cerrar menú">×</button>
+      </div>
+      <div className="project-switch">
+        <span className="project-dot" style={{ background: project?.color || 'var(--line-2)' }} />
+        <select value={projectId} onChange={(e) => (e.target.value === '__new' ? onNewProject() : onProject(e.target.value))} aria-label="Proyecto">
+          <option value="">Todos los bots</option>
+          {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          <option value="__new">+ Nuevo proyecto…</option>
+        </select>
+        {project && <button className="icon-btn" onClick={() => onEditProject(project)} title="Editar proyecto">✎</button>}
       </div>
       <button className="new-bot" onClick={onNew}>
         <span className="plus">+</span> Nuevo bot
@@ -43,8 +56,8 @@ export default function Sidebar({ bots, groups = [], waiting = [], skillsCount =
           <span>Grupos</span>
           <button className="icon-btn" onClick={onNewGroup} title="Nuevo chat de grupo" aria-label="Nuevo chat de grupo">+</button>
         </div>
-        {groups.length === 0 && <button className="bot-item empty-group" onClick={onNewGroup}><span className="bot-sub">Crea un chat con varios bots</span></button>}
-        {groups.map((g) => {
+        {visibleGroups.length === 0 && <button className="bot-item empty-group" onClick={onNewGroup}><span className="bot-sub">Crea un chat con varios bots</span></button>}
+        {visibleGroups.map((g) => {
           const members = g.memberIds.map((id) => bots.find((b) => b.id === id)).filter(Boolean);
           return (
             <button key={g.id} className={`bot-item ${g.id === selectedId ? 'active' : ''}`} onClick={() => onSelect(g.id)}>

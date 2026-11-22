@@ -40,7 +40,7 @@ export const TREASURER_BOT = {
 
 function fill(d) {
   d.keys ??= {}; d.bots ??= []; d.messages ??= {}; d.routines ??= []; d.runs ??= [];
-  d.artifacts ??= {}; d.settings ??= {}; d.groups ??= []; d.skills ??= []; d.connectors ??= [];
+  d.artifacts ??= {}; d.settings ??= {}; d.groups ??= []; d.skills ??= []; d.connectors ??= []; d.projects ??= [];
   d.settings.webReader ??= true;
   d.settings.proactive ??= true;
   d.settings.notifications ??= { routines: true, replies: true };

@@ -44,9 +44,20 @@ function systemPrompt(bot, group) {
     bot.memory.length ? `Tu memoria (datos que el usuario te pidió recordar):\n${bot.memory.map((m) => `- ${m}`).join('\n')}` : '',
     team && !group && delegationPrompt(bot, team),
     group && groupPrompt(bot, group),
+    projectPrompt(bot, group),
     getDb().skills.length ? `Skills del equipo (procesos guardados; si una tarea encaja, lee sus pasos con use_skill y síguelos; si descubres un proceso que se repetirá, guárdalo con save_skill):\n${getDb().skills.map((k) => `- ${k.name}${k.description ? `: ${k.description}` : ''}`).join('\n')}` : '',
     'Responde siempre en el idioma del usuario y usa markdown. Sé conciso.',
   ].filter(Boolean).join('\n\n');
+}
+
+// Projects this bot (or group) belongs to: name, goal and teammates in the project.
+function projectPrompt(bot, group) {
+  const ps = (getDb().projects || []).filter((p) => p.botIds.includes(bot.id) || (group && p.groupIds.includes(group.id)));
+  if (!ps.length) return '';
+  return ps.map((p) => {
+    const mates = p.botIds.map(getBot).filter((b) => b && b.id !== bot.id).map((b) => b.name);
+    return `Trabajas en el proyecto «${p.name}»${p.description ? `: ${p.description}` : ''}.${mates.length ? ` Compañeros en este proyecto: ${mates.join(', ')}.` : ''}`;
+  }).join('\n');
 }
 
 // How hard a bot should push work to its teammates. The main bot (★) is a coordinator by

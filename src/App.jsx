@@ -11,6 +11,7 @@ import SkillsModal from './components/SkillsModal.jsx';
 import ArtifactViewer from './components/ArtifactViewer.jsx';
 import ConnectorsModal from './components/ConnectorsModal.jsx';
 import UsageModal from './components/UsageModal.jsx';
+import ProjectModal from './components/ProjectModal.jsx';
 
 export default function App() {
   const [state, setState] = useState(null);
@@ -22,7 +23,8 @@ export default function App() {
   const [artifactsTick, setArtifactsTick] = useState(0);
   const [drafts, setDrafts] = useState({}); // botId -> text being streamed right now
   const [queued, setQueued] = useState([]);
-  const [viewer, setViewer] = useState(null); // { botId, name } of the open file // queued messages of the selected bot
+  const [viewer, setViewer] = useState(null); // { botId, name } of the open file
+  const [projectId, setProjectId] = useState(() => localStorageGet('oc.project') || ''); // queued messages of the selected bot
   const [modal, setModal] = useState(null); // {type:'bot', bot?} | {type:'settings'}
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 1100);
   const [navOpen, setNavOpen] = useState(false);
@@ -114,6 +116,11 @@ export default function App() {
       <Sidebar
         bots={state.bots}
         groups={state.groups}
+        projects={state.projects}
+        projectId={state.projects.some((p) => p.id === projectId) ? projectId : ''}
+        onProject={(id) => { setProjectId(id); localStorageSet('oc.project', id); }}
+        onNewProject={() => setModal({ type: 'project' })}
+        onEditProject={(p) => setModal({ type: 'project', project: p })}
         waiting={state.approvals.map((a) => a.threadId)}
         skillsCount={state.skills.length}
         connectorsCount={state.connectors.filter((c) => c.enabled && c.status === 'ok').length + (state.services.github ? 1 : 0)}
@@ -184,7 +191,12 @@ export default function App() {
           providers={state.providers}
           tools={state.tools}
           onClose={() => setModal(null)}
-          onSaved={(b) => { setModal(null); refresh().then(() => setSelectedId(b.id)); }}
+          onSaved={async (b) => {
+            setModal(null);
+            const p = state.projects.find((x) => x.id === projectId);
+            if (!modal.bot && p && !p.botIds.includes(b.id)) await api.saveProject({ id: p.id, botIds: [...p.botIds, b.id] });
+            refresh().then(() => setSelectedId(b.id));
+          }}
           onDeleted={() => { setModal(null); refresh(); }}
         />
       )}
@@ -198,6 +210,16 @@ export default function App() {
         />
       )}
       {viewer && <ArtifactViewer botId={viewer.botId} name={viewer.name} onClose={() => setViewer(null)} />}
+      {modal?.type === 'project' && (
+        <ProjectModal
+          project={modal.project}
+          bots={state.bots}
+          groups={state.groups}
+          onClose={() => setModal(null)}
+          onSaved={(p) => { setModal(null); setProjectId(p.id); localStorageSet('oc.project', p.id); refresh(); }}
+          onDeleted={() => { setModal(null); setProjectId(''); localStorageSet('oc.project', ''); refresh(); }}
+        />
+      )}
       {modal?.type === 'usage' && <UsageModal bots={state.bots} onClose={() => setModal(null)} />}
       {modal?.type === 'connectors' && <ConnectorsModal connectors={state.connectors} services={state.services} onClose={() => setModal(null)} />}
       {modal?.type === 'skills' && <SkillsModal skills={state.skills} onClose={() => setModal(null)} />}

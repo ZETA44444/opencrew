@@ -18,6 +18,7 @@ import { askPermission, notifyPermission, notify } from './core/notify.js';
 const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown', 'connectors', 'monthlyLimit', 'delegation', 'autoFallback'];
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled', 'catchUp'];
 const GROUP_FIELDS = ['name', 'memberIds'];
+const PROJECT_FIELDS = ['name', 'description', 'color', 'botIds', 'groupIds'];
 const SERVICE_KEYS = ['tavily', 'github']; // keys for tools, not for chat models
 // A "thread" is a bot's own chat or a group chat; both live in db.messages[id].
 const start = (threadId, text, attachments = []) => (getGroup(threadId)
@@ -61,6 +62,7 @@ export const api = {
       providers: publicProviders(),
       routines: db().routines,
       groups: db().groups,
+      projects: db().projects,
       skills: db().skills,
       approvals: pendingApprovals(),
       sensitiveTools: SENSITIVE,
@@ -158,7 +160,35 @@ export const api = {
     delete d.artifacts[id];
     if (d.queues) delete d.queues[id];
     for (const g of d.groups) g.memberIds = g.memberIds.filter((m) => m !== id);
+    for (const p of d.projects) p.botIds = p.botIds.filter((m) => m !== id);
     d.routines = d.routines.filter((r) => r.botId !== id);
+    save();
+    broadcast({ type: 'bots' });
+    return { ok: true };
+  },
+
+  // ---------- projects ----------
+  async saveProject(input) {
+    const p = pick(input || {}, PROJECT_FIELDS);
+    if (input.id) {
+      const existing = db().projects.find((x) => x.id === input.id);
+      if (!existing) throw new Error('Proyecto no encontrado');
+      if (p.name !== undefined && !p.name.trim()) throw new Error('El proyecto necesita un nombre');
+      Object.assign(existing, p);
+      save();
+      broadcast({ type: 'bots' });
+      return clone(existing);
+    }
+    if (!p.name?.trim()) throw new Error('El proyecto necesita un nombre');
+    const project = { id: newId(), description: '', color: '#7dd3fc', botIds: [], groupIds: [], memory: [], ...p, name: p.name.trim(), createdAt: now() };
+    db().projects.push(project);
+    save();
+    broadcast({ type: 'bots' });
+    return clone(project);
+  },
+
+  async deleteProject(id) {
+    db().projects = db().projects.filter((p) => p.id !== id); // bots and chats are kept
     save();
     broadcast({ type: 'bots' });
     return { ok: true };
@@ -196,6 +226,7 @@ export const api = {
     stopBot(id);
     const d = db();
     d.groups = d.groups.filter((g) => g.id !== id);
+    for (const p of d.projects) p.groupIds = p.groupIds.filter((m) => m !== id);
     delete d.messages[id];
     if (d.queues) delete d.queues[id];
     save();
