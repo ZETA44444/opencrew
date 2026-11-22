@@ -8,13 +8,13 @@ import { computeNext, runRoutine, startScheduler, missed, resolveMissed } from '
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
 import { searchBackend } from './core/search.js';
 import { githubWhoAmI } from './core/github.js';
-import { usageRows, priceFor, setPrice, clearUsage } from './core/usage.js';
+import { usageRows, priceFor, setPrice, clearUsage, monthCost } from './core/usage.js';
 import { pendingApprovals, resolveApproval, revokeAlways, setApprovalsEnabled, SENSITIVE } from './core/approvals.js';
 import { addConnector, refreshConnector, updateConnector, removeConnector } from './core/mcp.js';
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
 import { askPermission, notifyPermission, notify } from './core/notify.js';
 
-const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown', 'connectors'];
+const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown', 'connectors', 'monthlyLimit'];
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled', 'catchUp'];
 const GROUP_FIELDS = ['name', 'memberIds'];
 const SERVICE_KEYS = ['tavily', 'github']; // keys for tools, not for chat models
@@ -218,6 +218,7 @@ export const api = {
     for (const r of rows) prices[`${r.provider}/${r.model}`] ??= priceFor(r.provider, r.model);
     return { rows, prices };
   },
+  monthCost,
   async setPrice(provider, model, input, output) { setPrice(provider, model, input, output); },
   async clearUsage() { clearUsage(); },
 

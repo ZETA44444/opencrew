@@ -439,3 +439,6 @@ input[type=range] { padding: 0; accent-color: #fff; }
 .price-edit input { width: 64px; padding: 3px 6px; font-size: 12px; }
 .usage-table .link { margin: 0; }
 @media (max-width: 760px) { .usage-totals { grid-template-columns: 1fr 1fr; } }
+
+.limit { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+.limit.over { color: var(--err); }

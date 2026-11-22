@@ -5,7 +5,7 @@ import { toolsFor, runTool, describeCall } from './tools.js';
 import { broadcast } from './events.js';
 import { notify } from './notify.js';
 import { needsApproval, requestApproval } from './approvals.js';
-import { recordUsage } from './usage.js';
+import { recordUsage, checkBudget } from './usage.js';
 
 const MAX_STEPS = 8;
 export const busy = new Set();
@@ -93,6 +93,7 @@ export async function runAgent({ botId, input, attachments = [], from = null, so
     for (let i = 0; i < MAX_STEPS && final === null; i++) {
       if (signal.aborted) throw stopped();
       partial = '';
+      checkBudget(bot); // stop before spending more than the bot's monthly limit
       const thinking = step({ kind: 'model', label: `Pensando (${label})`, status: 'running' });
       const t0 = Date.now();
       emit({ type: 'draft', botId: threadId, speaker: botId, runId, text: '' }); // new model call → fresh live bubble
@@ -155,6 +156,7 @@ export async function runAgent({ botId, input, attachments = [], from = null, so
       error = e.message;
       final = `⚠️ ${e.message}`;
       step({ kind: 'error', label: e.message, status: 'error' });
+      if (e.budget) notify({ kind: 'routine', threadId, title: `💸 ${bot.name}: límite de gasto alcanzado`, body: e.message });
     }
   } finally {
     if (ownsThread) {

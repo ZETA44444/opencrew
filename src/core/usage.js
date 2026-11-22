@@ -64,3 +64,29 @@ export function clearUsage() {
   u().days = {};
   save();
 }
+
+// Spent this calendar month by one bot (all models).
+export function monthCost(botId) {
+  const month = new Date().toISOString().slice(0, 7);
+  let total = 0;
+  for (const [day, entries] of Object.entries(u().days)) {
+    if (!day.startsWith(month)) continue;
+    for (const [key, r] of Object.entries(entries)) {
+      const [id, provider, ...m] = key.split('|');
+      if (id === botId) total += costOf(provider, m.join('|'), r.input, r.output);
+    }
+  }
+  return total;
+}
+
+// Throws if the bot has a monthly limit and already reached it.
+export function checkBudget(bot) {
+  const limit = Number(bot.monthlyLimit) || 0;
+  if (!limit) return;
+  const spent = monthCost(bot.id);
+  if (spent >= limit) {
+    const e = new Error(`${bot.name} ha llegado a su límite de gasto de este mes (${spent.toFixed(2).replace('.', ',')} $ de ${limit.toFixed(2).replace('.', ',')} $). Súbelo al editar el bot o espera al mes que viene.`);
+    e.budget = true;
+    throw e;
+  }
+}

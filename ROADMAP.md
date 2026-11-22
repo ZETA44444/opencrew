@@ -65,7 +65,7 @@ Reglas para cada tarea:
 
 - [x] Aprobaciones: «permitir una vez / siempre / denegar» antes de acciones sensibles
 - [x] Uso y coste estimado por bot y por modelo
-- [ ] Límite de gasto mensual por bot
+- [x] Límite de gasto mensual por bot
 
 ## Fase 7 — Servidor opcional 24/7 (para lo que el navegador no puede hacer)
 
