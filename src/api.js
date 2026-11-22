@@ -6,6 +6,7 @@ import { runAgent, runGroup, getGroup, busy, stopBot } from './core/agent.js';
 import { broadcast, subscribe } from './core/events.js';
 import { computeNext, runRoutine, startScheduler } from './core/routines.js';
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
+import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
 
 const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown'];
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled'];
@@ -39,6 +40,7 @@ function boot() {
   for (const botId of Object.keys(db().queues || {})) setTimeout(() => drain(botId), 1000);
   startScheduler();
   refreshAllModels().then(() => broadcast({ type: 'bots' }));
+  setTimeout(() => refreshSuggestions(), 1500); // proactive main bot
 }
 
 export const api = {
@@ -52,6 +54,8 @@ export const api = {
       routines: db().routines,
       groups: db().groups,
       skills: db().skills,
+      suggestions: db().suggestions || null,
+      suggestionsLoading: suggestionsLoading(),
       runs: db().runs.slice(0, 50),
       busy: [...busy],
       tools: TOOL_NAMES,
@@ -181,6 +185,10 @@ export const api = {
     broadcast({ type: 'bots' });
     return { ok: true };
   },
+
+  // ---------- proactive main bot ----------
+  refreshSuggestions: () => refreshSuggestions({ force: true }),
+  dismissSuggestion,
 
   // ---------- skills (shared library of processes) ----------
   async saveSkill(input) {

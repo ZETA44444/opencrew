@@ -32,6 +32,8 @@ Funciona entera en tu navegador. Los bots empiezan en modo demo; para que piense
 
 Tus claves, bots y chats se guardan **solo en tu navegador**. Usa **Ajustes → Descargar copia** para no perderlos.
 
+¿Quieres otro equipo separado (por ejemplo, trabajo y personal)? Abre la app con `?perfil=trabajo` al final de la dirección: cada perfil tiene sus propios bots, chats y claves.
+
 ## Desarrollo local
 
 ```bash

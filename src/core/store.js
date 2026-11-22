@@ -35,11 +35,14 @@ function fill(d) {
   d.keys ??= {}; d.bots ??= []; d.messages ??= {}; d.routines ??= []; d.runs ??= [];
   d.artifacts ??= {}; d.settings ??= {}; d.groups ??= []; d.skills ??= [];
   d.settings.webReader ??= true;
+  d.settings.proactive ??= true;
   return d;
 }
 
 // ---------- persistence: IndexedDB (no 5 MB limit), with migration from the old localStorage copy ----------
-const IDB_NAME = 'opencrew';
+// ?perfil=nombre opens a separate, independent set of bots and data (handy for testing).
+const PROFILE = (typeof location !== 'undefined' && new URLSearchParams(location.search).get('perfil') || '').replace(/[^\w-]/g, '');
+const IDB_NAME = PROFILE ? `opencrew-${PROFILE}` : 'opencrew';
 const IDB_STORE = 'kv';
 const IDB_KEY = 'db';
 
@@ -74,7 +77,7 @@ export const ready = (async () => {
     if (stored) db = fill(stored);
     else {
       let legacy = null;
-      try { legacy = localStorage.getItem(KEY); } catch { /* ignore */ }
+      if (!PROFILE) try { legacy = localStorage.getItem(KEY); } catch { /* ignore */ }
       db = legacy ? fill(JSON.parse(legacy)) : seed();
       await idb('readwrite', (st) => st.put(db, IDB_KEY));
       if (legacy) try { localStorage.removeItem(KEY); } catch { /* ignore */ }

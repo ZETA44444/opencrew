@@ -7,6 +7,7 @@ export default function SettingsModal({ providers, settings, onClose, onSaved })
   const [tests, setTests] = useState({});
   const [saving, setSaving] = useState(false);
   const [webReader, setWebReader] = useState(settings?.webReader !== false);
+  const [proactive, setProactive] = useState(settings?.proactive !== false);
   const [backupMsg, setBackupMsg] = useState('');
   const fileRef = useRef(null);
   const [storage, setStorage] = useState(null);
@@ -107,6 +108,13 @@ export default function SettingsModal({ providers, settings, onClose, onSaved })
             Usar el lector público r.jina.ai cuando una web no deja leerse desde el navegador
           </label>
           <div className="muted small">La mayoría de webs bloquean que otra página las lea. Si lo desactivas, los bots solo podrán leer webs que lo permitan.</div>
+
+          <div className="section-title">Bot principal proactivo</div>
+          <label className="check">
+            <input type="checkbox" checked={proactive} onChange={(e) => { setProactive(e.target.checked); api.updateSettings({ proactive: e.target.checked }); }} />
+            Al abrir la app, el bot principal (★) propone tareas que puede hacer por ti
+          </label>
+          <div className="muted small">Usa una llamada corta a su modelo como mucho cada 12 horas.</div>
 
           <div className="section-title">Copia de seguridad</div>
           <div className="muted small">Tus bots, chats y rutinas viven en este navegador. Descarga una copia para no perderlos o para pasarlos a otro ordenador.</div>

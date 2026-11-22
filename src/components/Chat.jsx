@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Avatar, { GroupAvatar } from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
 
-export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
+export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const endRef = useRef(null);
@@ -96,6 +96,22 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
           </div>
         )}
         {err && <div className="banner error">{err}</div>}
+        {!busy && (proposalsLoading || proposals?.length > 0) && (
+          <div className="proposals">
+            <div className="proposals-head">
+              <span>✦ {bot.name} propone</span>
+              {!proposalsLoading && <button className="link" onClick={onRefreshProposals} title="Otras ideas">↻</button>}
+              {!proposalsLoading && <button className="link" onClick={() => onDismissProposal(null)} title="Ocultar">×</button>}
+            </div>
+            {proposalsLoading ? <div className="muted small">Pensando en qué puede hacer por ti…</div> : (
+              <div className="proposal-list">
+                {proposals.map((p, i) => (
+                  <button key={i} className="proposal" title={p.prompt} onClick={() => { onDismissProposal(i); send(p.prompt); }}>{p.title}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {queued.length > 0 && (
           <div className="queue">
             <div className="queue-title">En cola · {bot.name} lo hará al terminar</div>

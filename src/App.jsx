@@ -65,7 +65,7 @@ export default function App() {
         if (s.depth === 0 && thread === selectedRef.current) setPinnedSteps(null);
       } else if (ev.type === 'status') {
         setState((st) => st && { ...st, busy: ev.busy ? [...new Set([...st.busy, ev.botId])] : st.busy.filter((b) => b !== ev.botId) });
-      } else if (ev.type === 'bots' || ev.type === 'routines' || ev.type === 'skills') {
+      } else if (ev.type === 'bots' || ev.type === 'routines' || ev.type === 'skills' || ev.type === 'suggestions') {
         refresh();
       } else if (ev.type === 'queue') {
         if (ev.botId === selectedRef.current) api.queue(ev.botId).then(setQueued);
@@ -116,6 +116,10 @@ export default function App() {
           busy={state.busy.includes(bot.id)}
           draft={drafts[bot.id]}
           onStop={() => api.stop(bot.id)}
+          proposals={!group && bot.starred && state.suggestions?.botId === bot.id ? state.suggestions.items : null}
+          proposalsLoading={!group && bot.starred && state.suggestionsLoading}
+          onRefreshProposals={() => api.refreshSuggestions()}
+          onDismissProposal={(i) => api.dismissSuggestion(i)}
           queued={queued}
           onRemoveQueued={(id) => api.removeQueued(bot.id, id)}
           onRerun={(text) => api.rerunLast(bot.id, text).then(() => api.messages(bot.id)).then(setMessages)}

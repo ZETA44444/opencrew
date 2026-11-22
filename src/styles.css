@@ -311,3 +311,13 @@ textarea { resize: vertical; line-height: 1.45; }
 .skill-steps { border: 1px solid var(--line); background: var(--bg); border-radius: 12px; padding: 12px 14px; }
 .empty-skills { padding: 18px; text-align: center; border: 1px dashed var(--line-2); border-radius: 12px; }
 .count { margin-left: auto; font-size: 11px; color: var(--text-3); }
+
+/* ---------- proactive proposals ---------- */
+.proposals { border: 1px solid var(--line-2); background: linear-gradient(180deg, var(--bg-2), var(--bg-1)); border-radius: 16px; padding: 10px 12px; margin-bottom: 8px; }
+.proposals-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); margin-bottom: 8px; }
+.proposals-head span { margin-right: auto; }
+.proposals-head .link { margin: 0; text-decoration: none; font-size: 14px; color: var(--text-3); }
+.proposals-head .link:hover { color: var(--text); }
+.proposal-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.proposal { border: 1px solid var(--line-2); border-radius: 999px; padding: 6px 12px; font-size: 13px; color: var(--text); background: var(--bg); text-align: left; }
+.proposal:hover { background: var(--bg-3); }

@@ -330,6 +330,13 @@ async function callDemo({ system, messages, tools, onText, signal }) {
   if (signal?.aborted) throw abortError();
   const me = system.match(/^Eres (.+?),/)?.[1] || 'un bot';
   const last = messages[messages.length - 1];
+  if (/PROPUESTAS_JSON/.test(system)) {
+    return { text: JSON.stringify([
+      { title: 'Resumen de noticias de IA', prompt: '@Nova resume las noticias más importantes de inteligencia artificial de esta semana' },
+      { title: 'Ideas de posts para redes', prompt: '@Quill escribe 3 ideas de posts para LinkedIn sobre mi proyecto' },
+      { title: 'Crear una rutina matinal', prompt: 'Ayúdame a crear una rutina que cada mañana a las 8 me haga un resumen del día' },
+    ]), toolCalls: [] };
+  }
   if (last?.role === 'tool') {
     return demoStream(`**(modo demo)** Listo. Resultado de \`${last.name}\`:\n\n> ${String(last.content).slice(0, 400).replace(/\n/g, '\n> ')}`, onText, signal);
   }
