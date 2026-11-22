@@ -5,6 +5,7 @@ import { toolsFor, runTool, describeCall } from './tools.js';
 import { broadcast } from './events.js';
 import { notify } from './notify.js';
 import { needsApproval, requestApproval } from './approvals.js';
+import { recordUsage } from './usage.js';
 
 const MAX_STEPS = 8;
 export const busy = new Set();
@@ -86,6 +87,7 @@ export async function runAgent({ botId, input, attachments = [], from = null, so
   let final = null;
   let error = null;
   let partial = '';
+  const spent = { input: 0, output: 0, cost: 0 }; // this answer's own model calls
 
   try {
     for (let i = 0; i < MAX_STEPS && final === null; i++) {
@@ -102,6 +104,11 @@ export async function runAgent({ botId, input, attachments = [], from = null, so
       };
       const res = await callModel({ providerId: bot.provider, model: bot.model, system: systemPrompt(bot, group), messages: convo, tools, onText, signal });
       update(thinking, { status: 'done', label: `Pensando (${label})`, ms: Date.now() - t0 });
+      if (res.usage) {
+        spent.input += res.usage.input || 0;
+        spent.output += res.usage.output || 0;
+        spent.cost += recordUsage({ botId: bot.id, provider: bot.provider, model: bot.model, input: res.usage.input, output: res.usage.output });
+      }
 
       if (!res.toolCalls.length) { final = res.text || '(sin respuesta)'; break; }
       convo.push({ role: 'assistant', content: res.text, toolCalls: res.toolCalls, raw: res.raw });
@@ -161,7 +168,7 @@ export async function runAgent({ botId, input, attachments = [], from = null, so
     // The bot (or group) was deleted while working: don't bring its conversation back.
     return { id: newId(), role: 'assistant', botId, content: final, steps, stopped: true, error: !!error };
   }
-  const reply = { id: newId(), role: 'assistant', botId, content: final, steps, stopped: signal.aborted, model: `${bot.provider}/${bot.model}`, error: !!error, source, createdAt: now() };
+  const reply = { id: newId(), role: 'assistant', botId, content: final, steps, usage: spent.input || spent.output ? spent : undefined, stopped: signal.aborted, model: `${bot.provider}/${bot.model}`, error: !!error, source, createdAt: now() };
   thread.push(reply);
   if (thread.length > 500) thread.splice(0, thread.length - 500);
   save();

@@ -220,14 +220,18 @@ async function callAnthropic({ model, apiKey, system, messages, tools, onText, s
     }, 'Anthropic', signal);
   let text = '';
   const blocks = {};
-  let usage;
+  const usage = { input: 0, output: 0 };
   for await (const ev of sse(res, signal)) {
+    if (ev.type === 'message_start') {
+      const u = ev.message?.usage || {};
+      usage.input = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+    }
     if (ev.type === 'content_block_start' && ev.content_block.type === 'tool_use') {
       blocks[ev.index] = { id: ev.content_block.id, name: ev.content_block.name, json: '' };
     } else if (ev.type === 'content_block_delta') {
       if (ev.delta.type === 'text_delta') { text += ev.delta.text; onText?.(ev.delta.text); }
       else if (ev.delta.type === 'input_json_delta' && blocks[ev.index]) blocks[ev.index].json += ev.delta.partial_json;
-    } else if (ev.type === 'message_delta') usage = ev.usage;
+    } else if (ev.type === 'message_delta') usage.output = ev.usage?.output_tokens || usage.output;
     else if (ev.type === 'error') throw new Error(`Anthropic: ${ev.error?.message || 'error en el streaming'}`);
   }
   const toolCalls = Object.values(blocks).map((b) => ({ id: b.id, name: b.name, args: parseArgs(b.json) }));
@@ -260,7 +264,7 @@ async function callOpenAI({ provider, model, apiKey, system, messages, tools, on
   const headers = apiKey ? { authorization: `Bearer ${apiKey}` } : {};
   if (provider.id === 'openrouter') headers['X-Title'] = 'OpenCrew';
   const res = await request(`${provider.baseUrl}/chat/completions`, headers, {
-    model, messages: out, stream: true,
+    model, messages: out, stream: true, stream_options: { include_usage: true },
     ...(tools.length && { tools: tools.map((t) => ({ type: 'function', function: t })) }),
   }, provider.label, signal);
   let text = '';
@@ -276,7 +280,7 @@ async function callOpenAI({ provider, model, apiKey, system, messages, tools, on
       if (tc.function?.name) c.name += tc.function.name;
       if (tc.function?.arguments) c.args += tc.function.arguments;
     }
-    if (ev.usage) usage = ev.usage;
+    if (ev.usage) usage = { input: ev.usage.prompt_tokens || 0, output: ev.usage.completion_tokens || 0 };
   }
   const toolCalls = calls.filter(Boolean).map((c) => ({ id: c.id || newId(), name: c.name, args: parseArgs(c.args) }));
   return { text, toolCalls, usage };
@@ -346,7 +350,7 @@ async function callGemini({ model, apiKey, system, messages, tools, onText, sign
       parts.push(p);
       if (p.text && !p.thought) onText?.(p.text);
     }
-    if (ev.usageMetadata) usage = ev.usageMetadata;
+    if (ev.usageMetadata) usage = { input: ev.usageMetadata.promptTokenCount || 0, output: (ev.usageMetadata.candidatesTokenCount || 0) + (ev.usageMetadata.thoughtsTokenCount || 0) };
     if (ev.promptFeedback?.blockReason) blocked = ev.promptFeedback.blockReason;
   }
   if (!parts.length && blocked) throw new Error(`Gemini bloqueó la respuesta: ${blocked}`);
@@ -364,7 +368,7 @@ async function demoStream(text, onText, signal) {
     onText?.(pieces.slice(i, i + 3).join(''));
     await sleep(35);
   }
-  return { text, toolCalls: [] };
+  return { text, toolCalls: [], usage: { input: 50 + Math.round(text.length / 8), output: Math.round(text.length / 4) } };
 }
 
 async function callDemo({ system, messages, tools, onText, signal }) {

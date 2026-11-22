@@ -8,6 +8,7 @@ import { computeNext, runRoutine, startScheduler, missed, resolveMissed } from '
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
 import { searchBackend } from './core/search.js';
 import { githubWhoAmI } from './core/github.js';
+import { usageRows, priceFor, setPrice, clearUsage } from './core/usage.js';
 import { pendingApprovals, resolveApproval, revokeAlways, setApprovalsEnabled, SENSITIVE } from './core/approvals.js';
 import { addConnector, refreshConnector, updateConnector, removeConnector } from './core/mcp.js';
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
@@ -209,6 +210,16 @@ export const api = {
   // ---------- proactive main bot ----------
   refreshSuggestions: () => refreshSuggestions({ force: true }),
   dismissSuggestion,
+
+  // ---------- usage & cost ----------
+  async usage(days = 30) {
+    const rows = usageRows(days);
+    const prices = {};
+    for (const r of rows) prices[`${r.provider}/${r.model}`] ??= priceFor(r.provider, r.model);
+    return { rows, prices };
+  },
+  async setPrice(provider, model, input, output) { setPrice(provider, model, input, output); },
+  async clearUsage() { clearUsage(); },
 
   // ---------- approvals ----------
   resolveApproval,

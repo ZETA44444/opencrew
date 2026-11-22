@@ -10,6 +10,7 @@ import GroupModal from './components/GroupModal.jsx';
 import SkillsModal from './components/SkillsModal.jsx';
 import ArtifactViewer from './components/ArtifactViewer.jsx';
 import ConnectorsModal from './components/ConnectorsModal.jsx';
+import UsageModal from './components/UsageModal.jsx';
 
 export default function App() {
   const [state, setState] = useState(null);
@@ -117,6 +118,7 @@ export default function App() {
         skillsCount={state.skills.length}
         connectorsCount={state.connectors.filter((c) => c.enabled && c.status === 'ok').length + (state.services.github ? 1 : 0)}
         onConnectors={() => setModal({ type: 'connectors' })}
+        onUsage={() => setModal({ type: 'usage' })}
         onSkills={() => setModal({ type: 'skills' })}
         busy={state.busy}
         selectedId={selectedId}
@@ -196,6 +198,7 @@ export default function App() {
         />
       )}
       {viewer && <ArtifactViewer botId={viewer.botId} name={viewer.name} onClose={() => setViewer(null)} />}
+      {modal?.type === 'usage' && <UsageModal bots={state.bots} onClose={() => setModal(null)} />}
       {modal?.type === 'connectors' && <ConnectorsModal connectors={state.connectors} services={state.services} onClose={() => setModal(null)} />}
       {modal?.type === 'skills' && <SkillsModal skills={state.skills} onClose={() => setModal(null)} />}
       {modal?.type === 'settings' && (

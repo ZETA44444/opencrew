@@ -64,7 +64,7 @@ Reglas para cada tarea:
 ## Fase 6 — Seguridad y control
 
 - [x] Aprobaciones: «permitir una vez / siempre / denegar» antes de acciones sensibles
-- [ ] Uso y coste estimado por bot y por modelo
+- [x] Uso y coste estimado por bot y por modelo
 - [ ] Límite de gasto mensual por bot
 
 ## Fase 7 — Servidor opcional 24/7 (para lo que el navegador no puede hacer)

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Avatar, { GroupAvatar } from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
 import { api } from '../api.js';
+import { fmtCost } from './UsageModal.jsx';
 import { readAttachment, packMessage, MAX_FILES } from '../attachments.js';
 import { dictationSupported, startDictation, speak, stopSpeaking, speechSupported, startCloudDictation, cloudDictationAvailable, preferCloudDictation, setDictationMode } from '../voice.js';
 
@@ -369,6 +370,7 @@ function Message({ m, bot, showName, onShowSteps, onOpenArtifact, canRetry, canE
         )}
         <div className="msg-foot">
           <span>{m.model}</span>
+          {m.usage && <span title={`${m.usage.input} tokens enviados · ${m.usage.output} recibidos`}>{((m.usage.input + m.usage.output) / 1000).toFixed(1)}k tokens · {fmtCost(m.usage.cost)}</span>}
           {m.steps?.length > 0 && (
             <button onClick={() => onShowSteps(m.steps)}>{m.steps.length} pasos{tools ? ` · ${tools} herramientas` : ''}</button>
           )}

@@ -25,7 +25,7 @@ function useInstall() {
   return [can, install];
 }
 
-export default function Sidebar({ bots, groups = [], waiting = [], skillsCount = 0, connectorsCount = 0, onConnectors, busy, selectedId, onSelect, onNew, onNewGroup, onSkills, onSettings, noKeys, onClose }) {
+export default function Sidebar({ bots, groups = [], waiting = [], skillsCount = 0, connectorsCount = 0, onConnectors, onUsage, busy, selectedId, onSelect, onNew, onNewGroup, onSkills, onSettings, noKeys, onClose }) {
   const [canInstall, install] = useInstall();
   const sorted = [...bots].sort((a, b) => Number(!!b.starred) - Number(!!a.starred));
   return (
@@ -78,6 +78,10 @@ export default function Sidebar({ bots, groups = [], waiting = [], skillsCount =
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0V7zM12 16v5" /></svg>
         Apps conectadas
         <span className="count">{connectorsCount}</span>
+      </button>
+      <button className="settings-btn" onClick={onUsage}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>
+        Uso y coste
       </button>
       <button className="settings-btn" onClick={onSkills}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5" /></svg>
