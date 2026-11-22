@@ -15,9 +15,9 @@ const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled', 'catch
 const GROUP_FIELDS = ['name', 'memberIds'];
 const SERVICE_KEYS = ['tavily']; // keys for tools, not for chat models
 // A "thread" is a bot's own chat or a group chat; both live in db.messages[id].
-const start = (threadId, text) => (getGroup(threadId)
-  ? runGroup({ groupId: threadId, input: text })
-  : runAgent({ botId: threadId, input: text })).catch((e) => console.error(e));
+const start = (threadId, text, attachments = []) => (getGroup(threadId)
+  ? runGroup({ groupId: threadId, input: text, attachments })
+  : runAgent({ botId: threadId, input: text, attachments })).catch((e) => console.error(e));
 const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => obj[k] !== undefined).map((k) => [k, obj[k]]));
 const db = getDb;
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -31,7 +31,7 @@ function drain(botId) {
   const next = q.shift();
   save();
   broadcast({ type: 'queue', botId });
-  start(botId, next.text);
+  start(botId, next.text, next.attachments);
 }
 
 let booted = false;
@@ -72,17 +72,18 @@ export const api = {
 
   async clear(botId) { db().messages[botId] = []; save(); return { ok: true }; },
 
-  async chat(botId, text) {
+  async chat(botId, text, attachments = []) {
     const bot = getBot(botId) || getGroup(botId);
     if (!bot) throw new Error('Chat no encontrado');
-    if (!text.trim()) throw new Error('Mensaje vacío');
+    if (!text.trim() && !attachments.length) throw new Error('Mensaje vacío');
+    if (!text.trim()) text = 'Mira lo que te adjunto.';
     if (busy.has(bot.id)) {
-      queueOf(bot.id).push({ id: newId(), text: text.trim(), at: now() });
+      queueOf(bot.id).push({ id: newId(), text: text.trim(), attachments, at: now() });
       save();
       broadcast({ type: 'queue', botId: bot.id });
       return { ok: true, queued: true };
     }
-    start(bot.id, text.trim());
+    start(bot.id, text.trim(), attachments);
     return { ok: true };
   },
 
@@ -109,8 +110,8 @@ export const api = {
     if (!text) throw new Error('Mensaje vacío');
     thread.splice(i);
     save();
-    if (getGroup(botId)) start(botId, text);
-    else runAgent({ botId, input: text, from: old.from, source: old.source === 'routine' ? 'routine' : 'user' }).catch((e) => console.error(e));
+    if (getGroup(botId)) start(botId, text, old.attachments || []);
+    else runAgent({ botId, input: text, attachments: old.attachments || [], from: old.from, source: old.source === 'routine' ? 'routine' : 'user' }).catch((e) => console.error(e));
     return clone(thread);
   },
 

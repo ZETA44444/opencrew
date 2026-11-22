@@ -2,12 +2,23 @@ import { useEffect, useRef, useState } from 'react';
 import Avatar, { GroupAvatar } from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
 import { api } from '../api.js';
+import { readAttachment, packMessage, MAX_FILES } from '../attachments.js';
 import { dictationSupported, startDictation, speak, stopSpeaking, speechSupported } from '../voice.js';
 
 export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, missed = [], botsById = {}, onResolveMissed, onOpenArtifact, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const [listening, setListening] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [dragging, setDragging] = useState(false);
+  const fileRef = useRef(null);
+  const addFiles = async (list) => {
+    const incoming = [...list].slice(0, MAX_FILES - files.length);
+    if (list.length > incoming.length) setErr(`Como mucho ${MAX_FILES} archivos por mensaje.`);
+    for (const f of incoming) {
+      try { const a = await readAttachment(f); setFiles((cur) => [...cur, a]); } catch (e) { setErr(e.message); }
+    }
+  };
   const stopRef = useRef(null);
   const baseRef = useRef('');
   const toggleDictation = () => {
@@ -38,11 +49,14 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
 
   const send = async (value = text) => {
     const v = value.trim();
-    if (!v) return;
+    if (!v && !files.length) return;
     if (listening) stopRef.current?.();
+    const { body, files: packed } = packMessage(v, files);
+    const keep = files;
     setText('');
+    setFiles([]);
     setErr('');
-    try { await onSend(v); } catch (e) { setErr(e.message); setText(v); }
+    try { await onSend(body, packed); } catch (e) { setErr(e.message); setText(v); setFiles(keep); }
   };
 
   const lastUserIdx = messages.map((m) => m.role).lastIndexOf('user');
@@ -63,7 +77,13 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
   ].filter(Boolean);
 
   return (
-    <main className="chat">
+    <main
+      className={`chat ${dragging ? 'dragging' : ''}`}
+      onDragOver={(e) => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); setDragging(true); } }}
+      onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }}
+      onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); }}
+    >
+      {dragging && <div className="drop-hint">Suelta aquí para adjuntar</div>}
       <header className="chat-header">
         <button className="icon-btn mobile-only" onClick={onToggleNav} aria-label="Bots">☰</button>
         <HeadAvatar size={34} />
@@ -163,18 +183,34 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
           </div>
         )}
         <div className="composer">
+          {files.length > 0 && (
+            <div className="pending-files">
+              {files.map((f, i) => (
+                <div key={i} className="pending-file" title={f.name}>
+                  {f.kind === 'image' ? <img src={f.dataUrl} alt="" /> : <span className="pf-icon">{f.kind === 'pdf' ? 'PDF' : 'TXT'}</span>}
+                  <span className="pf-name">{f.name}</span>
+                  <button onClick={() => setFiles((cur) => cur.filter((_, j) => j !== i))} aria-label="Quitar">×</button>
+                </div>
+              ))}
+            </div>
+          )}
           <textarea
             ref={taRef}
             rows={1}
             value={text}
             placeholder={busy ? 'Escribe y se pondrá en cola…' : isGroup ? 'Mensaje al grupo… (@Nombre para hablar con alguien)' : `Mensaje para ${bot.name}…`}
             onChange={(e) => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`; }}
+            onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); addFiles(e.clipboardData.files); } }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
               if (e.key === 'Escape' && busy) onStop();
             }}
           />
           <div className="composer-bar">
+            <button className="attach" onClick={() => fileRef.current?.click()} title="Adjuntar archivos (imágenes, PDF, texto)" aria-label="Adjuntar">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M21 12.5l-8.5 8.5a5 5 0 0 1-7-7L14 5.5a3.5 3.5 0 0 1 5 5L10.5 19a2 2 0 0 1-3-3L15 8.5" /></svg>
+            </button>
+            <input ref={fileRef} type="file" multiple hidden accept="image/*,application/pdf,.pdf,.txt,.md,.csv,.tsv,.json,.xml,.html,.js,.ts,.py,.sql,.yaml,.yml,.log" onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
             {isGroup ? (
               <div className="members-bar">
                 {bot.members.map((b) => (
@@ -204,7 +240,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
               </button>
             )}
-            {busy && text.trim() && (
+            {busy && (text.trim() || files.length > 0) && (
               <button className="queue-btn" onClick={() => send()} title="Se enviará cuando termine">+ A la cola</button>
             )}
             {busy ? (
@@ -212,7 +248,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
                 <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" /></svg>
               </button>
             ) : (
-              <button className="send" onClick={() => send()} disabled={!text.trim()} aria-label="Enviar">
+              <button className="send" onClick={() => send()} disabled={!text.trim() && !files.length} aria-label="Enviar">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
               </button>
             )}
@@ -239,7 +275,8 @@ function Message({ m, bot, showName, onShowSteps, onOpenArtifact, canRetry, canE
           <div className="edit-box">
             <textarea autoFocus rows={Math.min(8, editing.split('\n').length + 1)} value={editing}
               onChange={(e) => setEditing(e.target.value)}
-              onKeyDown={(e) => {
+              onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); addFiles(e.clipboardData.files); } }}
+            onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (editing.trim()) { onEdit(editing); setEditing(null); } }
                 if (e.key === 'Escape') setEditing(null);
               }} />
@@ -255,7 +292,14 @@ function Message({ m, bot, showName, onShowSteps, onOpenArtifact, canRetry, canE
       <div className="msg user">
         {m.from && <div className="tag">Delegado por {m.from}</div>}
         {m.source === 'routine' && <div className="tag">Rutina automática</div>}
-        <div className="bubble">{m.content}</div>
+        {m.attachments?.length > 0 && (
+          <div className="msg-files">
+            {m.attachments.map((a, i) => (a.kind === 'image' && a.dataUrl
+              ? <img key={i} className="msg-img" src={a.dataUrl} alt={a.name} title={a.name} />
+              : <span key={i} className="file-chip"><span className="file-chip-icon">{a.kind === 'pdf' ? 'PDF' : 'TXT'}</span>{a.name}</span>))}
+          </div>
+        )}
+        <div className="bubble">{String(m.content).split('\n\n[Archivo adjunto:')[0]}</div>
         {canEdit && <button className="msg-action" onClick={() => setEditing(m.content)} title="Editar y volver a enviar">✎ Editar</button>}
       </div>
     );

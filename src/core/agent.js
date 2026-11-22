@@ -34,7 +34,7 @@ function systemPrompt(bot, group) {
 
 // Runs one bot. Normally in its own chat (threadId = botId). In a group chat, the group runner
 // passes `group` + `convo` (the shared transcript) and manages busy/stop for the whole group.
-export async function runAgent({ botId, input, from = null, source = 'user', depth = 0, runId = newId(), emit = broadcast, controller = new AbortController(), group = null, convo: groupConvo = null }) {
+export async function runAgent({ botId, input, attachments = [], from = null, source = 'user', depth = 0, runId = newId(), emit = broadcast, controller = new AbortController(), group = null, convo: groupConvo = null }) {
   const bot = getBot(botId);
   if (!bot) throw new Error('Bot no encontrado');
   const threadId = group ? group.id : botId;
@@ -44,15 +44,16 @@ export async function runAgent({ botId, input, from = null, source = 'user', dep
   let convo;
   if (ownsThread) {
     // History = past visible turns (text only); tool traffic is only kept within the current run.
-    const history = thread.slice(-30).filter((m) => !m.error).map((m) => ({ role: m.role, content: m.content }));
-    const userMsg = { id: newId(), role: 'user', content: input, from, source, createdAt: now() };
+    // Past attachments are mentioned by name only (re-sending files every turn would be slow and costly).
+    const history = thread.slice(-30).filter((m) => !m.error).map((m) => ({ role: m.role, content: withAttachmentNote(m) }));
+    const userMsg = { id: newId(), role: 'user', content: input, attachments, from, source, createdAt: now() };
     thread.push(userMsg);
     save();
     emit({ type: 'message', botId: threadId, message: userMsg });
     busy.add(threadId);
     controllers.set(threadId, controller);
     emit({ type: 'status', botId: threadId, busy: true });
-    convo = [...history, { role: 'user', content: from ? `[Tarea delegada por ${from}]\n${input}` : input }];
+    convo = [...history, { role: 'user', content: from ? `[Tarea delegada por ${from}]\n${input}` : input, attachments }];
   } else {
     convo = groupConvo;
   }
@@ -141,6 +142,11 @@ export async function runAgent({ botId, input, from = null, source = 'user', dep
   return reply;
 }
 
+function withAttachmentNote(m) {
+  if (!m.attachments?.length) return m.content;
+  return `${m.content}\n[Adjuntó: ${m.attachments.map((a) => a.name).join(', ')}]`;
+}
+
 // ---------- group chats ----------
 export const getGroup = (id) => (getDb().groups || []).find((g) => g.id === id);
 const membersOf = (group) => group.memberIds.map(getBot).filter(Boolean);
@@ -166,8 +172,9 @@ function mentionsIn(text, group, exceptId) {
 
 // The shared transcript as one bot sees it: its own messages are "assistant", everyone else's are "user".
 function transcriptFor(bot, thread) {
+  const lastUser = [...thread].reverse().find((m) => m.role === 'user');
   return thread.slice(-40).filter((m) => !m.error).map((m) => {
-    if (m.role === 'user') return { role: 'user', content: `[Usuario]: ${m.content}` };
+    if (m.role === 'user') return { role: 'user', content: `[Usuario]: ${m.content}`, attachments: m === thread[thread.length - 1] || m === lastUser ? m.attachments : undefined };
     if (m.botId === bot.id) return { role: 'assistant', content: m.content };
     return { role: 'user', content: `[${getBot(m.botId)?.name || 'Bot'}]: ${m.content}` };
   });
@@ -175,13 +182,13 @@ function transcriptFor(bot, thread) {
 
 const MAX_GROUP_TURNS = 6;
 
-export async function runGroup({ groupId, input, emit = broadcast }) {
+export async function runGroup({ groupId, input, attachments = [], emit = broadcast }) {
   const group = getGroup(groupId);
   if (!group) throw new Error('Grupo no encontrado');
   const members = membersOf(group);
   if (!members.length) throw new Error('El grupo no tiene bots');
   const thread = messagesOf(groupId);
-  const userMsg = { id: newId(), role: 'user', content: input, source: 'user', createdAt: now() };
+  const userMsg = { id: newId(), role: 'user', content: input, attachments, source: 'user', createdAt: now() };
   thread.push(userMsg);
   save();
   emit({ type: 'message', botId: groupId, message: userMsg });

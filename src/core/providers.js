@@ -171,10 +171,16 @@ function normalize(messages) {
     const last = out[out.length - 1];
     if (last && m.role === last.role && m.role !== 'tool' && !m.toolCalls?.length && !last.toolCalls?.length) {
       last.content = `${last.content}\n\n${m.content}`;
+      if (m.attachments?.length) last.attachments = [...(last.attachments || []), ...m.attachments];
     } else out.push({ ...m });
   }
   return out;
 }
+
+// ---------- attachments ----------
+// Text files are already inlined into the message text by the UI; here we only send images and PDFs.
+const split = (dataUrl) => { const m = /^data:([^;,]+);base64,(.*)$/s.exec(dataUrl || ''); return m ? { mime: m[1], data: m[2] } : null; };
+const media = (m) => (m.attachments || []).filter((a) => a.dataUrl && (a.kind === 'image' || a.kind === 'pdf'));
 
 const parseArgs = (s) => { try { return JSON.parse(s || '{}'); } catch { return {}; } };
 
@@ -182,8 +188,19 @@ const parseArgs = (s) => { try { return JSON.parse(s || '{}'); } catch { return 
 async function callAnthropic({ model, apiKey, system, messages, tools, onText, signal }) {
   const out = [];
   for (const m of normalize(messages)) {
-    if (m.role === 'user') out.push({ role: 'user', content: m.content || '(vacío)' });
-    else if (m.role === 'assistant') {
+    if (m.role === 'user') {
+      const files = media(m);
+      if (!files.length) out.push({ role: 'user', content: m.content || '(vacío)' });
+      else {
+        const blocks = files.map((a) => {
+          const { mime, data } = split(a.dataUrl);
+          return a.kind === 'pdf'
+            ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }
+            : { type: 'image', source: { type: 'base64', media_type: mime, data } };
+        });
+        out.push({ role: 'user', content: [...blocks, { type: 'text', text: m.content || '(mira el adjunto)' }] });
+      }
+    } else if (m.role === 'assistant') {
       const c = [];
       if (m.content) c.push({ type: 'text', text: m.content });
       for (const t of m.toolCalls || []) c.push({ type: 'tool_use', id: t.id, name: t.name, input: t.args || {} });
@@ -221,8 +238,18 @@ async function callAnthropic({ model, apiKey, system, messages, tools, onText, s
 async function callOpenAI({ provider, model, apiKey, system, messages, tools, onText, signal }) {
   const out = [{ role: 'system', content: system }];
   for (const m of normalize(messages)) {
-    if (m.role === 'user') out.push({ role: 'user', content: m.content });
-    else if (m.role === 'assistant') {
+    if (m.role === 'user') {
+      const files = media(m);
+      if (!files.length) out.push({ role: 'user', content: m.content });
+      else {
+        out.push({ role: 'user', content: [
+          { type: 'text', text: m.content || '(mira el adjunto)' },
+          ...files.map((a) => (a.kind === 'pdf'
+            ? { type: 'file', file: { filename: a.name, file_data: a.dataUrl } }
+            : { type: 'image_url', image_url: { url: a.dataUrl } })),
+        ] });
+      }
+    } else if (m.role === 'assistant') {
       const msg = { role: 'assistant', content: m.content || null };
       if (m.toolCalls?.length) msg.tool_calls = m.toolCalls.map((t) => ({
         id: t.id, type: 'function', function: { name: t.name, arguments: JSON.stringify(t.args || {}) },
@@ -272,7 +299,10 @@ function geminiSchema(s) {
 async function callGemini({ model, apiKey, system, messages, tools, onText, signal }) {
   const contents = [];
   for (const m of normalize(messages)) {
-    if (m.role === 'user') contents.push({ role: 'user', parts: [{ text: m.content || '(vacío)' }] });
+    if (m.role === 'user') {
+      const parts = media(m).map((a) => { const { mime, data } = split(a.dataUrl); return { inlineData: { mimeType: mime, data } }; });
+      contents.push({ role: 'user', parts: [...parts, { text: m.content || '(mira el adjunto)' }] });
+    }
     else if (m.role === 'assistant') {
       // Re-send Gemini's own parts when we have them (keeps "thought signatures" intact).
       if (m.raw?.gemini) contents.push({ role: 'model', parts: m.raw.gemini });
@@ -341,6 +371,10 @@ async function callDemo({ system, messages, tools, onText, signal }) {
     return demoStream(`**(modo demo)** Listo. Resultado de \`${last.name}\`:\n\n> ${String(last.content).slice(0, 400).replace(/\n/g, '\n> ')}`, onText, signal);
   }
   const userText = String(last?.content || '').replace(/^\[Tarea delegada por .+?\]\n/, '');
+  const atts = last?.attachments || [];
+  if (atts.length) {
+    return demoStream(`**(modo demo)** He recibido ${atts.length === 1 ? 'un adjunto' : `${atts.length} adjuntos`}: ${atts.map((a) => `**${a.name}** (${a.kind}, ${Math.round((a.size || 0) / 1024)} KB)`).join(', ')}. Con un modelo real (Claude, Gemini u OpenAI) podría leerlos y analizarlos.`, onText, signal);
+  }
   const has = (n) => tools.some((t) => t.name === n);
   if (/chat de grupo/.test(system)) {
     // Group demo: the lead hands off to whoever you @mention; others just answer.

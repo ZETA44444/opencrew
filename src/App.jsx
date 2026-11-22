@@ -144,7 +144,7 @@ export default function App() {
           queued={queued}
           onRemoveQueued={(id) => api.removeQueued(bot.id, id)}
           onRerun={(text) => api.rerunLast(bot.id, text).then(() => api.messages(bot.id)).then(setMessages)}
-          onSend={(text) => api.chat(bot.id, text)}
+          onSend={(text, files) => api.chat(bot.id, text, files)}
           onChangeModel={(provider, model) => api.updateBot(bot.id, { provider, model }).then(refresh)}
           onEdit={() => setModal(group ? { type: 'group', group } : { type: 'bot', bot })}
           onClear={() => api.clear(bot.id).then(() => setMessages([]))}
