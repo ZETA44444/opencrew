@@ -15,6 +15,8 @@ const TOOL_LABELS = {
   fetch_url: 'Leer páginas web',
   write_artifact: 'Crear archivos',
   get_current_time: 'Ver la hora',
+  save_skill: 'Guardar skills',
+  use_skill: 'Usar skills',
   create_bot: 'Crear bots nuevos',
   update_bot: 'Configurar otros bots',
 };
@@ -34,7 +36,7 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
   const submit = async () => {
     setErr('');
     try {
-      const payload = { name: f.name, title: f.title, description: f.description, instructions: f.instructions, color: f.color, shape: f.shape, provider: f.provider, model: f.model, tools: f.tools, starred: f.starred };
+      const payload = { name: f.name, title: f.title, description: f.description, instructions: f.instructions, color: f.color, shape: f.shape, provider: f.provider, model: f.model, tools: f.tools, toolsKnown: tools, starred: f.starred };
       const saved = isNew ? await api.createBot(payload) : await api.updateBot(bot.id, payload);
       onSaved(saved);
     } catch (e) { setErr(e.message); }

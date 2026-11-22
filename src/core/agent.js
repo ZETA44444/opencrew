@@ -26,6 +26,7 @@ function systemPrompt(bot, group) {
     bot.memory.length ? `Tu memoria (datos que el usuario te pidió recordar):\n${bot.memory.map((m) => `- ${m}`).join('\n')}` : '',
     team && `Tu equipo (puedes delegar con delegate_to_bot):\n${team}`,
     group && groupPrompt(bot, group),
+    getDb().skills.length ? `Skills del equipo (procesos guardados; si una tarea encaja, lee sus pasos con use_skill y síguelos; si descubres un proceso que se repetirá, guárdalo con save_skill):\n${getDb().skills.map((k) => `- ${k.name}${k.description ? `: ${k.description}` : ''}`).join('\n')}` : '',
     'Responde siempre en el idioma del usuario y usa markdown. Sé conciso.',
   ].filter(Boolean).join('\n\n');
 }

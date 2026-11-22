@@ -33,7 +33,7 @@ function seed() {
 
 function fill(d) {
   d.keys ??= {}; d.bots ??= []; d.messages ??= {}; d.routines ??= []; d.runs ??= [];
-  d.artifacts ??= {}; d.settings ??= {}; d.groups ??= [];
+  d.artifacts ??= {}; d.settings ??= {}; d.groups ??= []; d.skills ??= [];
   d.settings.webReader ??= true;
   return d;
 }

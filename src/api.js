@@ -7,7 +7,7 @@ import { broadcast, subscribe } from './core/events.js';
 import { computeNext, runRoutine, startScheduler } from './core/routines.js';
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
 
-const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools'];
+const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown'];
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled'];
 const GROUP_FIELDS = ['name', 'memberIds'];
 // A "thread" is a bot's own chat or a group chat; both live in db.messages[id].
@@ -51,6 +51,7 @@ export const api = {
       providers: publicProviders(),
       routines: db().routines,
       groups: db().groups,
+      skills: db().skills,
       runs: db().runs.slice(0, 50),
       busy: [...busy],
       tools: TOOL_NAMES,
@@ -178,6 +179,29 @@ export const api = {
     if (d.queues) delete d.queues[id];
     save();
     broadcast({ type: 'bots' });
+    return { ok: true };
+  },
+
+  // ---------- skills (shared library of processes) ----------
+  async saveSkill(input) {
+    const name = String(input?.name || '').trim();
+    if (!name) throw new Error('La skill necesita un nombre');
+    if (!String(input.steps || '').trim()) throw new Error('Escribe los pasos de la skill');
+    const skills = db().skills;
+    const dup = skills.find((x) => x.name.toLowerCase() === name.toLowerCase() && x.id !== input.id);
+    if (dup) throw new Error('Ya hay una skill con ese nombre');
+    const existing = input.id && skills.find((x) => x.id === input.id);
+    if (existing) Object.assign(existing, { name, description: input.description || '', steps: input.steps, updatedBy: 'Tú', updatedAt: now() });
+    else skills.push({ id: newId(), name, description: input.description || '', steps: input.steps, createdBy: 'Tú', updatedAt: now() });
+    save();
+    broadcast({ type: 'skills' });
+    return { ok: true };
+  },
+
+  async deleteSkill(id) {
+    db().skills = db().skills.filter((x) => x.id !== id);
+    save();
+    broadcast({ type: 'skills' });
     return { ok: true };
   },
 

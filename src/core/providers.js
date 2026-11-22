@@ -347,6 +347,10 @@ async function callDemo({ system, messages, tools, onText, signal }) {
   if (mention && has('delegate_to_bot')) {
     return { text: '', toolCalls: [{ id: newId(), name: 'delegate_to_bot', args: { bot_name: mention[1], task: userText.replace(mention[0], '').trim() } }] };
   }
+  const sk = userText.match(/guarda (?:una )?skill (?:llamada )?«?([^:»]+)»?:\s*([\s\S]+)/i);
+  if (sk && has('save_skill')) return { text: '', toolCalls: [{ id: newId(), name: 'save_skill', args: { name: sk[1].trim(), description: 'Guardada desde el chat', steps: sk[2].trim() } }] };
+  const us = userText.match(/usa (?:la )?skill «?([^»]+?)»?$/i);
+  if (us && has('use_skill')) return { text: '', toolCalls: [{ id: newId(), name: 'use_skill', args: { name: us[1].trim() } }] };
   const mk = userText.match(/crea(?:r|me)? un bot (?:llamado|que se llame) ([\p{L}\d_-]+)(?:,? (?:que|para) (.+))?/iu);
   if (mk && has('create_bot')) {
     return { text: '', toolCalls: [{ id: newId(), name: 'create_bot', args: { name: mk[1], title: 'Asistente', description: mk[2] || 'Bot creado desde el chat', provider: 'demo' } }] };

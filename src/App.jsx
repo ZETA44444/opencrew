@@ -6,6 +6,7 @@ import RightPanel from './components/RightPanel.jsx';
 import BotModal from './components/BotModal.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
 import GroupModal from './components/GroupModal.jsx';
+import SkillsModal from './components/SkillsModal.jsx';
 
 export default function App() {
   const [state, setState] = useState(null);
@@ -64,7 +65,7 @@ export default function App() {
         if (s.depth === 0 && thread === selectedRef.current) setPinnedSteps(null);
       } else if (ev.type === 'status') {
         setState((st) => st && { ...st, busy: ev.busy ? [...new Set([...st.busy, ev.botId])] : st.busy.filter((b) => b !== ev.botId) });
-      } else if (ev.type === 'bots' || ev.type === 'routines') {
+      } else if (ev.type === 'bots' || ev.type === 'routines' || ev.type === 'skills') {
         refresh();
       } else if (ev.type === 'queue') {
         if (ev.botId === selectedRef.current) api.queue(ev.botId).then(setQueued);
@@ -94,6 +95,8 @@ export default function App() {
       <Sidebar
         bots={state.bots}
         groups={state.groups}
+        skillsCount={state.skills.length}
+        onSkills={() => setModal({ type: 'skills' })}
         busy={state.busy}
         selectedId={selectedId}
         onSelect={(id) => { setSelectedId(id); setNavOpen(false); }}
@@ -159,6 +162,7 @@ export default function App() {
           onDeleted={() => { setModal(null); refresh(); }}
         />
       )}
+      {modal?.type === 'skills' && <SkillsModal skills={state.skills} onClose={() => setModal(null)} />}
       {modal?.type === 'settings' && (
         <SettingsModal providers={state.providers} settings={state.settings} onClose={() => setModal(null)} onSaved={refresh} />
       )}

@@ -28,7 +28,7 @@ Reglas para cada tarea:
 
 - [x] Chats de grupo: 2–6 bots en una conversación, con @menciones
 - [x] El jefe de gabinete puede crear y configurar bots nuevos (herramienta `create_bot`)
-- [ ] Skills: biblioteca compartida de procesos guardados («cómo hacer X»)
+- [x] Skills: biblioteca compartida de procesos guardados («cómo hacer X»)
 - [ ] Bot principal proactivo: al abrir la app propone tareas que puede hacer por ti
 - [ ] Más plantillas de bots (correo, SEO, redes, ventas, finanzas, soporte)
 

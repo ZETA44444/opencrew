@@ -111,6 +111,42 @@ const ALL_TOOLS = {
       return `Archivo guardado: ${name} (${new Blob([text]).size} bytes)`;
     },
   },
+  save_skill: {
+    description: 'Guarda (o actualiza) una skill en la biblioteca compartida del equipo: un proceso paso a paso para hacer una tarea que se repite. Todos los bots podrán usarla.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Nombre corto de la skill (p. ej. «Informe SEO semanal»)' },
+        description: { type: 'string', description: 'Cuándo usarla, en una frase' },
+        steps: { type: 'string', description: 'Los pasos detallados, en markdown' },
+      },
+      required: ['name', 'steps'],
+    },
+    async run(a, ctx) {
+      const name = String(a.name || '').trim();
+      if (!name) return 'Falta el nombre de la skill.';
+      const skills = getDb().skills;
+      const existing = skills.find((x) => x.name.toLowerCase() === name.toLowerCase());
+      if (existing) Object.assign(existing, { description: a.description || existing.description, steps: String(a.steps), updatedBy: ctx.bot.name, updatedAt: now() });
+      else skills.push({ id: newId(), name, description: a.description || '', steps: String(a.steps), createdBy: ctx.bot.name, updatedAt: now() });
+      save();
+      broadcast({ type: 'skills' });
+      return `${existing ? 'Skill actualizada' : 'Skill guardada'}: «${name}». Ya la pueden usar todos los bots.`;
+    },
+  },
+  use_skill: {
+    description: 'Lee los pasos de una skill de la biblioteca compartida antes de hacer una tarea que encaje con ella.',
+    parameters: { type: 'object', properties: { name: { type: 'string', description: 'Nombre de la skill' } }, required: ['name'] },
+    async run({ name }) {
+      const n = String(name || '').trim().toLowerCase();
+      const skills = getDb().skills;
+      const sk = skills.find((x) => x.name.toLowerCase() === n) || skills.find((x) => x.name.toLowerCase().includes(n) || n.includes(x.name.toLowerCase()));
+      if (!sk) return `No hay ninguna skill llamada "${name}". Disponibles: ${skills.map((x) => x.name).join(', ') || 'ninguna'}`;
+      sk.uses = (sk.uses || 0) + 1;
+      save();
+      return `Skill «${sk.name}»${sk.description ? ` — ${sk.description}` : ''}\n\n${sk.steps}`;
+    },
+  },
   create_bot: {
     description: 'Crea un bot nuevo en el equipo con su propio trabajo y modelo de IA. Úsalo cuando el usuario pida un bot nuevo o haga falta un especialista que no existe.',
     parameters: {
@@ -185,7 +221,11 @@ export const MANAGER_TOOLS = ['create_bot', 'update_bot'];
 export const defaultToolsFor = (bot) => TOOL_NAMES.filter((n) => bot.starred || !MANAGER_TOOLS.includes(n));
 
 export function toolsFor(bot, depth) {
-  const enabled = bot.tools || defaultToolsFor(bot);
+  // Tools added to the app after the bot's tool list was saved get their default setting.
+  const defaults = defaultToolsFor(bot);
+  const enabled = bot.tools
+    ? [...bot.tools, ...defaults.filter((n) => !(bot.toolsKnown || ['delegate_to_bot', 'save_memory', 'fetch_url', 'write_artifact', 'get_current_time', 'create_bot', 'update_bot']).includes(n))]
+    : defaults;
   return TOOL_NAMES
     .filter((n) => enabled.includes(n))
     .filter((n) => !(n === 'delegate_to_bot' && depth >= 2)) // avoid infinite delegation chains
@@ -206,6 +246,8 @@ export function describeCall(call) {
     case 'fetch_url': return `Leyendo ${a.url}`;
     case 'write_artifact': return `Creando ${a.filename}`;
     case 'get_current_time': return 'Mirando la hora';
+    case 'save_skill': return `Guardando la skill «${a.name}»`;
+    case 'use_skill': return `Usando la skill «${a.name}»`;
     case 'create_bot': return `Creando el bot ${a.name}`;
     case 'update_bot': return `Configurando a ${a.bot_name}`;
     default: return call.name;
