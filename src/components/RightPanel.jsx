@@ -105,6 +105,10 @@ function describeWatch(w) {
   return w.config?.url;
 }
 
+function describeFilters(f = {}) {
+  return [f.include && `contiene «${f.include}»`, f.exclude && `sin «${f.exclude}»`, f.labels && `etiquetas ${f.labels}`, f.author && `de ${f.author}`].filter(Boolean).join(' · ');
+}
+
 function Watchers({ bot, watchers, refresh }) {
   const [form, setForm] = useState(null);
   const [checking, setChecking] = useState(null);
@@ -113,7 +117,8 @@ function Watchers({ bot, watchers, refresh }) {
     setErr('');
     const config = form.type === 'github' ? { repo: form.repo, event: form.event } : { url: form.url };
     try {
-      await api.saveWatcher({ botId: bot.id, name: form.name, type: form.type, config, everyMin: Number(form.everyMin), prompt: form.prompt });
+      const filters = { include: form.include, exclude: form.exclude, ...(form.type === 'github' && { labels: form.labels, author: form.author }) };
+      await api.saveWatcher({ botId: bot.id, name: form.name, type: form.type, config, everyMin: Number(form.everyMin), prompt: form.prompt, filters });
       setForm(null); refresh();
     } catch (e) { setErr(e.message); }
   };
@@ -131,6 +136,7 @@ function Watchers({ bot, watchers, refresh }) {
             </label>
           </div>
           <div className="muted small conn-url">{WATCH_TYPES[w.type]?.label}: {describeWatch(w)} · cada {w.everyMin} min</div>
+          {describeFilters(w.filters) && <div className="muted small">Filtro: {describeFilters(w.filters)}</div>}
           <div className="muted small">{w.lastCheckAt ? `Última comprobación: ${new Date(w.lastCheckAt).toLocaleTimeString()}` : 'Aún no se ha comprobado'}{w.ready ? '' : ' · aprendiendo lo que ya existe'}</div>
           {w.lastFiredAt && <div className="small run-ok">Última novedad: {new Date(w.lastFiredAt).toLocaleString()} ({w.history?.[0]?.count || 0})</div>}
           {w.lastError && <div className="small run-error">{w.lastError}</div>}
@@ -162,6 +168,17 @@ function Watchers({ bot, watchers, refresh }) {
             <input type="number" min="5" value={form.everyMin} onChange={(e) => setForm({ ...form, everyMin: e.target.value })} style={{ width: 70 }} />
             <span className="muted small">min</span>
           </div>
+          <details className="filters" open={!!(form.include || form.exclude || form.labels || form.author)}>
+            <summary className="muted small">Filtros (opcional)</summary>
+            <input placeholder="Solo si contiene… (palabras separadas por comas)" value={form.include} onChange={(e) => setForm({ ...form, include: e.target.value })} />
+            <input placeholder="Ignorar si contiene…" value={form.exclude} onChange={(e) => setForm({ ...form, exclude: e.target.value })} />
+            {form.type === 'github' && (
+              <div className="card-row">
+                <input placeholder="Solo etiquetas (bug, urgente)" value={form.labels} onChange={(e) => setForm({ ...form, labels: e.target.value })} />
+                <input placeholder="Solo de (usuario)" value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} />
+              </div>
+            )}
+          </details>
           <textarea rows={2} placeholder="Qué debe hacer el bot con las novedades (p. ej. «resúmelas y dime si alguna es urgente»)" value={form.prompt} onChange={(e) => setForm({ ...form, prompt: e.target.value })} />
           {err && <div className="small run-error">{err}</div>}
           <div className="card-actions">
@@ -170,7 +187,7 @@ function Watchers({ bot, watchers, refresh }) {
           </div>
         </div>
       ) : (
-        <button className="btn full" onClick={() => setForm({ name: '', type: 'github', repo: '', event: 'issues', url: '', everyMin: 10, prompt: '' })}>+ Nuevo vigilante</button>
+        <button className="btn full" onClick={() => setForm({ name: '', type: 'github', repo: '', event: 'issues', url: '', everyMin: 10, prompt: '', include: '', exclude: '', labels: '', author: '' })}>+ Nuevo vigilante</button>
       )}
     </div>
   );

@@ -92,8 +92,8 @@ Reglas para cada tarea:
 > Que los bots trabajen cuando pasa algo, no revisando cada X minutos.
 
 - [x] Vigilantes sin IA: comprueban cada poco si hay algo nuevo (GitHub, una web, un RSS, correo cuando haya Gmail) **sin usar el modelo**, y solo despiertan al bot si hay novedades
-- [ ] Filtros: «solo si el correo es de X» o «solo issues con la etiqueta bug»
-- [ ] Webhooks de verdad (aviso instantáneo de Gmail, Slack, GitHub) → necesitan el servidor de la Fase 11
+- [x] Filtros: «solo si el correo es de X» o «solo issues con la etiqueta bug»
+- [ ] ⏸ Webhooks de verdad (aviso instantáneo de Gmail, Slack, GitHub) → necesitan el servidor de la Fase 11
 
 ## Fase 10 — Llamadas de voz en tiempo real
 

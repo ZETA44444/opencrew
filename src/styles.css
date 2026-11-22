@@ -476,3 +476,8 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 
 .watchers { margin-bottom: 18px; }
 .card.form .card-row input { min-width: 0; flex: 1; }
+
+.filters { display: flex; flex-direction: column; gap: 6px; }
+.filters summary { cursor: pointer; margin-bottom: 4px; }
+.filters[open] { display: flex; }
+.filters > input { width: 100%; margin-bottom: 6px; }

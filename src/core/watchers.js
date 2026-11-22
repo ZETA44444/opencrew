@@ -20,10 +20,10 @@ async function githubItems(cfg) {
   });
   if (!res.ok) throw new Error(`GitHub ${res.status}${res.status === 403 ? ' (límite de consultas sin token: añade tu token en Apps conectadas)' : ''}`);
   const data = await res.json();
-  if (cfg.event === 'commits') return data.map((c) => ({ id: c.sha, title: c.commit.message.split('\n')[0], url: c.html_url, text: `${c.commit.author?.name}: ${c.commit.message}`.slice(0, 500) }));
+  if (cfg.event === 'commits') return data.map((c) => ({ id: c.sha, author: c.author?.login || c.commit.author?.name, title: c.commit.message.split('\n')[0], url: c.html_url, text: `${c.commit.author?.name}: ${c.commit.message}`.slice(0, 500) }));
   if (cfg.event === 'releases') return data.map((r) => ({ id: String(r.id), title: r.name || r.tag_name, url: r.html_url, text: String(r.body || '').slice(0, 800) }));
   const list = cfg.event === 'pulls' ? data : data.filter((i) => !i.pull_request);
-  return list.map((i) => ({ id: String(i.id), title: `#${i.number} ${i.title}`, url: i.html_url, text: `${i.user?.login} · ${(i.labels || []).map((l) => l.name).join(', ')}\n${String(i.body || '').slice(0, 600)}`, labels: (i.labels || []).map((l) => l.name) }));
+  return list.map((i) => ({ id: String(i.id), author: i.user?.login, title: `#${i.number} ${i.title}`, url: i.html_url, text: `${i.user?.login} · ${(i.labels || []).map((l) => l.name).join(', ')}\n${String(i.body || '').slice(0, 600)}`, labels: (i.labels || []).map((l) => l.name) }));
 }
 
 async function readText(url) {
@@ -107,8 +107,20 @@ export async function checkWatcher(w, { force = false } = {}) {
   broadcast({ type: 'watchers' });
 }
 
-// Placeholder: filters are added in the next roadmap step.
-function applyFilters(w, news) { return news; }
+// Filters: «solo si contiene», «ignorar si contiene», etiquetas y autor (GitHub). Comma-separated, any term matches.
+const terms = (s) => String(s || '').split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+export function applyFilters(w, news) {
+  const f = w.filters || {};
+  const inc = terms(f.include), exc = terms(f.exclude), labels = terms(f.labels), authors = terms(f.author);
+  return news.filter((n) => {
+    const hay = `${n.title} ${n.text}`.toLowerCase();
+    if (inc.length && !inc.some((t) => hay.includes(t))) return false;
+    if (exc.length && exc.some((t) => hay.includes(t))) return false;
+    if (labels.length && !(n.labels || []).some((l) => labels.includes(l.toLowerCase()))) return false;
+    if (authors.length && !authors.some((a) => String(n.author || '').toLowerCase() === a)) return false;
+    return true;
+  });
+}
 
 let started = false;
 export function startWatchers() {
