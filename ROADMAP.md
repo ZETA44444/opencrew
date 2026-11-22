@@ -101,7 +101,8 @@ Reglas para cada tarea:
 
 ## Fase 11 — Servidor opcional 24/7
 
-> ⏸ **Pendiente de tu decisión**: necesita algo encendido siempre (tu Mac, un VPS, Railway/Render/Fly…).
+> ✅ **Decidido: VPS Hostinger KVM 2** (2 vCPU, 8 GB RAM, 100 GB NVMe), Ubuntu 24.04, centro de datos en Europa.
+> ⏸ **Pendiente de ti**: contratarlo (Ubuntu 24.04 sin panel, acceso con la clave SSH `opencrew-server` que ya está en tu Mac en `~/.ssh/opencrew_hostinger.pub`) y pasar la IP. Opcional: un dominio.
 
 - [ ] Servidor Node/Docker que reutiliza el mismo núcleo
 - [ ] Rutinas y vigilantes siempre activos aunque cierres el navegador
