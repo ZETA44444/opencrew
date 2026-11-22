@@ -37,7 +37,7 @@ Reglas para cada tarea:
 - [x] Historial de ejecuciones de cada rutina con su resultado
 - [x] Notificaciones del navegador cuando una rutina termina
 - [x] Crear rutinas hablando («todos los lunes a las 9 hazme un resumen…»)
-- [ ] Recuperar rutinas que no se ejecutaron porque la app estaba cerrada
+- [x] Recuperar rutinas que no se ejecutaron porque la app estaba cerrada
 
 ## Fase 4 — Herramientas
 

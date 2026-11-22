@@ -4,13 +4,13 @@ import { getDb, getBot, newId, now, save, messagesOf, exportData, importData, st
 import { publicProviders, providerById, callModel, refreshModels, refreshAllModels, defaultModel } from './core/providers.js';
 import { runAgent, runGroup, getGroup, busy, stopBot } from './core/agent.js';
 import { broadcast, subscribe } from './core/events.js';
-import { computeNext, runRoutine, startScheduler } from './core/routines.js';
+import { computeNext, runRoutine, startScheduler, missed, resolveMissed } from './core/routines.js';
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
 import { askPermission, notifyPermission, notify } from './core/notify.js';
 
 const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown'];
-const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled'];
+const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled', 'catchUp'];
 const GROUP_FIELDS = ['name', 'memberIds'];
 // A "thread" is a bot's own chat or a group chat; both live in db.messages[id].
 const start = (threadId, text) => (getGroup(threadId)
@@ -58,6 +58,7 @@ export const api = {
       suggestions: db().suggestions || null,
       suggestionsLoading: suggestionsLoading(),
       runs: db().runs.slice(0, 300),
+      missed: missed.map((m) => ({ ...m, name: db().routines.find((r) => r.id === m.routineId)?.name, botId: db().routines.find((r) => r.id === m.routineId)?.botId })),
       busy: [...busy],
       tools: TOOL_NAMES,
       settings: db().settings,
@@ -313,6 +314,8 @@ export const api = {
     broadcast({ type: 'routines' });
     return { ok: true };
   },
+
+  resolveMissed,
 
   async runRoutine(id) {
     const r = db().routines.find((x) => x.id === id);

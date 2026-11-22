@@ -58,6 +58,54 @@ export async function runRoutine(routine) {
   }
 }
 
+// ---------- missed runs (the app was closed or the computer asleep) ----------
+// A run counts as missed if it is more than 2 minutes late. What happens then depends on
+// routine.catchUp: 'ask' (default: show a notice), 'run' (run once now) or 'skip'.
+const GRACE_MS = 2 * 60_000;
+export const missed = []; // [{ routineId, count, since }]
+
+function countMissed(r, nowDate) {
+  let n = 0;
+  let t = new Date(r.nextRunAt);
+  while (t <= nowDate && n < 999) {
+    n++;
+    const next = computeNext(r, t);
+    if (!next) break;
+    t = new Date(next);
+  }
+  return n;
+}
+
+function handleMissed(r, nowDate) {
+  const count = countMissed(r, nowDate);
+  const since = r.nextRunAt;
+  const db = getDb();
+  db.runs.unshift({ id: newId(), routineId: r.id, botId: r.botId, startedAt: since, finishedAt: now(), status: 'missed', count, summary: `No se ejecutó ${count === 1 ? 'una vez' : `${count} veces`} porque OpenCrew estaba cerrada.` });
+  db.runs = db.runs.slice(0, 500);
+  r.nextRunAt = computeNext(r, nowDate);
+  save();
+  const policy = r.catchUp || 'ask';
+  if (policy === 'run') runRoutine(r);
+  else if (policy === 'ask') {
+    const existing = missed.find((m) => m.routineId === r.id);
+    if (existing) existing.count += count;
+    else missed.push({ routineId: r.id, count, since });
+  }
+  broadcast({ type: 'routines' });
+}
+
+export function resolveMissed(routineId, action) {
+  const i = missed.findIndex((m) => m.routineId === routineId);
+  const items = routineId === 'all' ? missed.splice(0) : i >= 0 ? missed.splice(i, 1) : [];
+  if (action === 'run') {
+    for (const m of items) {
+      const r = getDb().routines.find((x) => x.id === m.routineId);
+      if (r) runRoutine(r);
+    }
+  }
+  broadcast({ type: 'routines' });
+}
+
 let started = false;
 export function startScheduler() {
   if (started) return;
@@ -67,7 +115,10 @@ export function startScheduler() {
     for (const r of getDb().routines) {
       if (!r.enabled) continue;
       if (!r.nextRunAt) { r.nextRunAt = computeNext(r); save(); continue; }
-      if (new Date(r.nextRunAt).getTime() <= t) runRoutine(r);
+      const due = new Date(r.nextRunAt).getTime();
+      if (due > t) continue;
+      if (t - due > GRACE_MS) handleMissed(r, new Date(t));
+      else runRoutine(r);
     }
   };
   setInterval(tick, 15_000);

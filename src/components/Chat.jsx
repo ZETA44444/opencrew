@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Avatar, { GroupAvatar } from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
 
-export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
+export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, missed = [], botsById = {}, onResolveMissed, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const endRef = useRef(null);
@@ -96,6 +96,26 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
           </div>
         )}
         {err && <div className="banner error">{err}</div>}
+        {missed.length > 0 && (
+          <div className="missed">
+            <div className="proposals-head">
+              <span>⏱ Mientras OpenCrew estaba cerrada no se ejecutaron estas rutinas</span>
+            </div>
+            {missed.map((m) => (
+              <div key={m.routineId} className="missed-row">
+                <span className="missed-text"><b>{m.name}</b> · {botsById[m.botId]?.name || ''} · {m.count === 1 ? '1 vez' : `${m.count} veces`}</span>
+                <button className="btn small" onClick={() => onResolveMissed(m.routineId, 'run')}>Ejecutar ahora</button>
+                <button className="btn small ghost" onClick={() => onResolveMissed(m.routineId, 'skip')}>Omitir</button>
+              </div>
+            ))}
+            {missed.length > 1 && (
+              <div className="missed-row all">
+                <button className="link" onClick={() => onResolveMissed('all', 'run')}>Ejecutar todas</button>
+                <button className="link" onClick={() => onResolveMissed('all', 'skip')}>Omitir todas</button>
+              </div>
+            )}
+          </div>
+        )}
         {!busy && (proposalsLoading || proposals?.length > 0) && (
           <div className="proposals">
             <div className="proposals-head">

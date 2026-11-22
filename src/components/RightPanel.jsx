@@ -57,7 +57,8 @@ function describeSchedule(s) {
   return `Cada día a las ${s.time}${days}`;
 }
 
-const RUN_LABEL = { ok: '✓ Completada', error: '✗ Error', running: '◌ Ejecutando…', stopped: '⏹ Detenida' };
+const RUN_LABEL = { ok: '✓ Completada', error: '✗ Error', running: '◌ Ejecutando…', stopped: '⏹ Detenida', missed: '⏭ Perdida (app cerrada)' };
+const CATCHUP = { ask: 'preguntarme', run: 'ejecutar una vez', skip: 'omitir' };
 const fmtMs = (ms) => (ms == null ? '' : ms < 60_000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms / 60_000)} min`);
 
 function RunHistory({ runs }) {
@@ -66,7 +67,7 @@ function RunHistory({ runs }) {
   const ok = runs.filter((r) => r.status === 'ok').length;
   return (
     <div className="run-history">
-      <div className="muted small">{runs.length} ejecuciones · {Math.round((ok / runs.length) * 100)} % sin errores</div>
+      <div className="muted small">{runs.length} registros · {Math.round((ok / Math.max(1, runs.filter((r) => r.status !== 'missed').length)) * 100)} % sin errores</div>
       {runs.slice(0, 20).map((r) => (
         <div key={r.id} className={`run run-${r.status}`}>
           <button className="run-head" onClick={() => setOpen(open === r.id ? null : r.id)}>
@@ -91,7 +92,7 @@ function Routines({ bot, routines, runs, refresh }) {
   const [history, setHistory] = useState(null);
   const save = async () => {
     const schedule = form.type === 'interval' ? { type: 'interval', minutes: Number(form.minutes) } : { type: 'daily', time: form.time, days: form.days };
-    await api.createRoutine({ botId: bot.id, name: form.name, prompt: form.prompt, schedule });
+    await api.createRoutine({ botId: bot.id, name: form.name, prompt: form.prompt, schedule, catchUp: form.catchUp });
     setForm(null);
     refresh();
   };
@@ -110,6 +111,11 @@ function Routines({ bot, routines, runs, refresh }) {
               </label>
             </div>
             <div className="muted small">{describeSchedule(r.schedule)}</div>
+            <label className="muted small catchup">Si la app estaba cerrada:
+              <select value={r.catchUp || 'ask'} onChange={(e) => api.updateRoutine(r.id, { catchUp: e.target.value }).then(refresh)}>
+                {Object.entries(CATCHUP).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </label>
             {r.enabled && r.nextRunAt && <div className="muted small">Próxima: {new Date(r.nextRunAt).toLocaleString()}</div>}
             {last && <div className={`small run-${last.status}`}>Última: {RUN_LABEL[last.status] || last.status} · {new Date(last.startedAt).toLocaleString()}</div>}
             {history === r.id && <RunHistory runs={runs.filter((x) => x.routineId === r.id)} />}
@@ -148,7 +154,7 @@ function Routines({ bot, routines, runs, refresh }) {
           </div>
         </div>
       ) : (
-        <button className="btn full" onClick={() => setForm({ name: '', prompt: '', type: 'daily', time: '08:00', minutes: 60, days: [1, 2, 3, 4, 5] })}>+ Nueva rutina</button>
+        <button className="btn full" onClick={() => setForm({ name: '', prompt: '', type: 'daily', time: '08:00', minutes: 60, days: [1, 2, 3, 4, 5], catchUp: 'ask' })}>+ Nueva rutina</button>
       )}
     </div>
   );

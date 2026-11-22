@@ -346,3 +346,14 @@ textarea { resize: vertical; line-height: 1.45; }
 .run-when, .run-ms { color: var(--text-3); font-family: ui-monospace, monospace; font-size: 11px; }
 .run-body { padding: 4px 6px 8px; color: var(--text); }
 .run-summary { font-size: 12.5px; max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); margin-top: 4px; }
+
+/* ---------- missed routines ---------- */
+.missed { border: 1px solid #fbbf2440; background: #fbbf240d; border-radius: 16px; padding: 10px 12px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+.missed .proposals-head { margin-bottom: 0; color: #fde68a; }
+.missed-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.missed-text { flex: 1; min-width: 160px; font-size: 13px; }
+.missed-row.all { justify-content: flex-end; }
+.missed-row.all .link { margin: 0 0 0 10px; }
+.run-missed { color: var(--warn); }
+.catchup { display: flex; align-items: center; gap: 6px; }
+.catchup select { padding: 2px 6px; font-size: 12px; border-radius: 8px; }

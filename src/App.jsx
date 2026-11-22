@@ -123,6 +123,9 @@ export default function App() {
           busy={state.busy.includes(bot.id)}
           draft={drafts[bot.id]}
           onStop={() => api.stop(bot.id)}
+          missed={state.missed}
+          botsById={Object.fromEntries(state.bots.map((b) => [b.id, b]))}
+          onResolveMissed={(id, action) => api.resolveMissed(id, action)}
           proposals={!group && bot.starred && state.suggestions?.botId === bot.id ? state.suggestions.items : null}
           proposalsLoading={!group && bot.starred && state.suggestionsLoading}
           onRefreshProposals={() => api.refreshSuggestions()}
