@@ -4,11 +4,12 @@
 import { getBot, getDb, messagesOf, newId, now, save } from './core/store.js';
 import { broadcast } from './core/events.js';
 import { systemPrompt } from './core/agent.js';
+import { isRemote } from './remote.js';
 
 const WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
 const VOICES = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede', 'Leda', 'Orus', 'Zephyr'];
 
-export const liveAvailable = () => !!getDb().keys.gemini && typeof WebSocket !== 'undefined' && typeof AudioContext !== 'undefined';
+export const liveAvailable = () => !isRemote() && !!getDb().keys.gemini && typeof WebSocket !== 'undefined' && typeof AudioContext !== 'undefined';
 
 // Find a model that supports live audio with your key (newest "native-audio" first).
 let cachedModel = null;

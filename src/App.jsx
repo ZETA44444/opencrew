@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from './api.js';
+import { api, serverMode } from './api.js';
 import Sidebar from './components/Sidebar.jsx';
 import Chat, { setVoiceSettings } from './components/Chat.jsx';
 import { speak } from './voice.js';
@@ -27,6 +27,7 @@ export default function App() {
   const [memProposals, setMemProposals] = useState([]);
   const [call, setCall] = useState(false);
   const [toasts, setToasts] = useState([]);
+  const [serverDown, setServerDown] = useState(null);
   const [viewer, setViewer] = useState(null); // { botId, name } of the open file
   const [projectId, setProjectId] = useState(() => localStorageGet('oc.project') || ''); // queued messages of the selected bot
   const [modal, setModal] = useState(null); // {type:'bot', bot?} | {type:'settings'}
@@ -36,7 +37,10 @@ export default function App() {
   const voiceRef = useRef({});
   selectedRef.current = selectedId;
 
-  const refresh = useCallback(() => api.state().then(setState).catch(console.error), []);
+  const [loadError, setLoadError] = useState('');
+  const refresh = useCallback(() => api.state().then((st) => { setState(st); setLoadError(''); }).catch((e) => { console.error(e); setLoadError(e.message); }), []);
+  // Server mode: when the connection comes back, reload everything.
+  useEffect(() => { if (serverMode && serverDown === false) refresh(); }, [serverDown, refresh]);
   useEffect(() => { refresh(); }, [refresh]);
 
   // Pick a bot once loaded (or if the selected one was deleted).
@@ -87,6 +91,8 @@ export default function App() {
         if (ev.message.role === 'assistant' && ev.botId === selectedRef.current && voiceRef.current.autoSpeak && !document.hidden && ev.message.source !== 'routine' && !ev.message.error && !ev.message.stopped) {
           speak(ev.message.content, voiceRef.current);
         }
+      } else if (ev.type === 'server') {
+        setServerDown(!ev.connected);
       } else if (ev.type === 'step') {
         const s = ev.step;
         setSteps((all) => {
@@ -113,6 +119,18 @@ export default function App() {
     return unsubscribe;
   }, [refresh]);
 
+  if (!state && serverMode && loadError) {
+    return (
+      <div className="loading server-offline">
+        <div>☁️ No puedo conectar con tu servidor.</div>
+        <div className="muted small">{loadError}</div>
+        <div className="card-actions">
+          <button className="btn small primary" onClick={refresh}>Reintentar</button>
+          <button className="btn small ghost" onClick={() => { if (confirm('¿Volver a usar los datos de este navegador? Tu servidor sigue funcionando con los suyos.')) { localStorage.removeItem('oc.server'); location.reload(); } }}>Usar este navegador sin servidor</button>
+        </div>
+      </div>
+    );
+  }
   if (!state) return <div className="loading">Cargando OpenCrew…</div>;
   voiceRef.current = state.settings.voice || {};
   setVoiceSettings(voiceRef.current);
@@ -232,6 +250,7 @@ export default function App() {
         />
       )}
       {call && bot && <CallOverlay bot={bot} rate={state.settings.voice?.rate || 1} native={state.settings.voice?.native === 'gemini'} onClose={() => setCall(false)} />}
+      {serverMode && serverDown && <div className="server-down" role="status">☁️ Sin conexión con tu servidor · reintentando… (tus bots siguen trabajando allí)</div>}
       {toasts.length > 0 && (
         <div className="toasts" role="status">
           {toasts.map((t) => (

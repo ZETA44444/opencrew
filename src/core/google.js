@@ -23,7 +23,7 @@ export const googleStatus = () => ({ connected: googleConnected(), expired: goog
 // ---------- sign-in (Google Identity Services token flow) ----------
 let gisLoading;
 function loadGis() {
-  if (window.google?.accounts?.oauth2) return Promise.resolve();
+  if (globalThis.google?.accounts?.oauth2) return Promise.resolve();
   gisLoading ??= new Promise((resolve, reject) => {
     const s = document.createElement('script');
     s.src = 'https://accounts.google.com/gsi/client';
@@ -35,31 +35,40 @@ function loadGis() {
   return gisLoading;
 }
 
-// Must be called from a click (it opens Google's popup).
-export async function connectGoogle() {
+// Browser only, from a click (it opens Google's popup). Returns the raw token response.
+export async function requestGoogleToken(id = clientId(), { again = false } = {}) {
   await loadGis();
-  const token = await new Promise((resolve, reject) => {
-    const client = window.google.accounts.oauth2.initTokenClient({
-      client_id: clientId(),
+  return new Promise((resolve, reject) => {
+    const client = globalThis.google.accounts.oauth2.initTokenClient({
+      client_id: id,
       scope: SCOPES,
       include_granted_scopes: true,
       callback: (r) => (r.error ? reject(new Error(r.error_description || r.error)) : resolve(r)),
       error_callback: (e) => reject(new Error(e?.type === 'popup_closed' ? 'Has cerrado la ventana de Google' : e?.message || 'No se pudo iniciar sesión con Google')),
     });
-    client.requestAccessToken({ prompt: googleConnected() ? '' : 'consent' });
+    client.requestAccessToken({ prompt: again ? '' : 'consent' });
   });
+}
+
+// Saves the token where the data lives (this browser, or your server).
+export async function storeGoogleToken(token) {
   const granted = String(token.scope || '');
   getDb().keys.googleToken = { token: token.access_token, exp: Date.now() + (Number(token.expires_in) || 3600) * 1000, scope: granted };
   try { cfg().email = (await gapi('https://gmail.googleapis.com/gmail/v1/users/me/profile')).emailAddress; } catch { /* scope may be missing */ }
   save();
   broadcast({ type: 'connectors' });
-  const missing = ['gmail.readonly', 'calendar.events'].filter((s) => !granted.includes(s));
+  const missing = ['gmail.readonly', 'calendar.events'].filter((x) => !granted.includes(x));
   return { email: cfg().email, missing };
+}
+
+export async function connectGoogle() {
+  return storeGoogleToken(await requestGoogleToken(clientId(), { again: googleConnected() }));
 }
 
 export function disconnectGoogle() {
   const t = tok()?.token;
-  if (t) window.google?.accounts?.oauth2?.revoke?.(t, () => {});
+  if (t) globalThis.google?.accounts?.oauth2?.revoke?.(t, () => {});
+  if (t && typeof window === 'undefined') fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(t)}`, { method: 'POST' }).catch(() => {});
   delete getDb().keys.googleToken;
   delete cfg().email;
   save();

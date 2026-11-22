@@ -1,5 +1,7 @@
 import { getDb, save } from './core/store.js';
 import { broadcast } from './core/events.js';
+import { transcribeBase64 } from './core/transcribe.js';
+import { isRemote, remoteHasKey, rpc } from './remote.js';
 // Voice: dictation (speech → text) and reading answers aloud (text → speech), using the browser's
 // built-in Web Speech API. Nothing extra to install and no API key needed.
 
@@ -78,11 +80,12 @@ export const isSpeaking = () => speechSupported && speechSynthesis.speaking;
 // (Brave, Arc, Opera…) or networks block it and it fails with "network". In that case we
 // record with the microphone and ask Gemini (or OpenAI) to transcribe.
 
-export const cloudDictationAvailable = () => !!(getDb().keys.gemini || getDb().keys.openai) && typeof MediaRecorder !== 'undefined';
+export const cloudDictationAvailable = () => (isRemote() ? remoteHasKey('gemini') || remoteHasKey('openai') : !!(getDb().keys.gemini || getDb().keys.openai)) && typeof MediaRecorder !== 'undefined';
 export const preferCloudDictation = () => getDb().settings.voice?.dictation === 'cloud';
 export function setDictationMode(mode) {
   const s = getDb().settings;
   s.voice = { ...(s.voice || {}), dictation: mode };
+  if (isRemote()) { rpc('updateSettings', [{ voice: s.voice }]).catch(() => {}); return; }
   save();
   broadcast({ type: 'bots' }); // refresh the app state so Ajustes shows (and keeps) the new mode
 }
@@ -95,35 +98,10 @@ const toBase64 = (blob) => new Promise((resolve, reject) => {
 });
 
 export async function transcribe(blob) {
-  const keys = getDb().keys;
   const lang = navigator.language || 'es-ES';
-  if (keys.gemini) {
-    const model = 'gemini-flash-lite-latest';
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': keys.gemini },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [
-          { inlineData: { mimeType: (blob.type || 'audio/webm').split(';')[0], data: await toBase64(blob) } },
-          { text: `Transcribe literalmente este audio (idioma probable: ${lang}). Devuelve SOLO el texto transcrito, sin comillas ni comentarios.` },
-        ] }],
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(`Gemini ${res.status}: ${data?.error?.message || ''}`);
-    return (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('').trim();
-  }
-  if (keys.openai) {
-    const form = new FormData();
-    form.append('file', blob, 'audio.webm');
-    form.append('model', 'gpt-4o-mini-transcribe');
-    form.append('language', lang.slice(0, 2));
-    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { authorization: `Bearer ${keys.openai}` }, body: form });
-    const data = await res.json();
-    if (!res.ok) throw new Error(`OpenAI ${res.status}: ${data?.error?.message || ''}`);
-    return String(data.text || '').trim();
-  }
-  throw new Error('Para dictar en este navegador hace falta una API key de Gemini u OpenAI (Ajustes y claves).');
+  const data = await toBase64(blob);
+  const mime = blob.type || 'audio/webm';
+  return isRemote() ? rpc('transcribeAudio', [data, mime, lang]) : transcribeBase64(data, mime, lang);
 }
 
 // Starts recording. Returns stop(); onEnd(text) is called after transcription.

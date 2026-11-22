@@ -1,9 +1,13 @@
 // Voice call with a bot (or a group of bots): listen → detect when you stop talking → send →
 // read the answer aloud with that bot's voice → listen again. Works with any model.
 import { api } from './api.js';
-import { getBot, messagesOf } from './core/store.js';
-import { busy } from './core/agent.js';
 import { notify } from './core/notify.js';
+
+// Works the same with the engine in this browser or on your server: everything goes through `api`.
+let bots = [];
+const getBot = (id) => bots.find((b) => b.id === id);
+async function loadBots() { const s = await api.state(); bots = [...s.bots, ...(s.groups || []).map((g) => ({ ...g, isGroup: true }))]; return s; }
+const isBusy = async (id) => (await loadBots()).busy.includes(id);
 import { dictationSupported, preferCloudDictation, cloudDictationAvailable, transcribe, speakAsync, stopSpeaking, voiceForBot, toSpeech } from './voice.js';
 
 const Recognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -13,24 +17,25 @@ export const BACKGROUND_CUE = /(en segundo plano|av[ií]s(a|ad)me cuando (termin
 
 // Background voice tasks: when the bot finishes, you get a notification, an in-app notice and a short spoken summary.
 const watching = new Set();
-export function finishInBackground(threadId, { rate = 1, speak = true } = {}) {
-  if (watching.has(threadId) || !busy.has(threadId)) return false;
+export async function finishInBackground(threadId, { rate = 1, speak = true } = {}) {
+  if (watching.has(threadId)) return false;
   watching.add(threadId);
-  const startAt = messagesOf(threadId).length;
+  if (!(await isBusy(threadId))) { watching.delete(threadId); return false; }
+  const startAt = (await api.messages(threadId)).length;
   const unsub = api.subscribe((ev) => {
     if (ev.botId !== threadId || ev.type !== 'status' || ev.busy) return;
     unsub();
     // The reply is saved right after the «not busy» status, so read it a moment later.
-    setTimeout(() => {
+    setTimeout(async () => {
       watching.delete(threadId);
-      const last = messagesOf(threadId).slice(startAt).filter((m) => m.role === 'assistant' && !m.from).pop();
+      const last = (await api.messages(threadId).catch(() => [])).slice(startAt).filter((m) => m.role === 'assistant' && !m.from).pop();
       const owner = getBot(threadId);
       const bot = getBot(last?.botId) || owner;
       const name = bot?.name || 'Tu bot';
       const ok = last && !last.error && !last.stopped;
       const text = last?.content || '';
       const title = ok ? `✓ ${name} ha terminado tu encargo` : `⚠️ ${name} no pudo terminar tu encargo`;
-      notify({ kind: 'routine', threadId, title, body: text });
+      notify({ kind: 'routine', threadId, title, body: text }, { local: true });
       window.dispatchEvent(new CustomEvent('oc-toast', { detail: { title, body: toSpeech(text).slice(0, 160), threadId } }));
       if (speak && ok) {
         const first = toSpeech(text).split(/(?<=[.!?])\s+/).slice(0, 2).join(' ').slice(0, 280);
@@ -54,6 +59,7 @@ export class CallSession {
   set(state) { this.state = state; this.onState?.(state); }
 
   async start() {
+    await loadBots().catch(() => {});
     // Listen for the bots' answers in this chat.
     this.unsub = api.subscribe((ev) => {
       if (this.closed || this.background) return;
@@ -105,9 +111,9 @@ export class CallSession {
       const bot = getBot(this.threadId);
       const run = api.chat(this.threadId, t).catch((e) => this.onError?.(e.message));
       await new Promise((r) => setTimeout(r, 50));
-      if (busy.has(this.threadId)) {
+      if (await isBusy(this.threadId)) {
         this.background = true;
-        finishInBackground(this.threadId, { rate: this.rate });
+        await finishInBackground(this.threadId, { rate: this.rate });
         this.onLine?.({ who: bot?.name || 'Bot', text: 'Vale, me pongo con ello. Te aviso cuando termine.' });
         this.set('speaking');
         await speakAsync('Vale, me pongo con ello. Te aviso cuando termine.', { voiceName: voiceForBot(bot), rate: this.rate });
@@ -210,7 +216,7 @@ export class CallSession {
   hangup() {
     if (this.closed) return;
     this.closed = true;
-    if (!this.background && busy.has(this.threadId)) finishInBackground(this.threadId, { rate: this.rate });
+    if (!this.background) finishInBackground(this.threadId, { rate: this.rate }).catch(() => {});
     this.stopListening();
     stopSpeaking();
     this.unsub?.();

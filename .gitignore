@@ -4,3 +4,7 @@ data/
 .env
 .DS_Store
 .claude/
+
+# OpenCrew server
+server/data/
+server/.env

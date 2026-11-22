@@ -86,7 +86,18 @@ let db;
 let storage = 'indexeddb';
 
 // Resolves once the data is loaded. main.jsx waits for it before rendering.
+// On the server, a file-based storage is plugged in before this module loads:
+// globalThis.OPENCREW_STORAGE = { load(): object|null, save(object): Promise, kind: 'file' }.
+const external = globalThis.OPENCREW_STORAGE;
+
 export const ready = (async () => {
+  if (external) {
+    storage = external.kind || 'external';
+    const stored = await external.load();
+    db = stored ? fill(stored) : seed();
+    if (!stored) await external.save(db);
+    return;
+  }
   try {
     idbHandle = openIdb();
     const stored = await idb('readonly', (st) => st.get(IDB_KEY));
@@ -117,6 +128,13 @@ let writing = Promise.resolve();
 function flush() {
   clearTimeout(timer);
   timer = null;
+  if (external) {
+    const snapshot = structuredClone(db);
+    writing = writing.then(() => external.save(snapshot))
+      .then(() => { lastSaveError = null; })
+      .catch((e) => { lastSaveError = e; console.error('No se pudo guardar:', e); });
+    return writing;
+  }
   if (storage === 'indexeddb') {
     const snapshot = structuredClone(db);
     writing = writing.then(() => idb('readwrite', (st) => st.put(snapshot, IDB_KEY)))
@@ -140,7 +158,7 @@ export function save() {
 }
 export const saveNow = () => flush();
 
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   // Don't lose the last changes if the tab is closed right after a change.
   window.addEventListener('pagehide', () => { if (timer) flush(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden && timer) flush(); });
@@ -148,7 +166,8 @@ if (typeof window !== 'undefined') {
 
 export const storageKind = () => storage;
 export async function storageUsage() {
-  const est = await navigator.storage?.estimate?.().catch(() => null);
+  if (external) return external.usage ? external.usage() : null;
+  const est = await globalThis.navigator?.storage?.estimate?.().catch(() => null);
   return est ? { used: est.usage, quota: est.quota } : null;
 }
 

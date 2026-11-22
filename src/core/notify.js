@@ -1,5 +1,6 @@
 // Browser notifications: tell you when a routine finishes, or a bot answers while the app is in the background.
 import { getDb } from './store.js';
+import { broadcast } from './events.js';
 
 export const notifySupported = () => typeof window !== 'undefined' && 'Notification' in window;
 export const notifyPermission = () => (notifySupported() ? Notification.permission : 'unsupported');
@@ -11,10 +12,12 @@ export async function askPermission() {
 
 const plain = (md) => String(md || '').replace(/[*_`#>]/g, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\s+/g, ' ').trim();
 
-export async function notify({ title, body, threadId, kind }) {
-  const s = getDb().settings.notifications || {};
+export async function notify({ title, body, threadId, kind }, { local = false } = {}) {
+  const s = local ? { routines: true, replies: true } : getDb().settings.notifications || {};
   if (kind === 'routine' && s.routines === false) return;
   if (kind === 'reply' && !s.replies) return;
+  // Running on the server: the apps connected to it show the notification.
+  if (typeof window === 'undefined') { broadcast({ type: 'notify', notification: { title, body, threadId, kind } }); return; }
   if (notifyPermission() !== 'granted') return;
   const options = { body: plain(body).slice(0, 180), icon: './icon-192.png', badge: './icon-192.png', tag: `opencrew-${threadId}`, data: { threadId } };
   try {

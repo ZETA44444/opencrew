@@ -1,0 +1,32 @@
+# OpenCrew server + HTTPS (Caddy gets a free certificate automatically).
+# Needs server/.env with OPENCREW_TOKEN and OPENCREW_HOST (see server/README.md).
+services:
+  opencrew:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/data
+      # Used only to start throwaway, network-less containers for run_javascript.
+      - /var/run/docker.sock:/var/run/docker.sock
+    expose:
+      - "8787"
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - OPENCREW_HOST=${OPENCREW_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - opencrew
+volumes:
+  caddy_data: {}
+  caddy_config: {}

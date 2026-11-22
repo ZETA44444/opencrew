@@ -29,6 +29,9 @@ const page = (id) => `<!doctype html><meta charset="utf-8">
 <\/script>`;
 
 export function runJavaScript(code, { timeoutMs = 10_000 } = {}) {
+  // On the server, code runs in a throwaway, network-less container instead (see server/sandbox.mjs).
+  if (globalThis.OPENCREW_RUN_JS) return globalThis.OPENCREW_RUN_JS(String(code), { timeoutMs });
+  if (typeof document === 'undefined') return Promise.resolve({ ok: false, logs: [], error: 'Ejecutar código no está disponible aquí.', ms: 0 });
   return new Promise((resolve) => {
     const id = Math.random().toString(36).slice(2);
     const iframe = document.createElement('iframe');

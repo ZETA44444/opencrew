@@ -509,3 +509,5 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 @keyframes toast-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 .chip-checks { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.server-down { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 130; background: #3b2a12; color: #fcd34d; border: 1px solid #7c5a1e; padding: 8px 14px; border-radius: 999px; font-size: 13px; max-width: calc(100vw - 32px); }
+.server-offline { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; text-align: center; padding: 16px; }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../api.js';
+import { api, serverMode } from '../api.js';
+import ServerSection from './ServerSection.jsx';
 import { voices as listVoices, speechSupported, dictationSupported, speak } from '../voice.js';
 
 export default function SettingsModal({ providers, settings, services, sensitiveTools = {}, onClose, onSaved }) {
@@ -54,8 +55,8 @@ export default function SettingsModal({ providers, settings, services, sensitive
     onSaved();
   };
 
-  const download = () => {
-    const data = api.exportData();
+  const download = async () => {
+    const data = await api.exportData();
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
@@ -87,7 +88,7 @@ export default function SettingsModal({ providers, settings, services, sensitive
         </div>
         <div className="modal-body">
           <p className="muted small">
-            Pega aquí tus propias API keys. Se guardan <b>solo en este navegador</b> y solo se envían al proveedor de IA
+            Pega aquí tus propias API keys. Se guardan <b>{serverMode ? 'solo en tu servidor' : 'solo en este navegador'}</b> y solo se envían al proveedor de IA
             correspondiente cuando un bot lo usa. Después, en cada bot, elige qué modelo usa.
           </p>
           {list.filter((p) => !p.noKey).map((p) => {
@@ -227,8 +228,10 @@ export default function SettingsModal({ providers, settings, services, sensitive
             </>
           )}
 
+          <ServerSection />
+
           <div className="section-title">Copia de seguridad</div>
-          <div className="muted small">Tus bots, chats y rutinas viven en este navegador. Descarga una copia para no perderlos o para pasarlos a otro ordenador.</div>
+          <div className="muted small">Tus bots, chats y rutinas viven en {serverMode ? 'tu servidor' : 'este navegador'}. Descarga una copia para no perderlos o para pasarlos a otro ordenador.</div>
           <div className="settings-actions">
             <button className="btn small" onClick={download}>Descargar copia</button>
             <button className="btn small" onClick={() => fileRef.current?.click()}>Restaurar copia…</button>
@@ -237,7 +240,7 @@ export default function SettingsModal({ providers, settings, services, sensitive
           {backupMsg && <div className="small muted">{backupMsg}</div>}
           {storage && (
             <div className="small muted">
-              Almacenamiento: {storage.kind === 'indexeddb' ? 'IndexedDB' : 'localStorage (modo limitado)'}
+              Almacenamiento: {storage.kind === 'indexeddb' ? 'IndexedDB' : storage.kind === 'file' ? 'archivo en tu servidor' : 'localStorage (modo limitado)'}
               {storage.used != null && ` · usando ${mb(storage.used)} de ${mb(storage.quota)} disponibles`}
             </div>
           )}
