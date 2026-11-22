@@ -19,7 +19,7 @@ export default function RightPanel({ bot, state, steps, pinned, onUnpin, artifac
       <div className="panel-body">
         {current === 'progress' && <Progress steps={steps} pinned={pinned} onUnpin={onUnpin} />}
         {current === 'routines' && <Routines bot={bot} routines={state.routines.filter((r) => r.botId === bot.id)} runs={state.runs} refresh={refresh} />}
-        {current === 'memory' && <Memory bot={bot} refresh={refresh} />}
+        {current === 'memory' && <Memory bot={bot} projects={(state.projects || []).filter((p) => p.botIds.includes(bot.id))} refresh={refresh} />}
         {current === 'artifacts' && <Artifacts bot={bot} tick={artifactsTick} onOpen={onOpenArtifact} />}
       </div>
     </aside>
@@ -160,12 +160,32 @@ function Routines({ bot, routines, runs, refresh }) {
   );
 }
 
-function Memory({ bot, refresh }) {
+const memText = (m) => (typeof m === 'string' ? m : m.text);
+
+function Memory({ bot, projects = [], refresh }) {
   const [fact, setFact] = useState('');
+  const [projFact, setProjFact] = useState({});
   const update = (memory) => api.updateBot(bot.id, { memory }).then(refresh);
+  const updateProject = (p, memory) => api.saveProject({ id: p.id, memory }).then(refresh);
   return (
     <div className="memory">
-      <p className="muted small">Lo que {bot.name} sabe de ti. Solo este bot ve su memoria. También puede guardar cosas solo cuando le dices «recuerda que…».</p>
+      {projects.map((p) => (
+        <div key={p.id} className="proj-mem">
+          <div className="section-title"><span className="project-dot" style={{ background: p.color }} /> Memoria del proyecto «{p.name}»</div>
+          <p className="muted small">La comparten todos los bots del proyecto. Cuando le dices a cualquiera «recuerda que…», se guarda aquí.</p>
+          {(p.memory || []).map((m, i) => (
+            <div key={i} className="mem-item">
+              <span>{memText(m)}{m.by && <span className="muted small"> · {m.by}</span>}</span>
+              <button className="icon-btn" onClick={() => updateProject(p, p.memory.filter((_, j) => j !== i))} aria-label="Borrar">×</button>
+            </div>
+          ))}
+          <form onSubmit={(e) => { e.preventDefault(); const v = (projFact[p.id] || '').trim(); if (v) { updateProject(p, [...(p.memory || []), { text: v, by: 'Tú', at: new Date().toISOString() }]); setProjFact({ ...projFact, [p.id]: '' }); } }}>
+            <input placeholder="Añadir al proyecto…" value={projFact[p.id] || ''} onChange={(e) => setProjFact({ ...projFact, [p.id]: e.target.value })} />
+          </form>
+        </div>
+      ))}
+      {projects.length > 0 && <div className="section-title">Memoria privada de {bot.name}</div>}
+      <p className="muted small">{projects.length ? `Solo la ve ${bot.name}.` : `Lo que ${bot.name} sabe de ti. Solo este bot ve su memoria. También guarda cosas cuando le dices «recuerda que…».`}</p>
       {bot.memory.map((m, i) => (
         <div key={i} className="mem-item">
           <span>{m}</span>

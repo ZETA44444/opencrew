@@ -454,3 +454,6 @@ input[type=range] { padding: 0; accent-color: #fff; }
 .project-switch select { flex: 1; min-width: 0; background: none; border: 0; padding: 2px 0; font-weight: 550; cursor: pointer; }
 .project-switch .icon-btn { width: 26px; height: 26px; }
 label.member-row { flex-direction: row; justify-content: flex-start; cursor: pointer; }
+
+.proj-mem { margin-bottom: 14px; }
+.proj-mem .section-title { display: flex; align-items: center; gap: 6px; margin-top: 0; }

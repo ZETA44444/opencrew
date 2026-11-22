@@ -111,12 +111,31 @@ const ALL_TOOLS = {
     },
   },
   save_memory: {
-    description: 'Guarda en tu memoria permanente un dato importante sobre el usuario o sus preferencias.',
-    parameters: { type: 'object', properties: { fact: { type: 'string', description: 'El dato a recordar, en una frase' } }, required: ['fact'] },
-    async run({ fact }, ctx) {
-      ctx.bot.memory.push(String(fact).slice(0, 500));
+    description: 'Guarda un dato importante para recordarlo siempre. Si estás en un proyecto, por defecto lo guarda en la memoria del proyecto y lo sabrán todos sus bots; usa scope "bot" para algo que solo debas saber tú.',
+    parameters: {
+      type: 'object',
+      properties: {
+        fact: { type: 'string', description: 'El dato a recordar, en una frase' },
+        scope: { type: 'string', description: '"project" (lo sabe todo el proyecto, por defecto si estás en uno) o "bot" (solo tú)' },
+      },
+      required: ['fact'],
+    },
+    async run({ fact, scope }, ctx) {
+      const text = String(fact).slice(0, 500);
+      const projects = (getDb().projects || []).filter((p) => p.botIds.includes(ctx.bot.id));
+      if (scope !== 'bot' && projects.length) {
+        for (const p of projects) {
+          p.memory ??= [];
+          if (!p.memory.some((m) => m.text === text)) p.memory.push({ text, by: ctx.bot.name, at: now() });
+        }
+        save();
+        broadcast({ type: 'bots' });
+        return `Guardado en la memoria del proyecto ${projects.map((p) => `«${p.name}»`).join(' y ')}: "${text}". Ya lo saben todos sus bots.`;
+      }
+      ctx.bot.memory.push(text);
       save();
-      return `Guardado en memoria: "${fact}"`;
+      broadcast({ type: 'bots' });
+      return `Guardado en tu memoria: "${text}"`;
     },
   },
   web_search: {

@@ -18,7 +18,7 @@ import { askPermission, notifyPermission, notify } from './core/notify.js';
 const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown', 'connectors', 'monthlyLimit', 'delegation', 'autoFallback'];
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled', 'catchUp'];
 const GROUP_FIELDS = ['name', 'memberIds'];
-const PROJECT_FIELDS = ['name', 'description', 'color', 'botIds', 'groupIds'];
+const PROJECT_FIELDS = ['name', 'description', 'color', 'botIds', 'groupIds', 'memory'];
 const SERVICE_KEYS = ['tavily', 'github']; // keys for tools, not for chat models
 // A "thread" is a bot's own chat or a group chat; both live in db.messages[id].
 const start = (threadId, text, attachments = []) => (getGroup(threadId)

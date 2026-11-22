@@ -56,7 +56,8 @@ function projectPrompt(bot, group) {
   if (!ps.length) return '';
   return ps.map((p) => {
     const mates = p.botIds.map(getBot).filter((b) => b && b.id !== bot.id).map((b) => b.name);
-    return `Trabajas en el proyecto «${p.name}»${p.description ? `: ${p.description}` : ''}.${mates.length ? ` Compañeros en este proyecto: ${mates.join(', ')}.` : ''}`;
+    const mem = (p.memory || []).map((m) => `- ${typeof m === 'string' ? m : m.text}`).join('\n');
+    return `Trabajas en el proyecto «${p.name}»${p.description ? `: ${p.description}` : ''}.${mates.length ? ` Compañeros en este proyecto: ${mates.join(', ')}.` : ''}${mem ? `\nMemoria compartida del proyecto (lo que el usuario contó a cualquier bot del proyecto):\n${mem}` : ''}`;
   }).join('\n');
 }
 
