@@ -31,14 +31,18 @@ const settings = () => {
 };
 
 // MCP tools that declare themselves read-only don't need approval; the rest do.
-function isSensitive(name) {
+export function isSensitive(name) {
   if (SENSITIVE[name]) return true;
   if (name.startsWith('mcp_')) {
     const hit = findConnectorTool(name);
     if (!hit) return true;
     if (hit.t.readOnly) return false;
     // Servers rarely annotate tools: treat clearly read-only names as safe.
-    return !/^(get|list|search|read|fetch|find|query|describe|show|view)[_-]/i.test(hit.t.name);
+    // Gateways prefix tool names with the app (GMAIL_FETCH_EMAILS, slack_find_message…): look at every word.
+    const words = hit.t.name.toLowerCase().split(/[^a-z0-9]+/);
+    const WRITE = /^(send|create|update|delete|remove|post|add|write|set|move|archive|reply|invite|pay|charge|cancel|refund|upload|edit|modify|insert|patch|put|publish|share|assign|close|merge|approve|transfer|execute|run|trigger|start|stop|draft)$/;
+    const READ = /^(get|list|search|read|fetch|find|query|describe|show|view|retrieve|lookup|count|check|download)$/;
+    return words.some((w) => WRITE.test(w)) || !words.some((w) => READ.test(w));
   }
   return false;
 }

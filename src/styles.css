@@ -530,3 +530,12 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .hook-info > * + * { margin-top: 6px; }
 .hook-url { display: flex; gap: 6px; align-items: center; }
 .hook-url code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 11px; background: var(--bg-3); padding: 6px 8px; border-radius: 8px; }
+
+/* Gateways */
+.gateway-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.gateway-card { text-align: left; display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-2); }
+.gateway-card:hover { border-color: var(--text-2); }
+.gateway-steps { margin: 4px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.conn-detail { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.tool-check { align-items: flex-start; }
+.tool-check code { font-size: 11px; }

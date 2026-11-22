@@ -404,11 +404,11 @@ export function toolsFor(bot, depth) {
     .filter((n) => !(n === 'delegate_to_bot' && depth >= 2)) // avoid infinite delegation chains
     .map((name) => ({ name, description: ALL_TOOLS[name].description, parameters: ALL_TOOLS[name].parameters }))
     // Tools from connected apps (MCP), unless this bot has them switched off.
-    .concat(bot.connectors === false ? [] : [...githubTools(), ...googleTools(bot), ...notionTools(), ...connectorTools()]);
+    .concat(bot.connectors === false ? [] : [...githubTools(), ...googleTools(bot), ...notionTools(), ...connectorTools(bot)]);
 }
 
 export async function runTool(call, ctx) {
-  if (call.name.startsWith('mcp_')) return callConnectorTool(call.name, call.args || {});
+  if (call.name.startsWith('mcp_')) return callConnectorTool(call.name, call.args || {}, ctx?.bot);
   if (call.name.startsWith('github_')) return runGithubTool(call.name, call.args || {});
   if (isGoogleTool(call.name)) return runGoogleTool(call.name, call.args || {}, ctx?.bot);
   if (call.name.startsWith('notion_')) return runNotionTool(call.name, call.args || {});

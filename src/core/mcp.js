@@ -1,5 +1,7 @@
-// Minimal MCP client for remote servers (Streamable HTTP transport), running in the browser.
-// The server must allow requests from this page (CORS). Connectors are shared by all bots.
+// Minimal MCP client for remote servers (Streamable HTTP transport). Runs in the browser (the MCP
+// server must allow CORS) or on your OpenCrew server (no such limit). Works with gateways like
+// Zapier or Composio, which give one address for hundreds of apps. Each connector can be limited
+// to some bots and some tools.
 import { getDb, newId, now, save } from './store.js';
 import { broadcast } from './events.js';
 
@@ -12,7 +14,11 @@ export const toolKey = (c, t) => `mcp_${slug(c.name)}__${t.name}`.replace(/[^a-z
 
 async function rpc(c, method, params, { notify = false } = {}) {
   const headers = { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': PROTOCOL };
-  if (c.token) headers.authorization = /^bearer /i.test(c.token) ? c.token : `Bearer ${c.token}`;
+  const hn = String(c.headerName || 'authorization').trim().toLowerCase();
+  if (c.token) {
+    if (hn === 'authorization') headers.authorization = /^(bearer|basic) /i.test(c.token) ? c.token : `Bearer ${c.token}`;
+    else headers[hn] = c.token;
+  }
   const s = sessions.get(c.id);
   if (s?.sessionId) headers['mcp-session-id'] = s.sessionId;
   const body = notify ? { jsonrpc: '2.0', method, params } : { jsonrpc: '2.0', id: newId(), method, params };
@@ -20,14 +26,14 @@ async function rpc(c, method, params, { notify = false } = {}) {
   try {
     res = await fetch(c.url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(60_000) });
   } catch (e) {
-    const err = new Error(`No se pudo conectar con ${c.url} (${e.message}). Comprueba la URL y que el servidor permita conexiones desde navegadores (CORS).`);
+    const err = new Error(`No se pudo conectar con ${c.url} (${e.message}). Comprueba la URL${typeof window === 'undefined' ? '' : ' y que el servidor permita conexiones desde navegadores (CORS); con tu servidor de OpenCrew conectado no hay ese límite'}.`);
     err.retryable = true; // the request never reached the server
     throw err;
   }
   const sid = res.headers.get('mcp-session-id');
   if (sid) sessions.set(c.id, { ...(sessions.get(c.id) || {}), sessionId: sid });
   if (notify) return null;
-  if (res.status === 401 || res.status === 403) throw new Error('El servidor pide autorización: añade un token válido al conector.');
+  if (res.status === 401 || res.status === 403) throw new Error(`El servidor pide autorización: revisa la clave${c.headerName && c.headerName.toLowerCase() !== 'authorization' ? ` (cabecera ${c.headerName})` : ''}.`);
   if (!res.ok) {
     const err = new Error(`El servidor respondió ${res.status}: ${(await res.text()).slice(0, 200)}`);
     err.retryable = (res.status === 404 || res.status === 400) && !!s?.sessionId; // expired session
@@ -84,11 +90,15 @@ export async function refreshConnector(id) {
   return c;
 }
 
-export async function addConnector({ name, url, token }) {
+export async function addConnector({ name, url, token, headerName, gateway }) {
   let u;
   try { u = new URL(url); } catch { throw new Error('La URL no es válida'); }
   if (!/^https?:$/.test(u.protocol)) throw new Error('La URL debe empezar por https://');
-  const c = { id: newId(), name: String(name || u.hostname).trim().slice(0, 40), url: u.href, token: token || '', enabled: true, tools: [], status: 'new', createdAt: now() };
+  const c = {
+    id: newId(), name: String(name || u.hostname).trim().slice(0, 40), url: u.href, token: String(token || '').trim(),
+    headerName: String(headerName || 'authorization').trim() || 'authorization', gateway: gateway || '',
+    enabled: true, botIds: null, disabledTools: [], tools: [], status: 'new', createdAt: now(),
+  };
   connectors().push(c);
   const result = await refreshConnector(c.id);
   if (result.status === 'error') {
@@ -101,8 +111,8 @@ export async function addConnector({ name, url, token }) {
 export function updateConnector(id, patch) {
   const c = connectors().find((x) => x.id === id);
   if (!c) return;
-  for (const k of ['name', 'enabled', 'token', 'url']) if (patch[k] !== undefined) c[k] = patch[k];
-  if (patch.url || patch.token !== undefined) sessions.delete(id);
+  for (const k of ['name', 'enabled', 'token', 'url', 'headerName', 'botIds', 'disabledTools']) if (patch[k] !== undefined) c[k] = patch[k];
+  if (patch.url || patch.token !== undefined || patch.headerName !== undefined) sessions.delete(id);
   save();
   broadcast({ type: 'connectors' });
 }
@@ -115,11 +125,14 @@ export function removeConnector(id) {
 }
 
 // ---------- tools for bots ----------
-export function connectorTools() {
+export const connectorAllowed = (c, bot) => !c.botIds || !bot || c.botIds.includes(bot.id);
+export function connectorTools(bot) {
   const out = [];
   for (const c of connectors()) {
-    if (!c.enabled || c.status !== 'ok') continue;
+    if (!c.enabled || c.status !== 'ok' || !connectorAllowed(c, bot)) continue;
+    const off = new Set(c.disabledTools || []);
     for (const t of c.tools || []) {
+      if (off.has(t.name)) continue;
       out.push({
         name: toolKey(c, t),
         description: `[${c.name}] ${t.description}`.slice(0, 1000),
@@ -135,11 +148,12 @@ export function findConnectorTool(key) {
   return null;
 }
 
-export async function callConnectorTool(key, args) {
+export async function callConnectorTool(key, args, bot) {
   const hit = findConnectorTool(key);
   if (!hit) return `Herramienta desconocida: ${key}`;
   const { c, t } = hit;
   if (!c.enabled) return `El conector ${c.name} está desactivado.`;
+  if (!connectorAllowed(c, bot) || (c.disabledTools || []).includes(t.name)) return `Este bot no tiene permiso para usar ${c.name}: ${t.name}.`;
   try {
     await ensureSession(c);
     const r = await rpc(c, 'tools/call', { name: t.name, arguments: args || {} });

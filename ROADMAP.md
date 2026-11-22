@@ -112,6 +112,13 @@ Reglas para cada tarea:
 - [x] Sesión de Google permanente a través del servidor (se renueva sola). ⏸ Necesita que añadas el secreto de tu cliente de Google al servidor (pasos en server/README.md)
 - [ ] Ordenador por bot en Docker (navegador y terminal)
 
+### Pasarelas de apps (añadido)
+
+- [x] Asistente de pasarelas en Apps conectadas: Zapier (+8.000 apps), Composio (+800) u otra pasarela / servidor MCP, con su cabecera de clave
+- [x] Por cada app conectada: elegir qué bots la usan y qué herramientas están activas (aviso si hay demasiadas)
+- [x] Permisos más listos con pasarelas: leer/buscar va libre; enviar, crear, borrar o cualquier acción desconocida pide permiso
+- [ ] Inicio de sesión OAuth para servidores MCP oficiales (Linear, Jira, Asana…) con un botón «Conectar»
+
 ## Fase 12 — Control de tu navegador y tu ordenador (con permisos)
 
 - [ ] Extensión de navegador de OpenCrew: el bot puede leer y actuar en tus pestañas, pidiendo permiso por acción
