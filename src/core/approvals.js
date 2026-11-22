@@ -13,6 +13,7 @@ export const SENSITIVE = {
   generate_image: 'Generar una imagen (gasta créditos de tu clave)',
   github_create_issue: 'Crear un issue en GitHub',
   github_comment: 'Publicar un comentario en GitHub',
+  set_bot_limit: 'Cambiar el límite de gasto de un bot',
 };
 
 const pending = new Map(); // id -> { meta, resolve, reject }

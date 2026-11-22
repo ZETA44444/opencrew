@@ -5,7 +5,8 @@ import { toolsFor, runTool, describeCall } from './tools.js';
 import { broadcast } from './events.js';
 import { notify } from './notify.js';
 import { needsApproval, requestApproval } from './approvals.js';
-import { recordUsage, checkBudget } from './usage.js';
+import { recordUsage, checkBudget, monthCost } from './usage.js';
+import { recordModelResult } from './health.js';
 
 const MAX_STEPS = 8;
 export const busy = new Set();
@@ -49,6 +50,20 @@ function systemPrompt(bot, group) {
 
 // How hard a bot should push work to its teammates. The main bot (★) is a coordinator by
 // default: it must hand specialised work to the right bot instead of doing it itself.
+// Warn once a month when a bot passes 80 % of its spending limit.
+function warnBudget(bot, threadId) {
+  const limit = Number(bot.monthlyLimit) || 0;
+  if (!limit) return;
+  const month = new Date().toISOString().slice(0, 7);
+  const spent = monthCost(bot.id);
+  if (spent < limit * 0.8 || bot.budgetWarned === month) return;
+  bot.budgetWarned = month;
+  save();
+  const pct = Math.round((spent / limit) * 100);
+  notify({ kind: 'routine', threadId, title: `💸 ${bot.name} lleva el ${pct} % de su límite`, body: `${spent.toFixed(2)} $ de ${limit.toFixed(2)} $ este mes.` });
+  broadcast({ type: 'budget', botId: bot.id, pct, spent, limit });
+}
+
 const ANSWER_MYSELF = {
   name: 'responder_yo_mismo',
   description: 'Úsalo SOLO si ningún bot del equipo es especialista en lo que se pide (saludos, preguntas sobre el equipo, resumir lo ya hecho). Si algún bot encaja, usa delegate_to_bot en su lugar.',
@@ -144,6 +159,7 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
         try {
           res = await callModel({ providerId: used.provider, model: used.model, onText, ...callArgs });
         } catch (e) {
+          if (e.name !== 'AbortError' && ![400, 422].includes(e.status)) recordModelResult(used.provider, used.model, e);
           // Some models (many Ollama/OpenRouter ones) don't support forced tool use: ask normally.
           if (!callArgs.forceTool || ![400, 422].includes(e.status)) throw e;
           Object.assign(callArgs, { forceTool: false, tools });
@@ -161,17 +177,20 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
           emit({ type: 'draft', botId: threadId, speaker: botId, runId, text: '' }); // drop the half-written text
           try { res = await callModel({ providerId: alt.provider, model: alt.model, onText, ...callArgs }); sticky = alt; break; } catch (e2) {
             lastErr = e2;
+            if (e2.name !== 'AbortError') recordModelResult(alt.provider, alt.model, e2);
             if (!shouldFallBack(e2)) throw e2;
           }
         }
         if (!res) throw lastErr;
       }
       lastModel = `${used.provider}/${used.model}`;
+      if (used.provider !== 'demo') recordModelResult(used.provider, used.model, null);
       update(thinking, { status: 'done', label: `Pensando (${lastModel === `${bot.provider}/${bot.model}` ? label : lastModel})`, ms: Date.now() - t0 });
       if (res.usage) {
         spent.input += res.usage.input || 0;
         spent.output += res.usage.output || 0;
         spent.cost += recordUsage({ botId: bot.id, provider: used.provider, model: used.model, input: res.usage.input, output: res.usage.output });
+        warnBudget(bot, threadId);
       }
 
       if (!res.toolCalls.length) { final = res.text || '(sin respuesta)'; break; }

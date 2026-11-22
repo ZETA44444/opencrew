@@ -411,6 +411,8 @@ async function callDemo({ system, messages, tools, onText, signal }) {
   if (sk && has('save_skill')) return { text: '', toolCalls: [{ id: newId(), name: 'save_skill', args: { name: sk[1].trim(), description: 'Guardada desde el chat', steps: sk[2].trim() } }] };
   const us = userText.match(/usa (?:la )?skill «?([^»]+?)»?$/i);
   if (us && has('use_skill')) return { text: '', toolCalls: [{ id: newId(), name: 'use_skill', args: { name: us[1].trim() } }] };
+  if (/gast|cuota|consumo|cuánto (he|llevo)/i.test(userText) && has('usage_report')) return { text: '', toolCalls: [{ id: newId(), name: 'usage_report', args: { days: 30 } }] };
+  if (/proveedor|clave|salud|saturad/i.test(userText) && has('provider_status')) return { text: '', toolCalls: [{ id: newId(), name: 'provider_status', args: {} }] };
   const mc = userText.match(/^usa (?:la herramienta )?((?:mcp|github)_[\w-]+)\s*(\{[\s\S]*\})?/i);
   if (mc && has(mc[1])) {
     let args = {};

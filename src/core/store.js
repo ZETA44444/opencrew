@@ -31,6 +31,13 @@ function seed() {
   return fill({ bots });
 }
 
+// The Tesorero bot comes with every profile: it watches spending, limits and provider quotas.
+export const TREASURER_BOT = {
+  name: 'Tesorero', title: 'Gestor de cuotas y gasto', role: 'treasurer', color: '#86efac', shape: 'diamond',
+  description: 'Vigila cuánto gasta cada bot y cada modelo, los límites y las cuotas de tus proveedores de IA, y recomienda cómo gastar menos.',
+  instructions: 'Usa usage_report para el gasto y provider_status para claves, cuotas y modelos que fallan. Da cifras concretas y recomendaciones prácticas (p. ej. qué bot pasar a un modelo más barato o qué límite poner). Si te piden cambiar un límite usa set_bot_limit. Recuerda que los costes son estimados.',
+};
+
 function fill(d) {
   d.keys ??= {}; d.bots ??= []; d.messages ??= {}; d.routines ??= []; d.runs ??= [];
   d.artifacts ??= {}; d.settings ??= {}; d.groups ??= []; d.skills ??= []; d.connectors ??= [];
@@ -38,6 +45,13 @@ function fill(d) {
   d.settings.proactive ??= true;
   d.settings.notifications ??= { routines: true, replies: true };
   d.settings.approvals ??= { enabled: true, always: {} };
+  if (!d.settings.treasurerAdded) {
+    d.settings.treasurerAdded = true;
+    if (!d.bots.some((b) => b.role === 'treasurer')) {
+      const name = d.bots.some((b) => b.name === 'Tesorero') ? 'Tesorería' : 'Tesorero';
+      d.bots.push({ id: newId(), ...TREASURER_BOT, name, provider: 'demo', model: 'demo', memory: [], starred: false, createdAt: now() });
+    }
+  }
   return d;
 }
 

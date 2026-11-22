@@ -8,6 +8,7 @@ import { runJavaScript, formatRun } from './sandbox.js';
 import { generateImage } from './images.js';
 import { connectorTools, callConnectorTool, findConnectorTool } from './mcp.js';
 import { githubTools, runGithubTool, describeGithub } from './github.js';
+import { TREASURER_TOOLS, TREASURER_TOOL_NAMES } from './treasurer.js';
 
 const PALETTE = ['#7dd3fc', '#fca5a5', '#86efac', '#fcd34d', '#c4b5fd', '#f9a8d4', '#fdba74', '#e5e5e5'];
 const SHAPES = ['circle', 'square', 'diamond', 'hexagon', 'triangle'];
@@ -355,10 +356,14 @@ const ALL_TOOLS = {
   },
 };
 
+Object.assign(ALL_TOOLS, TREASURER_TOOLS);
 export const TOOL_NAMES = Object.keys(ALL_TOOLS);
 // Tools that change the team: only the main (★) bot gets them unless you enable them by hand.
 export const MANAGER_TOOLS = ['create_bot', 'update_bot'];
-export const defaultToolsFor = (bot) => TOOL_NAMES.filter((n) => bot.starred || !MANAGER_TOOLS.includes(n));
+// Spending tools belong to the Tesorero.
+export const defaultToolsFor = (bot) => TOOL_NAMES
+  .filter((n) => bot.starred || !MANAGER_TOOLS.includes(n))
+  .filter((n) => bot.role === 'treasurer' || !TREASURER_TOOL_NAMES.includes(n));
 
 export function toolsFor(bot, depth) {
   // Tools added to the app after the bot's tool list was saved get their default setting.
@@ -403,6 +408,9 @@ export function describeCall(call) {
     case 'create_routine': return `Programando la rutina «${a.name}»`;
     case 'list_routines': return 'Mirando las rutinas';
     case 'update_routine': return `Cambiando la rutina «${a.name}»`;
+    case 'usage_report': return `Revisando el gasto${a.days ? ` (${a.days} días)` : ''}`;
+    case 'provider_status': return 'Revisando proveedores y cuotas';
+    case 'set_bot_limit': return `Límite de ${a.bot_name}: ${a.usd} $/mes`;
     case 'create_bot': return `Creando el bot ${a.name}`;
     case 'update_bot': return `Configurando a ${a.bot_name}`;
     default: return call.name;

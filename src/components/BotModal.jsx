@@ -17,6 +17,9 @@ const TOOL_LABELS = {
   create_routine: 'Programar rutinas',
   list_routines: 'Ver rutinas',
   update_routine: 'Pausar o borrar rutinas',
+  usage_report: 'Ver el gasto (Tesorero)',
+  provider_status: 'Ver proveedores y cuotas (Tesorero)',
+  set_bot_limit: 'Poner límites de gasto (Tesorero)',
   create_bot: 'Crear bots nuevos',
   update_bot: 'Configurar otros bots',
 };
@@ -25,9 +28,9 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
   const isNew = !bot;
   const firstWithKey = providers.find((p) => !p.noKey && p.hasKey);
   const MANAGER = ['create_bot', 'update_bot'];
-  const [f, setF] = useState(() => bot ? { ...bot, tools: bot.tools || tools.filter((t) => bot.starred || !MANAGER.includes(t)) } : {
+  const [f, setF] = useState(() => bot ? { ...bot, tools: bot.tools || tools.filter((t) => bot.starred || !MANAGER.includes(t)).filter((t) => bot.role === 'treasurer' || !['usage_report', 'provider_status', 'set_bot_limit'].includes(t)) } : {
     name: '', title: '', description: '', instructions: '', color: COLORS[1], shape: 'circle',
-    provider: firstWithKey?.id || 'demo', model: firstWithKey?.defaultModel || 'demo', tools: tools.filter((t) => !MANAGER.includes(t)), starred: false,
+    provider: firstWithKey?.id || 'demo', model: firstWithKey?.defaultModel || 'demo', tools: tools.filter((t) => !MANAGER.includes(t) && !['usage_report', 'provider_status', 'set_bot_limit'].includes(t)), starred: false,
   });
   const [err, setErr] = useState('');
   const [cat, setCat] = useState(0);
