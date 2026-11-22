@@ -95,6 +95,7 @@ export default function App() {
           messages={messages}
           busy={state.busy.includes(bot.id)}
           draft={drafts[bot.id]}
+          onStop={() => api.stop(bot.id)}
           onSend={(text) => api.chat(bot.id, text)}
           onChangeModel={(provider, model) => api.updateBot(bot.id, { provider, model }).then(refresh)}
           onEdit={() => setModal({ type: 'bot', bot })}

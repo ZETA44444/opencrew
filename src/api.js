@@ -2,7 +2,7 @@
 // used when there was a Node server, so the components barely changed.
 import { getDb, getBot, newId, now, save, messagesOf, exportData, importData } from './core/store.js';
 import { publicProviders, providerById, callModel, refreshModels, refreshAllModels, defaultModel } from './core/providers.js';
-import { runAgent, busy } from './core/agent.js';
+import { runAgent, busy, stopBot } from './core/agent.js';
 import { broadcast, subscribe } from './core/events.js';
 import { computeNext, runRoutine, startScheduler } from './core/routines.js';
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
@@ -49,6 +49,9 @@ export const api = {
     runAgent({ botId: bot.id, input: text.trim() }).catch((e) => console.error(e));
     return { ok: true };
   },
+
+  // «Parar ahora»: stops the bot and every bot it delegated to in this run.
+  stop(botId) { return stopBot(botId); },
 
   async createBot(input) {
     const b = pick(input || {}, BOT_FIELDS);

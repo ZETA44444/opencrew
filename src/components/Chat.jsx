@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Avatar from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
 
-export default function Chat({ bot, bots, providers, messages, busy, draft, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
+export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const endRef = useRef(null);
@@ -83,7 +83,10 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSe
             value={text}
             placeholder={`Escribe a ${bot.name}…  (usa @Nombre para delegar)`}
             onChange={(e) => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`; }}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+              if (e.key === 'Escape' && busy) onStop();
+            }}
           />
           <div className="composer-bar">
             <select
@@ -100,9 +103,15 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSe
                 </optgroup>
               ))}
             </select>
-            <button className="send" onClick={() => send()} disabled={!text.trim() || busy} aria-label="Enviar">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
-            </button>
+            {busy ? (
+              <button className="send stop" onClick={onStop} aria-label="Parar ahora" title="Parar ahora">
+                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" /></svg>
+              </button>
+            ) : (
+              <button className="send" onClick={() => send()} disabled={!text.trim()} aria-label="Enviar">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+              </button>
+            )}
           </div>
         </div>
       </div>

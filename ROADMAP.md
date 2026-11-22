@@ -18,7 +18,7 @@ Reglas para cada tarea:
 ## Fase 1 — Chat de calidad
 
 - [x] Respuestas en streaming (el texto aparece palabra a palabra)
-- [ ] Botón «Parar ahora» para detener un bot que está trabajando
+- [x] Botón «Parar ahora» para detener un bot que está trabajando
 - [ ] Reintentar la última respuesta y editar el último mensaje
 - [ ] Cola de mensajes («Queue»): escribir mientras el bot trabaja y que lo haga después
 - [ ] Guardar archivos y datos grandes en IndexedDB (sin el límite de 5 MB)
