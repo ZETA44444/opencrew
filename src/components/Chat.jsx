@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Avatar from './Avatar.jsx';
 import Markdown from './Markdown.jsx';
 
-export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
+export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onRerun, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const endRef = useRef(null);
@@ -21,6 +21,12 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
     setText('');
     setErr('');
     try { await onSend(v); } catch (e) { setErr(e.message); setText(v); }
+  };
+
+  const lastUserIdx = messages.map((m) => m.role).lastIndexOf('user');
+  const rerun = async (newText) => {
+    setErr('');
+    try { await onRerun(newText); } catch (e) { setErr(e.message); }
   };
 
   const others = bots.filter((b) => b.id !== bot.id);
@@ -57,7 +63,13 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
             </div>
           </div>
         )}
-        {messages.map((m) => <Message key={m.id} m={m} bot={bot} onShowSteps={onShowSteps} />)}
+        {messages.map((m, i) => (
+          <Message key={m.id} m={m} bot={bot} onShowSteps={onShowSteps}
+            canRetry={!busy && i === messages.length - 1 && m.role === 'assistant'}
+            canEdit={!busy && i === lastUserIdx}
+            onRetry={() => rerun()}
+            onEdit={(t) => rerun(t)} />
+        ))}
         {busy && (
           <div className="msg assistant">
             <Avatar bot={bot} size={28} />
@@ -119,13 +131,33 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
   );
 }
 
-function Message({ m, bot, onShowSteps }) {
+function Message({ m, bot, onShowSteps, canRetry, canEdit, onRetry, onEdit }) {
+  const [editing, setEditing] = useState(null);
   if (m.role === 'user') {
+    if (editing !== null) {
+      return (
+        <div className="msg user">
+          <div className="edit-box">
+            <textarea autoFocus rows={Math.min(8, editing.split('\n').length + 1)} value={editing}
+              onChange={(e) => setEditing(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (editing.trim()) { onEdit(editing); setEditing(null); } }
+                if (e.key === 'Escape') setEditing(null);
+              }} />
+            <div className="edit-actions">
+              <button className="btn small ghost" onClick={() => setEditing(null)}>Cancelar</button>
+              <button className="btn small primary" disabled={!editing.trim()} onClick={() => { onEdit(editing); setEditing(null); }}>Enviar</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="msg user">
         {m.from && <div className="tag">Delegado por {m.from}</div>}
         {m.source === 'routine' && <div className="tag">Rutina automática</div>}
         <div className="bubble">{m.content}</div>
+        {canEdit && <button className="msg-action" onClick={() => setEditing(m.content)} title="Editar y volver a enviar">✎ Editar</button>}
       </div>
     );
   }
@@ -141,6 +173,7 @@ function Message({ m, bot, onShowSteps }) {
             <button onClick={() => onShowSteps(m.steps)}>{m.steps.length} pasos{tools ? ` · ${tools} herramientas` : ''}</button>
           )}
           <span>{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          {canRetry && <button onClick={onRetry} title="Generar otra respuesta">↻ Reintentar</button>}
         </div>
       </div>
     </div>

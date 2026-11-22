@@ -50,6 +50,24 @@ export const api = {
     return { ok: true };
   },
 
+  // Re-run the last user message (optionally with new text). Removes it and everything after it first.
+  async rerunLast(botId, newText) {
+    const bot = getBot(botId);
+    if (!bot) throw new Error('Bot no encontrado');
+    if (busy.has(botId)) throw new Error(`${bot.name} está ocupado, espera a que termine`);
+    const thread = messagesOf(botId);
+    let i = thread.length - 1;
+    while (i >= 0 && thread[i].role !== 'user') i--;
+    if (i < 0) throw new Error('No hay ningún mensaje que reintentar');
+    const old = thread[i];
+    const text = (newText ?? old.content).trim();
+    if (!text) throw new Error('Mensaje vacío');
+    thread.splice(i);
+    save();
+    runAgent({ botId, input: text, from: old.from, source: old.source === 'routine' ? 'routine' : 'user' }).catch((e) => console.error(e));
+    return clone(thread);
+  },
+
   // «Parar ahora»: stops the bot and every bot it delegated to in this run.
   stop(botId) { return stopBot(botId); },
 
