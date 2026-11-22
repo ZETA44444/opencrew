@@ -4,6 +4,7 @@ import { providerById, defaultModel, modelsOf, PROVIDERS } from './providers.js'
 import { broadcast } from './events.js';
 import { computeNext } from './routines.js';
 import { webSearch } from './search.js';
+import { runJavaScript, formatRun } from './sandbox.js';
 
 const PALETTE = ['#7dd3fc', '#fca5a5', '#86efac', '#fcd34d', '#c4b5fd', '#f9a8d4', '#fdba74', '#e5e5e5'];
 const SHAPES = ['circle', 'square', 'diamond', 'hexagon', 'triangle'];
@@ -109,6 +110,11 @@ const ALL_TOOLS = {
     description: 'Busca en internet información actual (noticias, precios, datos, documentación). Devuelve un resumen y las fuentes con sus URLs; luego puedes leer una fuente con fetch_url.',
     parameters: { type: 'object', properties: { query: { type: 'string', description: 'Qué buscar, como lo escribirías en Google' } }, required: ['query'] },
     async run({ query }) { return webSearch(query); },
+  },
+  run_javascript: {
+    description: 'Ejecuta código JavaScript en un sandbox aislado (sin internet ni acceso a la app, máx. 10 s). Úsalo para cálculos exactos, procesar datos, fechas o comprobar código. Muestra resultados con console.log o con return.',
+    parameters: { type: 'object', properties: { code: { type: 'string', description: 'Código JavaScript (se ejecuta como cuerpo de una función async; puedes usar await y return)' } }, required: ['code'] },
+    async run({ code }) { return formatRun(await runJavaScript(code)); },
   },
   fetch_url: {
     description: 'Descarga una página web pública y devuelve su texto (máx. 12.000 caracteres).',
@@ -342,6 +348,7 @@ export function describeCall(call) {
     case 'delegate_to_bot': return `Delegando a ${a.bot_name}`;
     case 'save_memory': return 'Guardando en memoria';
     case 'fetch_url': return `Leyendo ${a.url}`;
+    case 'run_javascript': return 'Ejecutando código';
     case 'web_search': return `Buscando «${a.query}»`;
     case 'write_artifact': return `Creando ${a.filename}`;
     case 'get_current_time': return 'Mirando la hora';

@@ -358,6 +358,8 @@ async function callDemo({ system, messages, tools, onText, signal }) {
   if (sk && has('save_skill')) return { text: '', toolCalls: [{ id: newId(), name: 'save_skill', args: { name: sk[1].trim(), description: 'Guardada desde el chat', steps: sk[2].trim() } }] };
   const us = userText.match(/usa (?:la )?skill «?([^»]+?)»?$/i);
   if (us && has('use_skill')) return { text: '', toolCalls: [{ id: newId(), name: 'use_skill', args: { name: us[1].trim() } }] };
+  const js = userText.match(/^(?:ejecuta|run)(?: este código)?:\s*([\s\S]+)/i);
+  if (js && has('run_javascript')) return { text: '', toolCalls: [{ id: newId(), name: 'run_javascript', args: { code: js[1] } }] };
   const se = userText.match(/^(?:busca|buscar|search)(?: en internet)?:?\s+(.+)/i);
   if (se && has('web_search')) return { text: '', toolCalls: [{ id: newId(), name: 'web_search', args: { query: se[1] } }] };
   const rt = userText.match(/(?:todos los|cada) (lunes|martes|miércoles|jueves|viernes|sábados?|domingos?|días?|laborables) a las (\d{1,2})(?::(\d{2}))?,?\s*(.+)/i);
