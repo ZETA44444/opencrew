@@ -120,6 +120,13 @@ Reglas para cada tarea:
 - [x] Permisos más listos con pasarelas: leer/buscar va libre; enviar, crear, borrar o cualquier acción desconocida pide permiso
 - [ ] Inicio de sesión OAuth para servidores MCP oficiales (Linear, Jira, Asana…) con un botón «Conectar»
 
+### OpenCrew Puente: tus suscripciones (añadido)
+
+- [x] App aparte en tu servidor (https://TU-HOST/puente/) para conectar tu cuenta de **ChatGPT** (Codex, código de dispositivo) y **Claude** (Claude Code)
+- [x] OpenCrew la usa como proveedor «Mis suscripciones (Puente)» con herramientas; si llegas al límite del plan, cambia solo a tus claves
+- [x] Solo uso personal; nunca se sacan tus sesiones de los programas oficiales y los secretos se ocultan en las respuestas
+- [ ] Gemini: Google ya no permite entrar con cuenta personal en su programa; usar la clave gratuita de la API
+
 ## Fase 12 — Control de tu navegador y tu ordenador (con permisos)
 
 - [ ] Extensión de navegador de OpenCrew: el bot puede leer y actuar en tus pestañas, pidiendo permiso por acción

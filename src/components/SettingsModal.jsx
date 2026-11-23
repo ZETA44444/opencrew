@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, serverMode } from '../api.js';
 import ServerSection from './ServerSection.jsx';
+import { remoteConfig } from '../remote.js';
 import { voices as listVoices, speechSupported, dictationSupported, speak } from '../voice.js';
 
 export default function SettingsModal({ providers, settings, services, sensitiveTools = {}, onClose, onSaved }) {
@@ -230,6 +231,21 @@ export default function SettingsModal({ providers, settings, services, sensitive
           )}
 
           <ServerSection />
+          {(list || providers || []).some((p) => p.id === 'puente') && (() => {
+            const pu = (list || providers).find((p) => p.id === 'puente');
+            return (
+              <>
+                <div className="section-title">Mis suscripciones (Puente)</div>
+                <div className="muted small">
+                  Usa tu suscripción de <b>ChatGPT</b> o <b>Claude</b> en tus bots en lugar de la API. Conecta tus cuentas en el Puente y después elige en cada bot
+                  el proveedor «Mis suscripciones (Puente)». {pu.models?.length ? `Conectados: ${pu.models.join(', ')}.` : 'Aún no has conectado ninguna cuenta.'}
+                </div>
+                <div className="settings-actions">
+                  <a className="btn small primary" href={`${remoteConfig()?.url}/puente/#t=${encodeURIComponent(remoteConfig()?.token || '')}`} target="_blank" rel="noreferrer">Abrir el Puente ↗</a>
+                </div>
+              </>
+            );
+          })()}
 
           <div className="section-title">Copia de seguridad</div>
           <div className="muted small">Tus bots, chats y rutinas viven en {serverMode ? 'tu servidor' : 'este navegador'}. Descarga una copia para no perderlos o para pasarlos a otro ordenador.</div>

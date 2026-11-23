@@ -14,7 +14,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 const u = () => (getDb().usage ??= { days: {}, prices: {} });
 
 export function priceFor(provider, model) {
-  if (provider === 'demo' || provider === 'ollama') return { input: 0, output: 0, custom: false };
+  if (provider === 'demo' || provider === 'ollama' || provider === 'puente') return { input: 0, output: 0, custom: false };
   const custom = u().prices[`${provider}/${model}`];
   if (custom) return { ...custom, custom: true };
   const hit = DEFAULT_PRICES.find(([re]) => re.test(model));

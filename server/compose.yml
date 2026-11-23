@@ -11,8 +11,21 @@ services:
       - ./data:/data
       # Used only to start throwaway, network-less containers for run_javascript.
       - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - OPENCREW_BRIDGE_URL=http://puente:8790/v1
     expose:
       - "8787"
+  # OpenCrew Puente: your ChatGPT / Claude subscriptions (sign in at https://<host>/puente/).
+  puente:
+    build: ../bridge
+    restart: unless-stopped
+    environment:
+      - BRIDGE_TOKEN=${OPENCREW_TOKEN}
+    volumes:
+      - ./data-puente:/data
+    expose:
+      - "8790"
+    mem_limit: 2g
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped

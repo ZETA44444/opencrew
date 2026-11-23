@@ -37,7 +37,7 @@ function candidates() {
     .map((r) => r.key));
   const out = [];
   for (const p of PROVIDERS) {
-    if (p.noKey || !getKey(p.id)) continue; // only providers you pay for with your own key
+    if (p.noKey || p.bridge || !getKey(p.id)) continue; // only providers you pay for with your own key (subscriptions are chosen by hand)
     for (const m of modelsOf(p.id)) {
       if (SKIP.test(m) || recentBad.has(`${p.id}/${m}`)) continue;
       const price = priceFor(p.id, m);

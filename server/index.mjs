@@ -7,7 +7,7 @@ import { createHash, createHmac, timingSafeEqual, randomBytes } from 'node:crypt
 import { runInSandbox } from './sandbox.mjs';
 import { computer } from './computer.mjs';
 
-const VERSION = '0.14.0';
+const VERSION = '0.15.0';
 const PORT = Number(process.env.PORT) || 8787;
 const TOKEN = process.env.OPENCREW_TOKEN || '';
 const DATA = (process.env.OPENCREW_DATA || new URL('./data/', import.meta.url).pathname).replace(/\/?$/, '/');
@@ -51,6 +51,8 @@ globalThis.OPENCREW_STORAGE = {
 };
 globalThis.OPENCREW_RUN_JS = runInSandbox;
 globalThis.OPENCREW_COMPUTER = computer;
+// OpenCrew Puente (your ChatGPT/Claude subscriptions), if installed next to this server.
+if (process.env.OPENCREW_BRIDGE_URL) globalThis.OPENCREW_BRIDGE = { url: process.env.OPENCREW_BRIDGE_URL.replace(/\/$/, ''), token: process.env.OPENCREW_BRIDGE_TOKEN || TOKEN };
 globalThis.OPENCREW_GOOGLE_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 globalThis.OPENCREW_PUBLIC_URL = (process.env.OPENCREW_PUBLIC_URL || (process.env.OPENCREW_HOST ? `https://${process.env.OPENCREW_HOST}` : `http://localhost:${PORT}`)).replace(/\/$/, '');
 
@@ -69,6 +71,14 @@ const page = (title, text, ok) => `<!doctype html><html lang="es"><head><meta ch
 <body><main><h1>${ok ? '✓' : '⚠️'} ${title}</h1><p>${text}</p></main>${ok ? '<script>setTimeout(()=>window.close(),2000)</script>' : ''}</body></html>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 await localApi.state(); // starts routines, watchers and the message queue
+if (globalThis.OPENCREW_BRIDGE) {
+  // Notice when you connect or disconnect a subscription in the bridge page.
+  const { refreshModels, modelsOf } = await import('../src/core/providers.js');
+  const { broadcast } = await import('../src/core/events.js');
+  let last = '';
+  const check = async () => { await refreshModels('puente').catch(() => {}); const now = modelsOf('puente').join(','); if (now !== last) { last = now; broadcast({ type: 'bots' }); } };
+  check(); setInterval(check, 30_000).unref();
+}
 
 // Functions that only make sense inside a browser.
 const BROWSER_ONLY = new Set(['subscribe', 'openArtifact', 'notifyPermission', 'askNotifyPermission', 'testNotification', 'connectGoogle']);

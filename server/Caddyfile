@@ -5,7 +5,15 @@
 		X-Content-Type-Options nosniff
 		-Server
 	}
-	reverse_proxy opencrew:8787 {
-		flush_interval -1
+	redir /puente /puente/
+	handle /puente/* {
+		reverse_proxy puente:8790 {
+			flush_interval -1
+		}
+	}
+	handle {
+		reverse_proxy opencrew:8787 {
+			flush_interval -1
+		}
 	}
 }

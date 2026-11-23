@@ -6,6 +6,8 @@ set -e
 cd "$(dirname "$0")/.."
 git pull --ff-only
 cd server
+mkdir -p data-puente
+[ "$(stat -c %u data-puente)" = 1002 ] || sudo chown -R 1002:1002 data-puente
 docker pull node:22-alpine >/dev/null
 echo 'Preparando el ordenador de los bots…'
 docker build -q -t opencrew-computer computer >/dev/null
