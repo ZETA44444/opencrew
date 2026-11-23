@@ -26,7 +26,7 @@ export const COMPUTER_TOOLS = {
     },
   },
   computer_browser: {
-    description: 'Usa TU navegador (Chromium real, guarda sesiones y cookies). Abre una web y opcionalmente sigue pasos: {"action":"click","target":"Texto del botón o selector CSS"}, {"action":"type","target":"#email","text":"…"}, {"action":"press","key":"Enter"}, {"action":"scroll"}, {"action":"wait","ms":1000}, {"action":"goto","url":"…"}, {"action":"back"}. Devuelve el texto visible, los enlaces y una captura que se guarda en Archivos. Nunca escribas contraseñas ni datos de pago.',
+    description: 'Usa TU navegador (Chromium real, guarda sesiones y cookies). Abre una web y opcionalmente sigue pasos: {"action":"click","target":"Texto del botón o selector CSS"}, {"action":"type","target":"#email","text":"…"}, {"action":"press","key":"Enter"}, {"action":"scroll"}, {"action":"wait","ms":1000}, {"action":"goto","url":"…"}, {"action":"back"}. Se mueve como una persona (ratón con trayectoria, tecleo letra a letra). Devuelve el texto visible, los enlaces y una captura que se guarda en Archivos. Si una web te bloquea, usa las herramientas mi_navegador_* (el navegador del usuario) si las tienes, o pídele al usuario que la abra él. Nunca escribas contraseñas ni datos de pago.',
     parameters: {
       type: 'object',
       properties: {
@@ -49,6 +49,7 @@ export const COMPUTER_TOOLS = {
         `${r.ok ? '' : '⚠️ Algún paso falló. '}Página: ${r.title || '(sin título)'} — ${r.url}`,
         r.log?.length ? `Pasos:\n${r.log.join('\n')}` : '',
         r.error ? `Error: ${r.error}` : '',
+        r.blocked ? `🚫 Esta web ha bloqueado la visita (código ${r.status || '?'}). Bloquea las conexiones que vienen de servidores en la nube, no la forma de navegar: reintentar aquí no servirá. Usa mi_navegador_abrir / mi_navegador_leer (el navegador del usuario, con su conexión de casa) si están disponibles; si no, explícaselo al usuario y pídele que conecte la extensión de OpenCrew.` : '',
         `Texto visible:\n${r.text || '(vacío)'}`,
         r.links?.length ? `Enlaces:\n${r.links.map(([t, h]) => `- ${t}: ${h}`).join('\n')}` : '',
       ].filter(Boolean).join('\n\n') + shot;

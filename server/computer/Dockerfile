@@ -4,7 +4,7 @@ FROM node:22-bookworm-slim
 ENV DEBIAN_FRONTEND=noninteractive PLAYWRIGHT_BROWSERS_PATH=/opt/browsers LANG=es_ES.UTF-8
 RUN apt-get update && apt-get install -y --no-install-recommends \
       bash ca-certificates curl wget git jq unzip zip python3 python3-pip python3-venv less nano procps \
-      xvfb x11vnc fluxbox xterm socat fonts-dejavu fonts-noto-color-emoji locales \
+      xvfb x11vnc xdotool fluxbox xterm socat fonts-dejavu fonts-noto-color-emoji locales \
  && sed -i 's/# es_ES.UTF-8/es_ES.UTF-8/' /etc/locale.gen && locale-gen \
  && npm install -g playwright \
  && playwright install --with-deps chromium \
