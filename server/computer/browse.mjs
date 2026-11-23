@@ -25,8 +25,9 @@ try {
   if (input.url) { const r = await page.goto(input.url, { waitUntil: 'domcontentloaded', timeout: 30_000 }); out.status = r?.status(); out.log.push(`abierto ${input.url}`); }
   const target = (t) => {
     const s = String(t || '');
-    if (/^(css=|xpath=|\/\/|#|\.|\[)/.test(s)) return page.locator(s.replace(/^css=/, '')).first();
-    return page.getByText(s.replace(/^text=/, ''), { exact: false }).first();
+    // Only elements a person could see (pages often hide duplicates of the same field).
+    if (/^(css=|xpath=|\/\/|#|\.|\[|[a-z]+\[)/i.test(s)) return page.locator(s.replace(/^css=/, '')).filter({ visible: true }).first();
+    return page.getByText(s.replace(/^text=/, ''), { exact: false }).filter({ visible: true }).first();
   };
 
   // «Like a person»: the mouse travels along a curve with small pauses, clicks land on a random point of
