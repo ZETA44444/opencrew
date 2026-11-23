@@ -51,6 +51,11 @@ globalThis.OPENCREW_STORAGE = {
   },
 };
 globalThis.OPENCREW_RUN_JS = runInSandbox;
+// Real DNS answers for the network guard (src/core/netguard.js): bots can't reach internal addresses.
+{
+  const dns = await import('node:dns');
+  globalThis.OPENCREW_RESOLVE = async (host) => (await dns.promises.lookup(host, { all: true, verbatim: true })).map((a) => a.address);
+}
 globalThis.OPENCREW_COMPUTER = computer;
 globalThis.OPENCREW_EXT = extension;
 globalThis.OPENCREW_DESKTOP = desktop;

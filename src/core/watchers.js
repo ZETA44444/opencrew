@@ -4,6 +4,7 @@ import { getDb, getBot, newId, now, save } from './store.js';
 import { broadcast } from './events.js';
 import { runAgent, busy, waitUntilFree } from './agent.js';
 import { notify } from './notify.js';
+import { safeFetch, assertPublicUrl } from './netguard.js';
 import { gmailList, googleConnected } from './google.js';
 
 export const watchers = () => (getDb().watchers ??= []);
@@ -28,10 +29,12 @@ async function githubItems(cfg) {
 }
 
 async function readText(url) {
+  await assertPublicUrl(url); // the watcher's own address must be public too
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    const res = await safeFetch(url, { signal: AbortSignal.timeout(15_000) });
     return await res.text();
-  } catch {
+  } catch (e) {
+    if (/webs públicas|redirecciones/.test(e.message)) throw e;
     if (!getDb().settings.webReader) throw new Error('La web no deja leerse desde el navegador y el lector web está desactivado en Ajustes.');
     const res = await fetch(`https://r.jina.ai/${url}`, { signal: AbortSignal.timeout(30_000) });
     return await res.text();

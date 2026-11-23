@@ -1,4 +1,5 @@
 // Tools every bot can use. Each tool: { name, description, parameters (JSON schema), run(args, ctx) }
+import { safeFetch, assertPublicUrl } from './netguard.js';
 import { getDb, findBotByName, save, now, newId } from './store.js';
 import { providerById, defaultModel, modelsOf, PROVIDERS } from './providers.js';
 import { broadcast } from './events.js';
@@ -60,21 +61,17 @@ const safeName = (n) => String(n || 'archivo.txt').split(/[\\/]/).pop().replace(
 async function readUrl(u) {
   // 1) Direct fetch (works for sites that allow CORS).
   try {
-    const res = await fetch(u, { signal: AbortSignal.timeout(15_000) });
+    const res = await safeFetch(u.href, { signal: AbortSignal.timeout(15_000) });
     const type = res.headers.get('content-type') || '';
     const body = await res.text();
     return { status: res.status, text: type.includes('html') ? htmlToText(body) : body };
   } catch (e) {
+    if (/webs públicas|URL no válida|http\(s\)|usuario y contraseña|No se encuentra|redirecciones/.test(e.message)) throw e;
     // 2) Most sites block browsers from reading them directly (CORS). Fall back to a public reader.
     if (!getDb().settings.webReader) throw new Error('La web no permite leerla desde el navegador y el lector web está desactivado en Ajustes.');
     const res = await fetch(`https://r.jina.ai/${u.href}`, { signal: AbortSignal.timeout(30_000) });
     return { status: res.status, text: await res.text(), via: 'r.jina.ai' };
   }
-}
-
-function isPrivateHost(host) {
-  return /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$)/i.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host);
 }
 
 function htmlToText(html) {
@@ -190,8 +187,9 @@ const ALL_TOOLS = {
     async run({ url }) {
       let u;
       try { u = new URL(url); } catch { return 'URL no válida.'; }
-      if (!/^https?:$/.test(u.protocol) || isPrivateHost(u.hostname)) return 'Solo se permiten URLs públicas http(s).';
-      const r = await readUrl(u);
+      try { await assertPublicUrl(u.href); } catch (e) { return `${e.message}.`; }
+      let r;
+      try { r = await readUrl(u); } catch (e) { return `No se pudo leer: ${e.message}`; }
       return `HTTP ${r.status} · ${u.href}${r.via ? ` (leído vía ${r.via})` : ''}\n\n${r.text.slice(0, 12_000)}`;
     },
   },
