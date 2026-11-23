@@ -5,6 +5,14 @@ import { spawn } from 'node:child_process';
 
 const IMAGE = process.env.OPENCREW_COMPUTER_IMAGE || 'opencrew-computer';
 const IDLE_MS = 30 * 60_000;
+// Bot computers live on their own network: they can reach the internet but not each other, nor the
+// server's services (the firewall in server/firewall.sh also blocks internal addresses and email ports).
+const NETWORK = process.env.OPENCREW_COMPUTER_NETWORK || 'opencrew-pcs';
+const NET_LABEL = 'opencrew.net=pcs-v1';
+// How many computers may run at once: per user (and the owner) and on the whole server.
+const PER_USER = Number(process.env.OPENCREW_COMPUTERS_PER_USER) || 2;
+const PER_OWNER = Number(process.env.OPENCREW_COMPUTERS_OWNER) || 3;
+const TOTAL = Number(process.env.OPENCREW_COMPUTERS_TOTAL) || 4;
 const lastUsed = new Map();
 const starting = new Map();
 const userControl = new Map(); // botId -> until (ms): you're using its screen, the bot waits
@@ -26,6 +34,29 @@ function run(args, { input, timeoutMs = 60_000, maxOut = 200_000 } = {}) {
   });
 }
 
+let netReady = null;
+function ensureNetwork() {
+  netReady ??= (async () => {
+    const r = await run(['network', 'inspect', NETWORK], { timeoutMs: 15_000 });
+    if (r.code === 0) return;
+    const c = await run(['network', 'create', '--driver', 'bridge', '--subnet', '10.231.0.0/16', '-o', 'com.docker.network.bridge.enable_icc=false', '-o', 'com.docker.network.bridge.name=oc-pcs', NETWORK], { timeoutMs: 30_000 });
+    if (c.code !== 0 && !/already exists/.test(c.err)) throw new Error(c.err.trim() || 'No se pudo crear la red de los ordenadores');
+  })().catch((e) => { netReady = null; throw e; });
+  return netReady;
+}
+
+// Whose computer is it? «opencrew-pc-<user>-<bot>» for users, «opencrew-pc-<bot>» for the owner.
+const ownerOf = (containerName) => (/^opencrew-pc-([a-f0-9]{12})-/.exec(containerName)?.[1]) || 'owner';
+async function checkQuota(botId) {
+  const r = await run(['ps', '--filter', 'label=opencrew=computer', '--format', '{{.Names}}'], { timeoutMs: 15_000 });
+  const running = r.out.split('\n').map((x) => x.trim()).filter(Boolean).filter((x) => x !== name(botId));
+  const who = ownerOf(name(botId));
+  const mine = running.filter((x) => ownerOf(x) === who).length;
+  const max = who === 'owner' ? PER_OWNER : PER_USER;
+  if (mine >= max) throw new Error(`Ya tienes ${mine} ordenadores de bots encendidos (máximo ${max} a la vez). Espera a que uno se apague solo (30 min sin uso) o reinícialo desde la configuración del bot.`);
+  if (running.length >= TOTAL) throw new Error('El servidor está al máximo de ordenadores de bots encendidos ahora mismo. Inténtalo en unos minutos.');
+}
+
 async function ensure(botId) {
   const n = name(botId);
   lastUsed.set(botId, Date.now());
@@ -33,19 +64,23 @@ async function ensure(botId) {
   const job = (async () => {
     const img = await run(['image', 'inspect', '-f', '{{.Id}}', IMAGE], { timeoutMs: 15_000 });
     if (img.code !== 0) throw new Error('El ordenador de los bots aún no está instalado en el servidor (ejecuta server/update.sh).');
-    const st = await run(['inspect', '-f', '{{.State.Running}} {{.Image}}', n], { timeoutMs: 15_000 });
+    const st = await run(['inspect', '-f', '{{.State.Running}} {{.Image}} {{index .Config.Labels "opencrew.net"}}', n], { timeoutMs: 15_000 });
     if (st.code === 0) {
-      const [running, image] = st.out.trim().split(' ');
-      if (image === img.out.trim()) {
+      const [running, image, net] = st.out.trim().split(' ');
+      if (image === img.out.trim() && net === NET_LABEL.split('=')[1]) {
         if (running === 'true') return;
+        await checkQuota(botId);
         const r = await run(['start', n], { timeoutMs: 30_000 }); if (r.code !== 0) throw new Error(r.err.trim()); return;
       }
-      await run(['rm', '-f', n], { timeoutMs: 30_000 }); // new version of the computer: recreate it (its files stay)
+      await run(['rm', '-f', n], { timeoutMs: 30_000 }); // new version or network: recreate it (its files stay)
     }
+    await checkQuota(botId);
+    await ensureNetwork();
     const r = await run([
       'run', '-d', '--name', n, '--init', '--hostname', 'bot',
       '-v', `${n}:/work`, '--memory', '1536m', '--memory-swap', '1536m', '--cpus', '1', '--pids-limit', '512', '--shm-size', '512m',
-      '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--label', 'opencrew=computer', IMAGE,
+      '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--label', 'opencrew=computer', '--label', NET_LABEL,
+      '--network', NETWORK, '--dns', '1.1.1.1', '--dns', '9.9.9.9', IMAGE,
     ], { timeoutMs: 60_000 });
     if (r.code !== 0) throw new Error(r.err.trim() || 'No se pudo arrancar el ordenador');
   })().finally(() => starting.delete(botId));

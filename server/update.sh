@@ -23,6 +23,13 @@ rm -rf web && mv web.new web
 docker pull node:22-alpine >/dev/null
 echo 'Preparando el ordenador de los bots…'
 docker build -q -t opencrew-computer computer >/dev/null
+# Firewall for the bots' computers, applied now and at every boot (after Docker).
+if [ ! -f /etc/systemd/system/opencrew-firewall.service ] || ! cmp -s "$PWD/firewall.sh" /usr/local/sbin/opencrew-firewall.sh; then
+  sudo install -m 755 "$PWD/firewall.sh" /usr/local/sbin/opencrew-firewall.sh
+  printf '[Unit]\nDescription=OpenCrew: firewall for bot computers\nAfter=docker.service\nRequires=docker.service\n\n[Service]\nType=oneshot\nExecStart=/usr/local/sbin/opencrew-firewall.sh\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\n' | sudo tee /etc/systemd/system/opencrew-firewall.service >/dev/null
+  sudo systemctl daemon-reload && sudo systemctl enable opencrew-firewall.service >/dev/null 2>&1
+fi
+sudo /usr/local/sbin/opencrew-firewall.sh >/dev/null
 docker compose up -d --build
 # Caddy keeps the old Caddyfile after git replaces it: restart it so changes apply.
 docker compose restart caddy >/dev/null
