@@ -57,6 +57,8 @@ services:
       - OPENCREW_HOST=${OPENCREW_HOST}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The built app (same files as GitHub Pages), served from this server.
+      - ./web:/srv/web:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

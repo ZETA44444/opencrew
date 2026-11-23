@@ -13,6 +13,10 @@ grep -q '^LAUNCHER_KEY=' .env || printf 'LAUNCHER_KEY=%s\n' "$(openssl rand -hex
 # The main server runs as an unprivileged user (uid 1000): it must own its data.
 [ -z "$(sudo find data ! -uid 1000 -print -quit)" ] || sudo chown -R 1000:1000 data
 [ "$(stat -c %u data-puente)" = 1002 ] || sudo chown -R 1002:1002 data-puente
+# The built app, published on the gh-pages branch, also served from this server.
+git -C .. fetch -q origin gh-pages
+rm -rf web.new && mkdir web.new && git -C .. archive origin/gh-pages | tar -x -C web.new
+rm -rf web && mv web.new web
 docker pull node:22-alpine >/dev/null
 echo 'Preparando el ordenador de los bots…'
 docker build -q -t opencrew-computer computer >/dev/null

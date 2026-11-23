@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import Markdown from './Markdown.jsx';
 
@@ -22,8 +22,19 @@ function parseCsv(text) {
 
 // Bot-made HTML runs in a sandboxed iframe with an opaque origin: it can draw charts and run its own
 // scripts, but it cannot read your keys, chats or anything else of this app.
+// It loads a separate tiny page (artifact.html) that has its own rules, so the app itself can keep
+// a strict Content-Security-Policy.
 function HtmlPreview({ html }) {
-  return <iframe className="artifact-frame" title="Vista previa" sandbox="allow-scripts allow-modals" srcDoc={html} />;
+  const ref = useRef(null);
+  useEffect(() => {
+    const onMsg = (e) => {
+      if (e.source !== ref.current?.contentWindow || e.data?.type !== 'opencrew-artifact-ready') return;
+      e.source.postMessage({ type: 'opencrew-artifact', html }, '*');
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, [html]);
+  return <iframe ref={ref} key={html.length} className="artifact-frame" title="Vista previa" sandbox="allow-scripts allow-modals" src="./artifact.html" />;
 }
 
 export default function ArtifactViewer({ botId, name, onClose }) {

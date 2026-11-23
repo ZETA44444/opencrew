@@ -11,9 +11,28 @@
 			flush_interval -1
 		}
 	}
-	handle {
+	# The app's API, webhooks and sign-in callbacks.
+	@api path /api/* /hooks/* /oauth/*
+	handle @api {
 		reverse_proxy opencrew:8787 {
 			flush_interval -1
 		}
+	}
+	# The page that shows bot-made HTML files: isolated, with its own (looser) rules.
+	handle /artifact.html {
+		root * /srv/web
+		header Content-Security-Policy "default-src 'none'; script-src 'unsafe-inline' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src https: data:; media-src https: data: blob:"
+		file_server
+	}
+	# The app itself, from the same address as its API (secure session cookies, strict rules).
+	handle {
+		root * /srv/web
+		header Content-Security-Policy "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-src 'self' https://accounts.google.com; media-src 'self' blob: data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		header Referrer-Policy strict-origin-when-cross-origin
+		header Permissions-Policy "camera=(), geolocation=(), microphone=(self)"
+		header /sw.js Cache-Control "no-cache"
+		header /index.html Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
 	}
 }
