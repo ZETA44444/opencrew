@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, serverMode } from '../api.js';
 import GatewayConnectors from './GatewayConnectors.jsx';
+import ExtensionSection from './ExtensionSection.jsx';
 
 export default function ConnectorsModal({ connectors, services = {}, bots = [], onClose }) {
   const [ghToken, setGhToken] = useState('');
@@ -171,6 +172,8 @@ export default function ConnectorsModal({ connectors, services = {}, bots = [], 
             )}
             {nErr && <div className="small run-error">{nErr}</div>}
           </div>
+
+          <ExtensionSection />
 
           <GatewayConnectors connectors={connectors} bots={bots} />
         </div>

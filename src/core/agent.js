@@ -4,6 +4,7 @@ import { callModel, providerById, fallbackModels, shouldFallBack } from './provi
 import { toolsFor, runTool, describeCall } from './tools.js';
 import { broadcast } from './events.js';
 import { notify } from './notify.js';
+import { logActivity, DEVICE_TOOL } from './activity.js';
 import { needsApproval, requestApproval } from './approvals.js';
 import { recordUsage, checkBudget, monthCost } from './usage.js';
 import { recordModelResult, recordFallback, recentlyDown } from './health.js';
@@ -262,7 +263,9 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
             }
             // Unattended routines don't wait forever: no answer in 30 min = denied.
             const decision = await requestApproval({ call, bot, threadId, label: describeCall(call), signal, timeoutMs: source === 'routine' ? 30 * 60_000 : 0 });
+            call.approval = decision;
             if (decision === 'deny') {
+              if (DEVICE_TOOL.test(call.name)) logActivity({ bot, tool: call.name, label: describeCall(call), args: call.args, result: 'Denegado por ti', status: 'denied', approval: 'deny' });
               out = 'El usuario NO ha dado permiso para esta acción. No la hagas ni la intentes de otra forma; díselo y sigue con lo demás.';
               update(s, { status: 'error', label: `${describeCall(call)} — denegado`, waiting: false, detail: 'Denegado por ti' });
               convo.push({ role: 'tool', toolCallId: call.id, name: call.name, content: out });
@@ -272,10 +275,12 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
           }
           out = await runTool(call, ctx);
           update(s, { status: 'done', detail: out.slice(0, 600) });
+          if (DEVICE_TOOL.test(call.name)) logActivity({ bot, tool: call.name, label: describeCall(call), args: call.args, result: out, status: /^Error/.test(out) ? 'error' : 'ok', approval: call.approval || 'siempre' });
         } catch (e) {
           if (signal.aborted) { update(s, { status: 'error', detail: 'Detenido' }); throw stopped(); }
           out = `Error: ${e.message}`;
           update(s, { status: 'error', detail: out });
+          if (DEVICE_TOOL.test(call.name)) logActivity({ bot, tool: call.name, label: describeCall(call), args: call.args, result: out, status: 'error', approval: call.approval || null });
         }
         convo.push({ role: 'tool', toolCallId: call.id, name: call.name, content: out });
       }

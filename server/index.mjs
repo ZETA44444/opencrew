@@ -6,8 +6,9 @@ import { readFile, writeFile, rename, mkdir, stat, statfs, readdir, copyFile, un
 import { createHash, createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 import { runInSandbox } from './sandbox.mjs';
 import { computer } from './computer.mjs';
+import { extension, handleExtensionUpgrade } from './extension-link.mjs';
 
-const VERSION = '0.16.0';
+const VERSION = '0.17.0';
 const PORT = Number(process.env.PORT) || 8787;
 const TOKEN = process.env.OPENCREW_TOKEN || '';
 const DATA = (process.env.OPENCREW_DATA || new URL('./data/', import.meta.url).pathname).replace(/\/?$/, '/');
@@ -51,6 +52,7 @@ globalThis.OPENCREW_STORAGE = {
 };
 globalThis.OPENCREW_RUN_JS = runInSandbox;
 globalThis.OPENCREW_COMPUTER = computer;
+globalThis.OPENCREW_EXT = extension;
 // OpenCrew Puente (your ChatGPT/Claude subscriptions), if installed next to this server.
 if (process.env.OPENCREW_BRIDGE_URL) globalThis.OPENCREW_BRIDGE = { url: process.env.OPENCREW_BRIDGE_URL.replace(/\/$/, ''), token: process.env.OPENCREW_BRIDGE_TOKEN || TOKEN };
 globalThis.OPENCREW_GOOGLE_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
@@ -104,6 +106,15 @@ const extra = {
     if (!r.ok) throw new Error(`El Puente respondió ${r.status}`);
     return r.json();
   },
+  // Pair the browser extension: a separate key just for it (shown once, revocable).
+  async extensionPair() {
+    const k = randomBytes(24).toString('hex');
+    store.getDb().keys.extensionKey = k;
+    store.save();
+    return { key: k };
+  },
+  async extensionRevoke() { delete store.getDb().keys.extensionKey; store.save(); return { ok: true }; },
+  async extensionStatus() { return { paired: !!store.getDb().keys.extensionKey, connected: extension.connected(), info: extension.info() }; },
   async computerControl(botId, on) { return computer.setControl(botId, !!on); },
   async computerInControl(botId) { return computer.inControl(botId); },
   async serverInfo() {
@@ -256,6 +267,13 @@ function wsFrame(data, opcode = 2) {
 server.on('upgrade', async (req, socket) => {
   const url = new URL(req.url, 'http://x');
   const fail = (code, text) => { socket.end(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); };
+  if (url.pathname === '/api/ext') {
+    const { getDb } = store;
+    return handleExtensionUpgrade(req, socket, url, () => getDb().keys.extensionKey || '', async () => {
+      const { broadcast } = await import('../src/core/events.js');
+      broadcast({ type: 'connectors' });
+    });
+  }
   if (url.pathname !== '/api/computer/vnc') return fail(404, 'Not Found');
   const origin = req.headers.origin;
   if (origin && !ORIGINS.includes(origin)) return fail(403, 'Forbidden');

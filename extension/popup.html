@@ -1,0 +1,17 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>OpenCrew</title>
+<style>
+body{width:340px;margin:0;padding:14px;background:#0b0b0c;color:#ededed;font:13px/1.45 system-ui,sans-serif}
+h1{font-size:15px;margin:0 0 8px}.muted{color:#a1a1aa}label{display:block;margin:8px 0 3px;color:#a1a1aa}
+input,textarea{width:100%;box-sizing:border-box;background:#1c1c1e;border:1px solid #2a2a2d;color:#ededed;border-radius:8px;padding:7px 9px;font:inherit}
+textarea{height:64px;resize:vertical}button{font:inherit;border:1px solid #2a2a2d;background:#1c1c1e;color:#ededed;border-radius:999px;padding:6px 12px;cursor:pointer;margin-top:10px}
+button.primary{background:#ededed;color:#0b0b0c;font-weight:600}.pill{display:inline-block;padding:2px 9px;border-radius:999px;background:#1c1c1e;font-size:12px}.ok{background:#12301f;color:#86efac}.err{background:#3b1414;color:#fca5a5}
+</style></head><body>
+<h1>🤖 OpenCrew — tu navegador</h1>
+<div>Estado: <span id="st" class="pill">…</span> <span id="er" class="muted"></span></div>
+<p class="muted">Tus bots solo pueden usar tus pestañas si les das permiso en OpenCrew, y cada acción te lo pide (o la permites «siempre»). Nunca escriben contraseñas ni datos de tarjeta.</p>
+<label>Dirección de tu servidor</label><input id="server" placeholder="https://tu-servidor">
+<label>Código de emparejamiento (OpenCrew → Apps conectadas → Tu navegador)</label><input id="key" type="password" placeholder="Código">
+<label>Webs prohibidas para los bots (separadas por comas)</label><textarea id="block"></textarea>
+<button class="primary" id="save">Guardar y conectar</button> <button id="pause"></button>
+<script src="popup.js"></script>
+</body></html>

@@ -3,7 +3,7 @@ import { api, serverMode } from '../api.js';
 import { remoteConfig } from '../remote.js';
 import Markdown from './Markdown.jsx';
 
-const TABS = [['progress', 'Progreso'], ['routines', 'Rutinas'], ['memory', 'Memoria'], ['artifacts', 'Archivos']];
+const TABS = [['progress', 'Progreso'], ['routines', 'Rutinas'], ['memory', 'Memoria'], ['artifacts', 'Archivos'], ['activity', 'Actividad']];
 
 export default function RightPanel({ bot, state, steps, pinned, onUnpin, artifactsTick, refresh, onClose, onOpenArtifact }) {
   const [tab, setTab] = useState('progress');
@@ -28,6 +28,7 @@ export default function RightPanel({ bot, state, steps, pinned, onUnpin, artifac
         )}
         {current === 'memory' && <Memory bot={bot} bots={state.bots} globalMemory={state.globalMemory || []} projects={(state.projects || []).filter((p) => p.botIds.includes(bot.id))} refresh={refresh} />}
         {current === 'artifacts' && <Artifacts bot={bot} tick={artifactsTick} onOpen={onOpenArtifact} />}
+        {current === 'activity' && <Activity bot={bot} />}
       </div>
     </aside>
   );
@@ -404,6 +405,31 @@ function Artifacts({ bot, tick, onOpen }) {
           <button className="icon-btn" onClick={() => confirm(`¿Borrar ${f.name}?`) && api.deleteArtifact(bot.id, f.name).then(load)} title="Borrar">×</button>
         </div>
       ))}
+    </div>
+  );
+}
+
+// Everything this bot did on your devices (your browser, its computer), with the permission it had.
+const STATUS = { ok: '✓', error: '⚠️', denied: '⛔' };
+function Activity({ bot }) {
+  const [list, setList] = useState(null);
+  const load = () => api.activity(bot.id).then(setList).catch(() => setList([]));
+  useEffect(() => {
+    load();
+    return api.subscribe((ev) => { if (ev.type === 'activity' && (!ev.botId || ev.botId === bot.id)) load(); });
+  }, [bot.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!list) return <p className="muted small">Cargando…</p>;
+  if (!list.length) return <p className="muted">Aquí queda registrado todo lo que {bot.name} hace en tu navegador y en su ordenador: qué, cuándo y con qué permiso.</p>;
+  return (
+    <div className="activity">
+      {list.map((a) => (
+        <div key={a.id} className={`card activity-item ${a.status}`}>
+          <div className="card-row"><span>{STATUS[a.status] || '•'} {a.label}</span><span className="muted small">{new Date(a.at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
+          <div className="muted small">{a.approval === 'deny' ? 'Denegado por ti' : a.approval === 'always' || a.approval === 'siempre' ? 'Permitido siempre' : a.approval === 'once' ? 'Permitido una vez' : ''}</div>
+          {a.result && a.status !== 'denied' && <details className="small"><summary className="muted">Resultado</summary><div className="activity-result">{a.result}</div></details>}
+        </div>
+      ))}
+      <button className="btn small ghost" onClick={() => confirm('¿Borrar el registro de este bot?') && api.clearActivity(bot.id).then(load)}>Borrar registro</button>
     </div>
   );
 }

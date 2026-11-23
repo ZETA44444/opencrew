@@ -556,3 +556,7 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .quota-bar > div { height: 100%; background: #22c55e; border-radius: 999px; transition: width .3s; }
 .quota-bar > div.warm { background: #eab308; }
 .quota-bar > div.hot { background: #ef4444; }
+
+.activity { display: flex; flex-direction: column; gap: 6px; }
+.activity-item.denied { opacity: .7; }
+.activity-result { white-space: pre-wrap; word-break: break-word; background: var(--bg-3); border-radius: 8px; padding: 6px 8px; margin-top: 4px; max-height: 160px; overflow: auto; }

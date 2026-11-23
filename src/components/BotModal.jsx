@@ -46,7 +46,7 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
   const submit = async () => {
     setErr('');
     try {
-      const payload = { name: f.name, title: f.title, description: f.description, instructions: f.instructions, color: f.color, shape: f.shape, provider: f.provider, model: f.model, tools: f.tools, toolsKnown: tools, starred: f.starred, connectors: f.connectors !== false, monthlyLimit: f.monthlyLimit || null, delegation: f.delegation || null, autoFallback: f.autoFallback !== false, computer: !!f.computer };
+      const payload = { name: f.name, title: f.title, description: f.description, instructions: f.instructions, color: f.color, shape: f.shape, provider: f.provider, model: f.model, tools: f.tools, toolsKnown: tools, starred: f.starred, connectors: f.connectors !== false, monthlyLimit: f.monthlyLimit || null, delegation: f.delegation || null, autoFallback: f.autoFallback !== false, computer: !!f.computer, userBrowser: !!f.userBrowser };
       const saved = isNew ? await api.createBot(payload) : await api.updateBot(bot.id, payload);
       onSaved(saved);
     } catch (e) { setErr(e.message); }
@@ -137,6 +137,12 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
             ))}
             <label className="check"><input type="checkbox" checked={f.autoFallback !== false} onChange={(e) => set({ autoFallback: e.target.checked })} /> Si el modelo falla, probar otro automáticamente</label>
             <label className="check"><input type="checkbox" checked={f.connectors !== false} onChange={(e) => set({ connectors: e.target.checked })} /> Usar apps conectadas (MCP)</label>
+            {serverMode && (
+              <div className="computer-opt">
+                <label className="check"><input type="checkbox" checked={!!f.userBrowser} onChange={(e) => set({ userBrowser: e.target.checked })} /> 🧭 Puede usar mi navegador (con la extensión de OpenCrew)</label>
+                <div className="muted small">Leer tus pestañas, abrir webs, hacer clic y escribir. Cada acción te pide permiso y queda en su pestaña «Actividad».</div>
+              </div>
+            )}
             {serverMode && (
               <div className="computer-opt">
                 <label className="check"><input type="checkbox" checked={!!f.computer} onChange={(e) => set({ computer: e.target.checked })} /> 🖥 Darle su propio ordenador (terminal y navegador en tu servidor)</label>

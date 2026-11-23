@@ -12,6 +12,7 @@ import { connectGoogle, storeGoogleToken, disconnectGoogle, updateGoogle, google
 import { transcribeBase64 } from './core/transcribe.js';
 import { notionWhoAmI } from './core/notion.js';
 import { liveSetup } from './core/livevoice.js';
+import { activity, clearActivity } from './core/activity.js';
 import { openArtifactFile } from './artifactFile.js';
 import { usageRows, priceFor, setPrice, clearUsage, monthCost } from './core/usage.js';
 import { healthRows, clearHealth } from './core/health.js';
@@ -22,7 +23,7 @@ import { addConnector, refreshConnector, updateConnector, removeConnector } from
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
 import { askPermission, notifyPermission, notify } from './core/notify.js';
 
-const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown', 'connectors', 'monthlyLimit', 'delegation', 'autoFallback', 'sharedMemory', 'computer'];
+const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown', 'connectors', 'monthlyLimit', 'delegation', 'autoFallback', 'sharedMemory', 'computer', 'userBrowser'];
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled', 'catchUp'];
 const GROUP_FIELDS = ['name', 'memberIds'];
 const PROJECT_FIELDS = ['name', 'description', 'color', 'botIds', 'groupIds', 'memory'];
@@ -290,6 +291,8 @@ export const localApi = {
   googleServerAuthUrl,
   async transcribeAudio(data, mime, lang) { return transcribeBase64(data, mime, lang); },
   liveSetup,
+  async activity(botId) { return clone(activity().filter((a) => !botId || a.botId === botId).slice(0, 200)); },
+  async clearActivity(botId) { clearActivity(botId); return { ok: true }; },
   // The bot's computer on your server: state and a clean reset (deletes its files).
   async computerStatus(botId) { return globalThis.OPENCREW_COMPUTER ? globalThis.OPENCREW_COMPUTER.status(botId) : 'unavailable'; },
   async resetComputer(botId) { await globalThis.OPENCREW_COMPUTER?.remove(botId); return { ok: true }; },

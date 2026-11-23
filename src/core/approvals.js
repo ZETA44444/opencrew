@@ -20,6 +20,12 @@ export const SENSITIVE = {
   notion_append: 'Añadir contenido a una página de Notion',
   computer_terminal: 'Ejecutar un comando en su ordenador',
   computer_browser: 'Usar su navegador',
+  mi_navegador_pestanas: 'Ver tus pestañas abiertas',
+  mi_navegador_leer: 'Leer una pestaña de tu navegador',
+  mi_navegador_abrir: 'Abrir una web en tu navegador',
+  mi_navegador_clic: 'Hacer clic en tu navegador',
+  mi_navegador_escribir: 'Escribir en tu navegador',
+  mi_navegador_captura: 'Hacer una captura de tu navegador',
   set_bot_limit: 'Cambiar el límite de gasto de un bot',
 };
 

@@ -7,6 +7,8 @@ const remote = execSync('git remote get-url origin').toString().trim();
 
 run('npx vite build');
 fs.writeFileSync('dist/.nojekyll', '');
+// The browser extension, ready to download from the app (Apps conectadas → Tu navegador).
+run('zip -qr ../dist/opencrew-extension.zip .', 'extension');
 fs.rmSync('dist/.git', { recursive: true, force: true });
 run('git init -q -b gh-pages', 'dist');
 run('git add -A', 'dist');

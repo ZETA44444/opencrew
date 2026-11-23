@@ -54,7 +54,7 @@ Reglas para cada tarea:
 - [x] GitHub (con token personal): issues, PRs, repos
 - [x] Gmail y Google Calendar (inicio de sesión con Google en el navegador): buscar y leer correos, borradores, enviar, ver la agenda y crear eventos. Enviar y crear piden permiso; puedes elegir qué bots tienen acceso. También hay vigilante de Gmail.
   - Mientras la app esté en modo «Prueba» en Google Cloud, solo pueden entrar los correos añadidos como **usuarios de prueba**, y Google mostrará el aviso «app no verificada» (pulsa *Continuar*). La sesión dura 1 hora.
-- [ ] ⏸ Notion — **la API de Notion no admite conexiones directas desde el navegador** (bloquea CORS). Dos caminos:
+- [x] Notion (hecho en la Fase 11 a través del servidor) — **la API de Notion no admite conexiones directas desde el navegador** (bloquea CORS). Dos caminos:
   - Usar un servidor MCP de Notion que permita navegador y conectarlo en «Apps conectadas» (ya funciona).
   - O esperar a la Fase 7 (servidor opcional), que hará de puente con tu token de integración de Notion.
 
@@ -90,7 +90,7 @@ Reglas para cada tarea:
 
 - [x] Vigilantes sin IA: comprueban cada poco si hay algo nuevo (GitHub, una web, un RSS, correo cuando haya Gmail) **sin usar el modelo**, y solo despiertan al bot si hay novedades
 - [x] Filtros: «solo si el correo es de X» o «solo issues con la etiqueta bug»
-- [ ] ⏸ Webhooks de verdad (aviso instantáneo de Gmail, Slack, GitHub) → necesitan el servidor de la Fase 11
+- [x] Webhooks de verdad (hecho en la Fase 11: vigilante «Webhook»)
 
 ## Fase 10 — Llamadas de voz en tiempo real
 
@@ -131,9 +131,9 @@ Reglas para cada tarea:
 
 ## Fase 12 — Control de tu navegador y tu ordenador (con permisos)
 
-- [ ] Extensión de navegador de OpenCrew: el bot puede leer y actuar en tus pestañas, pidiendo permiso por acción
+- [x] Extensión de navegador de OpenCrew (Chrome/Brave): el bot lee tus pestañas, abre webs, hace clic, escribe y captura, pidiendo permiso por acción; nunca contraseñas ni tarjetas; webs prohibidas (bancos y pagos por defecto); emparejada con un código propio revocable
 - [ ] App de escritorio con acceso a archivos y terminal, con permisos por bot y por carpeta
-- [ ] Registro de todo lo que ha hecho cada bot en tu equipo
+- [x] Registro de todo lo que ha hecho cada bot en tu navegador y en su ordenador (pestaña «Actividad»: qué, cuándo, con qué permiso y resultado)
 
 ## Fase 13 — Cuentas y salas multijugador (requiere servidor)
 

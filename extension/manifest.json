@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "OpenCrew — tu navegador",
+  "version": "1.0.0",
+  "description": "Deja que tus bots de OpenCrew lean y usen tus pestañas, siempre con tu permiso.",
+  "permissions": ["tabs", "scripting", "storage", "alarms"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "OpenCrew", "default_popup": "popup.html" },
+  "icons": { "128": "icon.png" }
+}
