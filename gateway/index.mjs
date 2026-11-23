@@ -172,6 +172,44 @@ async function auth(req, res, path) {
   return send(res, 404, { error: 'No encontrado' });
 }
 
+// ---------- your data (GDPR): download everything, or delete the account and its space ----------
+async function engineCall(uid, method, args = []) {
+  const r = await fetch(`${engineUrl(uid)}/api/rpc`, { method: 'POST', headers: { authorization: `Bearer ${engineToken(uid)}`, 'content-type': 'application/json' }, body: JSON.stringify({ method, args }), signal: AbortSignal.timeout(60_000) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error) throw new Error(j.error || `Tu espacio respondió ${r.status}`);
+  return j.result;
+}
+async function removeUser(u) {
+  const r = await fetch(`${LAUNCHER}/engineRemove`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-launcher-key': LAUNCHER_KEY }, body: JSON.stringify({ tenant: u.id, deleteData: true }), signal: AbortSignal.timeout(120_000) });
+  if (!r.ok) throw new Error('No se pudo borrar el espacio del usuario; inténtalo de nuevo');
+  db.users = db.users.filter((x) => x.id !== u.id);
+  for (const [k, v] of Object.entries(db.sessions)) if (v.uid === u.id) delete db.sessions[k];
+  for (const inv of Object.values(db.invites)) if (inv.usedBy === u.id) inv.usedBy = 'cuenta borrada';
+  await save();
+}
+async function account(req, res, path, user) {
+  if (!user) return send(res, 401, { error: 'Inicia sesión', login: true });
+  if (path === '/api/account/export' && req.method === 'GET') {
+    await ensureEngine(user.id);
+    const data = await engineCall(user.id, 'exportData', [{ includeKeys: false }]);
+    const out = { account: { ...publicUser(user), exportedAt: new Date().toISOString() }, ...data };
+    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'content-disposition': `attachment; filename="opencrew-mis-datos-${new Date().toISOString().slice(0, 10)}.json"` });
+    return res.end(JSON.stringify(out, null, 2));
+  }
+  if (path === '/api/account/delete' && req.method === 'POST') {
+    if (!fromApp(req)) return send(res, 403, { error: 'Prohibido' });
+    if (user.role === 'owner') return send(res, 400, { error: 'La cuenta del administrador no se borra desde aquí' });
+    if (limited(`delete:${user.id}`, 5, 15 * 60_000)) return send(res, 429, { error: 'Demasiados intentos; espera 15 minutos' });
+    const b = await body(req);
+    if (b.confirm !== 'BORRAR') return send(res, 400, { error: 'Escribe BORRAR para confirmar' });
+    if (!(await checkPassword(String(b.password || ''), user.hash))) return send(res, 401, { error: 'La contraseña no es correcta' });
+    await removeUser(user);
+    res.setHeader('set-cookie', 'oc_sid=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0');
+    return send(res, 200, { ok: true });
+  }
+  return send(res, 404, { error: 'No encontrado' });
+}
+
 async function admin(req, res, path, user) {
   if (user?.role !== 'owner') return send(res, 403, { error: 'Solo el administrador' });
   if (path === '/api/admin/users' && req.method === 'GET') return send(res, 200, { users: db.users.map((u) => ({ ...publicUser(u), disabled: !!u.disabled })), invites: Object.values(db.invites).map(({ note, exp, usedBy, at }) => ({ note, exp, usedBy, at })) });
@@ -182,6 +220,12 @@ async function admin(req, res, path, user) {
     db.invites[createHash('sha256').update(code).digest('hex')] = { note: String(b.note || '').slice(0, 80), at: Date.now(), exp: Date.now() + 14 * 864e5 };
     await save();
     return send(res, 200, { code, url: `https://${HOST}/?invitacion=${code}` });
+  }
+  if (path === '/api/admin/delete') {
+    const u = db.users.find((x) => x.id === b.id && x.role !== 'owner');
+    if (!u) return send(res, 404, { error: 'No encontrado' });
+    await removeUser(u);
+    return send(res, 200, { ok: true });
   }
   if (path === '/api/admin/disable') {
     const u = db.users.find((x) => x.id === b.id && x.role !== 'owner');
@@ -219,6 +263,7 @@ const server = http.createServer(async (req, res) => {
       return proxyTo(req, res, PUENTE, OWNER_TOKEN, req.url);
     }
     if (path.startsWith('/api/admin/')) return await admin(req, res, path, user);
+    if (path.startsWith('/api/account/')) return await account(req, res, path, user);
     if (!user) return send(res, 401, { error: 'Inicia sesión', login: true });
     if (req.method === 'POST' && !fromApp(req)) return send(res, 403, { error: 'Prohibido' });
     if (limited(`rpc:${user.id}`, 600, 60_000)) return send(res, 429, { error: 'Demasiadas peticiones seguidas. Espera un momento.' });

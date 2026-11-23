@@ -17,6 +17,7 @@ export default function AccountSection() {
   const [admin, setAdmin] = useState(null);
   const [invite, setInvite] = useState(null);
   const [note, setNote] = useState('');
+  const [del, setDel] = useState(null); // { password, confirm }
   const loadAdmin = () => call('admin/users').then(setAdmin).catch(() => {});
   useEffect(() => { if (me?.role === 'owner') loadAdmin(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (!me) return null;
@@ -44,6 +45,26 @@ export default function AccountSection() {
         <button className="btn small ghost" onClick={logout}>Cerrar sesión</button>
       </div>
 
+      <div className="section-title">Tus datos</div>
+      <div className="muted small">Descarga una copia de todo lo tuyo (bots, chats, memoria, archivos, rutinas…) en un archivo. Tus claves de API no se incluyen.</div>
+      <div className="settings-actions">
+        <a className="btn small" href="./api/account/export" download>Descargar todos mis datos</a>
+        {me.role !== 'owner' && !del && <button className="btn small ghost danger" onClick={() => setDel({ password: '', confirm: '' })}>Borrar mi cuenta…</button>}
+      </div>
+      {del && (
+        <div className="key-row">
+          <div className="small"><b>Esto borra para siempre</b> tu cuenta, tus bots, chats, memoria, archivos, claves y los ordenadores de tus bots. No se puede deshacer: descarga antes tus datos si los quieres.</div>
+          <div className="grid2">
+            <label>Tu contraseña<input type="password" autoComplete="current-password" value={del.password} onChange={(e) => setDel({ ...del, password: e.target.value })} /></label>
+            <label>Escribe BORRAR<input value={del.confirm} onChange={(e) => setDel({ ...del, confirm: e.target.value })} /></label>
+          </div>
+          <div className="card-actions">
+            <button className="btn small danger" disabled={del.confirm !== 'BORRAR' || !del.password} onClick={async () => { try { await call('account/delete', del); location.reload(); } catch (e) { setMsg(e.message); } }}>Borrar mi cuenta para siempre</button>
+            <button className="btn small ghost" onClick={() => setDel(null)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
       {me.role === 'owner' && admin && (
         <>
           <div className="section-title">Usuarios e invitaciones</div>
@@ -57,7 +78,10 @@ export default function AccountSection() {
             {admin.users.map((u) => (
               <div key={u.id} className="mem-item">
                 <span><b>{u.email}</b> · {u.role === 'owner' ? 'administrador' : `plan ${u.plan}`} · desde {new Date(u.createdAt).toLocaleDateString('es-ES')}{u.disabled ? ' · desactivado' : ''}</span>
-                {u.role !== 'owner' && <button className="btn small ghost" onClick={async () => { await call('admin/disable', { id: u.id, disabled: !u.disabled }); loadAdmin(); }}>{u.disabled ? 'Reactivar' : 'Desactivar'}</button>}
+                {u.role !== 'owner' && <span className="row-actions">
+                  <button className="btn small ghost" onClick={async () => { await call('admin/disable', { id: u.id, disabled: !u.disabled }); loadAdmin(); }}>{u.disabled ? 'Reactivar' : 'Desactivar'}</button>
+                  <button className="btn small ghost danger" onClick={async () => { if (prompt(`Para borrar ${u.email} y todos sus datos, escribe BORRAR`) !== 'BORRAR') return; await call('admin/delete', { id: u.id }); loadAdmin(); }}>Borrar</button>
+                </span>}
               </div>
             ))}
           </div>
