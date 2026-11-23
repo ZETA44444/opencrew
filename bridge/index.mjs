@@ -162,9 +162,16 @@ const server = http.createServer(async (req, res) => {
       const c = String(code || '').replace(/\s+/g, '');
       if (c.length < 10) return send(res, 400, { error: { message: 'Ese código parece incompleto: cópialo entero desde la página de Claude.' } });
       l.output = ''; l.screen = '';
-      l.proc.stdin.write(`${c}\r`);
+      // Type the code, then press Enter apart: sent together, Claude takes a long code as a
+      // paste and the Enter as part of it (the code stays in the box, never submitted).
+      l.proc.stdin.write(c);
       l.state = 'checking';
       l.checkingSince = Date.now();
+      const proc = l.proc;
+      const enter = () => { if (logins.claude === l && l.state === 'checking' && proc.exitCode === null) proc.stdin.write('\r'); };
+      setTimeout(enter, 800);
+      // If nothing happened (no «Finishing sign-in», no answer), press Enter once more.
+      setTimeout(() => { if (!/Finishing|token|error|accepted/i.test(l.screen)) enter(); }, 5000);
       return send(res, 200, { ok: true });
     }
     if (path === '/api/logout' && req.method === 'POST') {
