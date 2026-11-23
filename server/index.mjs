@@ -3,7 +3,7 @@
 // No dependencies: Node 22+ only.
 import http from 'node:http';
 import { readFile, writeFile, rename, mkdir, stat, statfs, readdir, copyFile, unlink } from 'node:fs/promises';
-import { createHash, createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual, randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
 import { runInSandbox, computer } from './launcher-client.mjs';
 import { extension, desktop } from './extension-link.mjs';
 
@@ -17,6 +17,27 @@ const MAX_BODY = 30 * 1024 * 1024;
 if (TOKEN.length < 24) {
   console.error('Falta OPENCREW_TOKEN (al menos 24 caracteres). Genera uno con: openssl rand -hex 32');
   process.exit(1);
+}
+
+// ---------- encryption at rest: your keys, chats and backups are unreadable without the master key ----------
+// The master key (OPENCREW_SECRET_KEY, 64 hex chars) lives in server/.env, outside the data folder and its backups.
+const MASTER = /^[0-9a-f]{64}$/i.test(process.env.OPENCREW_SECRET_KEY || '') ? Buffer.from(process.env.OPENCREW_SECRET_KEY, 'hex') : null;
+if (!MASTER) console.warn('⚠️ Sin OPENCREW_SECRET_KEY: los datos se guardan sin cifrar.');
+function seal(text) {
+  if (!MASTER) return text;
+  const iv = randomBytes(12);
+  const c = createCipheriv('aes-256-gcm', MASTER, iv);
+  const data = Buffer.concat([c.update(text, 'utf8'), c.final()]);
+  return JSON.stringify({ opencrew: 'sealed-v1', iv: iv.toString('base64'), tag: c.getAuthTag().toString('base64'), data: data.toString('base64') });
+}
+function unseal(raw) {
+  let box;
+  try { box = JSON.parse(raw); } catch { return raw; }
+  if (box?.opencrew !== 'sealed-v1') return raw; // old unencrypted file: it gets encrypted on the next save
+  if (!MASTER) throw new Error('Los datos están cifrados y falta OPENCREW_SECRET_KEY');
+  const d = createDecipheriv('aes-256-gcm', MASTER, Buffer.from(box.iv, 'base64'));
+  d.setAuthTag(Buffer.from(box.tag, 'base64'));
+  return Buffer.concat([d.update(Buffer.from(box.data, 'base64')), d.final()]).toString('utf8');
 }
 
 // ---------- storage: one JSON file, written atomically, with a daily backup (last 7 kept) ----------
@@ -36,12 +57,14 @@ async function dailyBackup() {
 globalThis.OPENCREW_STORAGE = {
   kind: 'file',
   async load() {
-    try { return JSON.parse(await readFile(FILE, 'utf8')); } catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+    let raw;
+    try { raw = await readFile(FILE, 'utf8'); } catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+    return JSON.parse(unseal(raw));
   },
   async save(obj) {
     await dailyBackup();
     const tmp = `${FILE}.tmp`;
-    await writeFile(tmp, JSON.stringify(obj));
+    await writeFile(tmp, seal(JSON.stringify(obj)), { mode: 0o600 });
     await rename(tmp, FILE);
   },
   async usage() {
@@ -67,6 +90,7 @@ process.on('unhandledRejection', (e) => console.error('Error sin capturar:', e))
 
 const store = await import('../src/core/store.js');
 await store.ready;
+if (MASTER) await store.saveNow(); // encrypt an old plain file right away
 const { subscribe } = await import('../src/core/events.js');
 const { localApi } = await import('../src/localApi.js');
 const { watchers } = await import('../src/core/watchers.js');
