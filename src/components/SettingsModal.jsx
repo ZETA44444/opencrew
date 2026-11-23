@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, serverMode } from '../api.js';
 import ServerSection from './ServerSection.jsx';
+import { isAdvanced } from '../uimode.js';
+import { hostedInfo } from '../remote.js';
 import { remoteConfig } from '../remote.js';
 import { voices as listVoices, speechSupported, dictationSupported, speak } from '../voice.js';
 
@@ -14,6 +16,7 @@ export default function SettingsModal({ providers, settings, services, sensitive
   const saveTavily = async (value) => { await api.saveKeys({ tavily: value }); setHasTavily(!!value); setTavily(''); onSaved(); };
   const [webReader, setWebReader] = useState(settings?.webReader !== false);
   const [proactive, setProactive] = useState(settings?.proactive !== false);
+  const [advanced, setAdvanced] = useState(isAdvanced(settings));
   const [voice, setVoice] = useState(settings?.voice || { voiceName: '', rate: 1, autoSpeak: false });
   const [voiceList, setVoiceList] = useState(() => listVoices());
   useEffect(() => {
@@ -88,11 +91,15 @@ export default function SettingsModal({ providers, settings, services, sensitive
           <button className="icon-btn" onClick={onClose} aria-label="Cerrar">×</button>
         </div>
         <div className="modal-body">
+          <label className="check mode-toggle">
+            <input type="checkbox" checked={advanced} onChange={(e) => { setAdvanced(e.target.checked); api.updateSettings({ uiMode: e.target.checked ? 'advanced' : 'basic' }).then(onSaved); }} />
+            Modo avanzado <span className="muted small">— muestra las opciones técnicas (servidor, Puente, búsqueda, conexiones MCP, delegación…)</span>
+          </label>
           <p className="muted small">
             Pega aquí tus propias API keys. Se guardan <b>{serverMode ? 'solo en tu servidor' : 'solo en este navegador'}</b> y solo se envían al proveedor de IA
             correspondiente cuando un bot lo usa. Después, en cada bot, elige qué modelo usa.
           </p>
-          {list.filter((p) => !p.noKey && !p.bridge).map((p) => {
+          {list.filter((p) => !p.noKey && !p.bridge && (advanced || ['gemini', 'anthropic', 'openai'].includes(p.id) || p.hasKey)).map((p) => {
             const t = tests[p.id];
             return (
               <div key={p.id} className="key-row">
@@ -123,6 +130,7 @@ export default function SettingsModal({ providers, settings, services, sensitive
               </div>
             );
           })}
+          {advanced && (
           <div className="key-row">
             <div className="key-head"><strong>Ollama (modelos locales gratis)</strong><span className="pill ok">sin clave</span></div>
             <div className="muted small">
@@ -130,7 +138,9 @@ export default function SettingsModal({ providers, settings, services, sensitive
               <code>OLLAMA_ORIGINS="*" ollama serve</code>. Luego elige «Ollama» en el bot.
             </div>
           </div>
+          )}
 
+          {advanced && <>
           <div className="section-title">Búsqueda en internet</div>
           <div className="muted small">
             Los bots buscan con la mejor opción que tengas: <b>Tavily</b> → <b>Gemini + Google</b> → <b>Claude</b> → DuckDuckGo sin clave.
@@ -163,6 +173,7 @@ export default function SettingsModal({ providers, settings, services, sensitive
           </label>
           <div className="muted small">Usa una llamada corta a su modelo como mucho cada 12 horas.</div>
 
+          </>}
           <div className="section-title">Memoria automática</div>
           <label className="check">
             <input type="checkbox" checked={settings?.autoMemory !== false} onChange={(e) => { api.updateSettings({ autoMemory: e.target.checked }); onSaved(); }} />
@@ -240,8 +251,8 @@ export default function SettingsModal({ providers, settings, services, sensitive
             </>
           )}
 
-          <ServerSection />
-          {(list || []).some((p) => p.id === 'puente') && (() => {
+          {(advanced || hostedInfo()) && <ServerSection />}
+          {advanced && (list || []).some((p) => p.id === 'puente') && (() => {
             const pu = list.find((p) => p.id === 'puente');
             const t = tests.puente;
             const models = pu.models || [];

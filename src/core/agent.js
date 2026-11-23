@@ -5,6 +5,7 @@ import { toolsFor, runTool, describeCall } from './tools.js';
 import { broadcast } from './events.js';
 import { notify } from './notify.js';
 import { logActivity, DEVICE_TOOL } from './activity.js';
+import { errorMarkdown } from './errors.js';
 import { needsApproval, requestApproval } from './approvals.js';
 import { recordUsage, checkBudget, monthCost } from './usage.js';
 import { recordModelResult, recordFallback, recentlyDown } from './health.js';
@@ -301,7 +302,7 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
       step({ kind: 'stopped', label: 'Detenido por el usuario', status: 'error' });
     } else {
       error = e.message;
-      final = `⚠️ ${e.message}`;
+      final = errorMarkdown(e, providerById(bot.provider === 'auto' ? (String(e.message).split(/[\s:]/)[0] || '').toLowerCase() : bot.provider)?.label || String(e.message).split(/\s\d{3}:/)[0] || 'El modelo');
       step({ kind: 'error', label: e.message, status: 'error' });
       if (e.budget) notify({ kind: 'routine', threadId, title: `💸 ${bot.name}: límite de gasto alcanzado`, body: e.message });
     }

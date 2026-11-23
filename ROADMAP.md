@@ -39,9 +39,9 @@ marca con ⏸ y sus pasos.
 ## Fase C — Experiencia para un usuario nuevo
 
 - [x] C1 · Bienvenida guiada: para qué lo quieres → con qué piensan (clave gratis de Gemini paso a paso, suscripciones o demo) → equipo de plantillas → primera tarea en un clic
-- [ ] C2 · Modo Básico por defecto y Avanzado aparte (sin jerga: MCP, webhooks, tokens…)
+- [x] C2 · Modo Básico por defecto para usuarios nuevos (Ajustes de 9 a 5 secciones, editor de bots con opciones avanzadas plegadas, sin Skills/Puente/Ollama) y Avanzado con un interruptor; los usuarios existentes siguen en Avanzado
 - [ ] C3 · Ajustes divididos (Cuenta, Modelos, Apps, Privacidad, Avanzado) y diálogos propios en lugar de `confirm`/`alert`
-- [ ] C4 · Mensajes de error que dicen qué hacer (nada de «401» o «429»)
+- [x] C4 · Errores de los modelos explicados: qué ha pasado y qué hacer, con el detalle técnico aparte
 - [ ] C5 · Inglés y español
 - [ ] C6 · Web de producto: qué es, ejemplos, precios, privacidad y contacto
 

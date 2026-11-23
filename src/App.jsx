@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, serverMode } from './api.js';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import Welcome from './components/Welcome.jsx';
+import { isAdvanced } from './uimode.js';
 import { lazy, Suspense } from 'react';
 const ComputerViewer = lazy(() => import('./components/ComputerViewer.jsx'));
 import Sidebar from './components/Sidebar.jsx';
@@ -175,7 +176,7 @@ export default function App() {
         connectorsCount={state.connectors.filter((c) => c.enabled && c.status === 'ok').length + (state.services.github ? 1 : 0)}
         onConnectors={() => setModal({ type: 'connectors' })}
         onUsage={() => setModal({ type: 'usage' })}
-        onSkills={() => setModal({ type: 'skills' })}
+        onSkills={isAdvanced(state.settings) ? () => setModal({ type: 'skills' }) : null}
         busy={state.busy}
         selectedId={selectedId}
         onSelect={(id) => { setSelectedId(id); setNavOpen(false); }}
@@ -251,6 +252,7 @@ export default function App() {
       <ErrorBoundary inline key={modal?.type || 'none'} onReset={() => setModal(null)}>
       {modal?.type === 'bot' && (
         <BotModal
+          advanced={isAdvanced(state.settings)}
           bot={modal.bot}
           providers={state.providers}
           tools={state.tools}

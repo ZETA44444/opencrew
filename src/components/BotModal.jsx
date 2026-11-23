@@ -24,7 +24,8 @@ const TOOL_LABELS = {
   update_bot: 'Configurar otros bots',
 };
 
-export default function BotModal({ bot, providers, tools, onClose, onSaved, onDeleted }) {
+export default function BotModal({ bot, providers, tools, advanced = true, onClose, onSaved, onDeleted }) {
+  const [showAdv, setShowAdv] = useState(advanced);
   const isNew = !bot;
   const firstWithKey = providers.find((p) => !p.noKey && p.hasKey);
   const MANAGER = ['create_bot', 'update_bot'];
@@ -106,7 +107,7 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
           <div className="grid2">
             <label>Proveedor
               <select value={f.provider} onChange={(e) => { const p = providers.find((x) => x.id === e.target.value); set({ provider: p.id, model: p.defaultModel }); }}>
-                {providers.map((p) => <option key={p.id} value={p.id}>{p.label}{p.hasKey ? '' : ' (sin clave)'}</option>)}
+                {providers.filter((p) => showAdv || p.id === f.provider || (p.hasKey && p.id !== 'ollama')).map((p) => <option key={p.id} value={p.id}>{p.label}{p.hasKey ? '' : ' (sin clave)'}</option>)}
               </select>
             </label>
             <label>Modelo
@@ -115,6 +116,9 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
             </label>
           </div>
           {provider && !provider.hasKey && <div className="banner small">Este proveedor aún no tiene API key. Añádela en Ajustes.</div>}
+          {!showAdv && <button type="button" className="link small" onClick={() => setShowAdv(true)}>Mostrar opciones avanzadas (límite de gasto, delegación, herramientas, ordenador…)</button>}
+          {showAdv && (
+          <>
           <label>Límite de gasto al mes (USD) <span className="hint">Vacío = sin límite. Al llegar, el bot se para y te avisa.{!isNew && ` Este mes: ${Number(bot.monthCost || 0).toFixed(2)} $.`}</span>
             <input type="number" min="0" step="0.5" placeholder="Sin límite" value={f.monthlyLimit ?? ''} onChange={(e) => set({ monthlyLimit: e.target.value === '' ? null : Number(e.target.value) })} />
           </label>
@@ -156,6 +160,8 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
             )}
             <label className="check"><input type="checkbox" checked={!!f.starred} onChange={(e) => set({ starred: e.target.checked })} /> ★ Bot principal</label>
           </div>
+          </>
+          )}
           {err && <div className="banner error">{err}</div>}
         </div>
         <div className="modal-foot">

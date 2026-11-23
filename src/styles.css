@@ -590,3 +590,4 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .welcome-tasks { display: flex; flex-direction: column; gap: 6px; }
 .welcome-card textarea { width: 100%; }
 .welcome-card .modal-foot { padding: 0; border: 0; }
+.mode-toggle { padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--bg-2); }
