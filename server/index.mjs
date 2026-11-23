@@ -342,7 +342,9 @@ server.on('upgrade', async (req, socket) => {
   }
   if (url.pathname !== '/api/computer/vnc') return fail(404, 'Not Found');
   const origin = req.headers.origin;
-  if (origin && !ORIGINS.includes(origin)) return fail(403, 'Forbidden');
+  // Allowed: the app's known addresses, or the app served by this same server (hosted mode, via the gateway).
+  const sameOrigin = origin && [req.headers['x-forwarded-host'], req.headers.host].filter(Boolean).some((h) => origin === `https://${h}`);
+  if (origin && !ORIGINS.includes(origin) && !sameOrigin) { console.error('Pantalla: origen no permitido', origin); return fail(403, 'Forbidden'); }
   const t = viewTickets.get(url.searchParams.get('ticket') || '');
   viewTickets.delete(url.searchParams.get('ticket') || '');
   if (!t || t.exp < Date.now()) return fail(401, 'Unauthorized');
