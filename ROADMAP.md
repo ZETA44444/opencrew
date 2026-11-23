@@ -32,7 +32,7 @@ marca con ⏸ y sus pasos.
 - [ ] B1 · Dominio propio para la app y el servidor (H1) ⏸ comprar dominio — mientras tanto la app ya se sirve desde el servidor (mismo origen, CSP estricta)
 - [x] B2 · Pasarela con cuentas (correo y contraseña, invitaciones, administrador con código del servidor), sesiones con cookie segura, CSRF y CSP. Pendiente: enlace mágico y recuperar contraseña por correo ⏸ elegir proveedor de correo
 - [x] B3 · Un motor aislado por usuario (contenedor propio sin privilegios, volumen y clave de cifrado propios). Pendiente: dormir motores sin uso y despertarlos para rutinas
-- [ ] B4 · Ordenadores de bots por usuario (hecho: nombres y clave del lanzador por usuario; falta: red aislada por usuario, proxy de salida y cuotas) (H6)
+- [x] B4 · Ordenadores de bots aislados: red propia sin comunicación entre ellos, cortafuegos (sin acceso interno, al servidor ni a metadatos; correo bloqueado), límites por usuario y en total, clave del lanzador por usuario (H6)
 - [x] B5 · Exportar y borrar la cuenta (RGPD) y panel básico de usuarios e invitaciones (el administrador también puede borrar usuarios)
 - [x] B6 · El Puente solo para el administrador del servidor (pasa por la pasarela); los demás usuarios no pueden abrirlo
 

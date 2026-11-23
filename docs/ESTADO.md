@@ -22,6 +22,7 @@ Auditoría y modelo de negocio: [AUDITORIA.md](AUDITORIA.md). Cómo repetir la a
 | `opencrew` (`server/index.mjs`) | Motor del dueño (usuario `owner`), sin privilegios, datos cifrados en `server/data` |
 | `opencrew-engine-<id>` | Motor aislado por usuario, creado por el lanzador (volumen `opencrew-data-<id>`) |
 | `launcher` (`server/launcher.mjs`) | Único con Docker: ordenadores de bots, sandbox, motores por usuario (operaciones fijas) |
+| red `opencrew-pcs` | Ordenadores de bots: sin comunicación entre ellos; cortafuegos `server/firewall.sh` (servicio `opencrew-firewall`) |
 | `puente` (`bridge/`) | Suscripciones ChatGPT/Claude del dueño (Codex/Claude Code oficiales), solo uso personal |
 
 Otros: `extension/` (extensión Chrome/Brave), `desktop/` (OpenCrew Escritorio para Mac), `server/computer/`
@@ -40,7 +41,8 @@ Otros: `extension/` (extensión Chrome/Brave), `desktop/` (OpenCrew Escritorio p
 - Fase A (seguridad): A1–A6 hechas (SSRF, sin root + lanzador, datos cifrados, permisos por bot, contenido
   externo no confiable, límites). A7 (copias fuera) pendiente de elegir destino.
 - Fase B (multiusuario): app servida por el servidor con CSP; pasarela con cuentas e invitaciones; motor aislado
-  por usuario; Puente solo para el dueño. Cuenta de administrador ya creada por el usuario.
+  por usuario; Puente solo para el dueño; exportar/borrar cuenta (B5); ordenadores aislados con cortafuegos y
+  límites (B4). Cuenta de administrador ya creada por el usuario. Pendiente: B1 (dominio), B3 (dormir motores).
 
 ## Pendiente que necesita al usuario
 
