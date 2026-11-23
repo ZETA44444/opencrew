@@ -9,12 +9,32 @@ services:
     env_file: .env
     volumes:
       - ./data:/data
-      # Used only to start throwaway, network-less containers for run_javascript.
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - OPENCREW_BRIDGE_URL=http://puente:8790/v1
+      - LAUNCHER_URL=http://launcher:8788
+    # No privileges, no Docker, read-only system: bot computers are requested to the launcher.
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     expose:
       - "8787"
+    depends_on:
+      - launcher
+  # The only container with Docker access: creates bot computers and code sandboxes with fixed, safe settings.
+  launcher:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile.launcher
+    restart: unless-stopped
+    environment:
+      - LAUNCHER_KEY=${LAUNCHER_KEY}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    expose:
+      - "8788"
   # OpenCrew Puente: your ChatGPT / Claude subscriptions (sign in at https://<host>/puente/).
   puente:
     build: ../bridge

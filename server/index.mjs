@@ -4,8 +4,7 @@
 import http from 'node:http';
 import { readFile, writeFile, rename, mkdir, stat, statfs, readdir, copyFile, unlink } from 'node:fs/promises';
 import { createHash, createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
-import { runInSandbox } from './sandbox.mjs';
-import { computer } from './computer.mjs';
+import { runInSandbox, computer } from './launcher-client.mjs';
 import { extension, desktop } from './extension-link.mjs';
 
 const VERSION = '0.18.0';

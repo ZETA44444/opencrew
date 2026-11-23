@@ -7,6 +7,10 @@ cd "$(dirname "$0")/.."
 git pull --ff-only
 cd server
 mkdir -p data-puente
+# Secret between the main server and the launcher (created once).
+grep -q '^LAUNCHER_KEY=' .env || printf 'LAUNCHER_KEY=%s\n' "$(openssl rand -hex 32)" >> .env
+# The main server runs as an unprivileged user (uid 1000): it must own its data.
+[ "$(stat -c %u data)" = 1000 ] || sudo chown -R 1000:1000 data
 [ "$(stat -c %u data-puente)" = 1002 ] || sudo chown -R 1002:1002 data-puente
 docker pull node:22-alpine >/dev/null
 echo 'Preparando el ordenador de los bots…'
