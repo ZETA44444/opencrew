@@ -571,7 +571,7 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .row-actions { display: inline-flex; gap: 6px; }
 
 /* First-run welcome */
-.modal-backdrop.welcome { z-index: 150; }
+.modal-backdrop.welcome-modal { z-index: 150; }
 .welcome-card { max-width: 560px; padding: 22px; display: flex; flex-direction: column; gap: 12px; }
 .welcome-card h2 { margin: 0; font-size: 21px; }
 .welcome-card p { margin: 0; }
@@ -602,3 +602,4 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .settings-tabs { overflow-x: auto; scrollbar-width: none; flex-shrink: 0; }
 .settings-tabs button { white-space: nowrap; }
 .modal.settings-modal { height: min(680px, 92dvh); }
+.welcome-lang { width: auto; }

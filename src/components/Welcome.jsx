@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import { TEMPLATE_CATEGORIES } from '../templates.js';
+import { getLang, setLang, LANGS } from '../i18n/index.js';
 
 // First run: what do you want it for → how it will think → your team → first task.
 // Goal: something useful in under 3 minutes, without knowing what an «API key» is.
@@ -67,7 +68,7 @@ export default function Welcome({ state, onDone }) {
   };
 
   return (
-    <div className="modal-backdrop welcome">
+    <div className="modal-backdrop welcome-modal">
       <div className="modal welcome-card">
         <div className="welcome-steps">{[1, 2, 3, 4].map((n) => <span key={n} className={n <= step ? 'on' : ''} />)}</div>
 
@@ -84,6 +85,9 @@ export default function Welcome({ state, onDone }) {
             </div>
             <div className="modal-foot">
               <button className="btn ghost" onClick={() => finish()}>Saltar</button>
+              <select className="notranslate welcome-lang" aria-label="Idioma · Language" value={getLang()} onChange={(e) => { const v = e.target.value; api.updateSettings({ lang: v }).catch(() => {}).finally(() => setLang(v)); }}>
+                {LANGS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+              </select>
               <span className="spacer" />
               <button className="btn primary" disabled={!purpose} onClick={() => setStep(hasKey || puente ? 3 : 2)}>Siguiente</button>
             </div>
@@ -113,7 +117,7 @@ export default function Welcome({ state, onDone }) {
         {step === 3 && (
           <>
             <h2>Tu equipo</h2>
-            <p className="muted">Atlas coordina y reparte el trabajo. Estos son los especialistas que vamos a añadir para «{purpose.label.toLowerCase()}»:</p>
+            <p className="muted">Atlas coordina y reparte el trabajo. Estos son los especialistas que vamos a añadir para «{purpose.label}»:</p>
             <div className="welcome-team">
               {purpose.team.map((name) => { const t = allTemplates.find((x) => x.name === name); return t && (
                 <div key={name} className="welcome-bot"><span className="welcome-dot" style={{ background: t.color }} /><div><b>{t.name}</b> · {t.title}<div className="muted small">{t.description}</div></div></div>

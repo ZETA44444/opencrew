@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { DialogHost } from './dialog.jsx';
+import { startI18n } from './i18n/index.js';
 import { ready } from './core/store.js';
 import { setHosted } from './remote.js';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
@@ -17,6 +18,7 @@ async function detectHosted() {
 
 const root = createRoot(document.getElementById('root'));
 (async () => {
+  await startI18n().catch(() => {});
   const hosted = await detectHosted();
   if (hosted && !hosted.user) {
     const { default: Login } = await import('./components/Login.jsx');

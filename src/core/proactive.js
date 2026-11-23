@@ -50,7 +50,8 @@ export async function refreshSuggestions({ force = false } = {}) {
       messages: [{
         role: 'user',
         content: `${context(bot)}\n\nPropón 3 tareas que podríais hacer ahora por mí, adaptadas a lo que sabes. ` +
-          'Responde SOLO con un array JSON: [{"title":"texto corto para un botón","prompt":"el encargo completo, como si te lo pidiera yo"}]',
+          'Responde SOLO con un array JSON: [{"title":"texto corto para un botón","prompt":"el encargo completo, como si te lo pidiera yo"}]' +
+          (d.settings?.lang === 'en' ? ' Escribe los títulos y los encargos en inglés.' : ''),
       }],
     });
     const items = parse(res.text);

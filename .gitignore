@@ -10,3 +10,4 @@ server/data/
 server/.env
 server/data-puente/
 server/data-gateway/
+src/i18n/missing.json

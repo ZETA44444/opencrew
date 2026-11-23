@@ -3,6 +3,7 @@ import { api, serverMode } from '../api.js';
 import ServerSection from './ServerSection.jsx';
 import { isAdvanced } from '../uimode.js';
 import { ask } from '../dialog.jsx';
+import { getLang, setLang, LANGS } from '../i18n/index.js';
 import { hostedInfo } from '../remote.js';
 import { remoteConfig } from '../remote.js';
 import { voices as listVoices, speechSupported, dictationSupported, speak } from '../voice.js';
@@ -193,6 +194,11 @@ export default function SettingsModal({ providers, settings, services, sensitive
 
           </>}
           {tab === 'preferencias' && <>
+          <label>Idioma · Language
+            <select className="notranslate" value={getLang()} onChange={(e) => { const v = e.target.value; api.updateSettings({ lang: v }).catch(() => {}).finally(() => setLang(v)); }}>
+              {LANGS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+            </select>
+          </label>
           <div className="section-title">Memoria automática</div>
           <label className="check">
             <input type="checkbox" checked={settings?.autoMemory !== false} onChange={(e) => { api.updateSettings({ autoMemory: e.target.checked }); onSaved(); }} />
