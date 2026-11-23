@@ -12,7 +12,7 @@ const PORT = Number(process.env.PORT) || 8790;
 const TOKEN = process.env.BRIDGE_TOKEN || '';
 const MAX_RUNNING = Number(process.env.BRIDGE_CONCURRENCY) || 2;
 if (TOKEN.length < 24) { console.error('Falta BRIDGE_TOKEN (al menos 24 caracteres)'); process.exit(1); }
-await mkdir(HOME, { recursive: true });
+await mkdir(join(HOME, '.codex'), { recursive: true }); // Codex refuses to start if its folder doesn't exist
 
 const hash = (s) => createHash('sha256').update(String(s)).digest();
 const authorized = (req) => { const m = /^Bearer (.+)$/.exec(req.headers.authorization || ''); return !!m && timingSafeEqual(hash(m[1]), hash(TOKEN)); };
