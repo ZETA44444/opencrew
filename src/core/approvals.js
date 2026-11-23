@@ -37,12 +37,16 @@ export const SENSITIVE = {
 
 const pending = new Map(); // id -> { meta, resolve, reject }
 
+// «Permitir siempre» is remembered per bot AND tool (key «botId:tool»), never for every bot at once.
 const settings = () => {
   const s = getDb().settings;
   s.approvals ??= { enabled: true, always: {} };
   s.approvals.always ??= {};
+  // Older versions stored it per tool for all bots: forget those (each bot will ask once again).
+  for (const k of Object.keys(s.approvals.always)) if (!k.includes(':')) delete s.approvals.always[k];
   return s.approvals;
 };
+const alwaysKey = (botId, tool) => `${botId}:${tool}`;
 
 // MCP tools that declare themselves read-only don't need approval; the rest do.
 export function isSensitive(name) {
@@ -61,10 +65,10 @@ export function isSensitive(name) {
   return false;
 }
 
-export function needsApproval(call) {
+export function needsApproval(call, bot) {
   const a = settings();
   if (a.enabled === false) return false;
-  if (a.always[call.name]) return false;
+  if (bot && a.always[alwaysKey(bot.id, call.name)]) return false;
   return isSensitive(call.name);
 }
 
@@ -86,7 +90,7 @@ export function resolveApproval(id, decision) {
   const p = pending.get(id);
   if (!p) return;
   if (decision === 'always') {
-    settings().always[p.meta.tool] = { label: p.meta.label, at: now() };
+    settings().always[alwaysKey(p.meta.botId, p.meta.tool)] = { label: p.meta.label, botName: p.meta.botName, tool: p.meta.tool, at: now() };
     save();
   }
   p.resolve(decision);
@@ -94,8 +98,8 @@ export function resolveApproval(id, decision) {
 
 export const pendingApprovals = () => [...pending.values()].map((p) => p.meta);
 
-export function revokeAlways(tool) {
-  delete settings().always[tool];
+export function revokeAlways(key) {
+  delete settings().always[key];
   save();
   broadcast({ type: 'bots' });
 }

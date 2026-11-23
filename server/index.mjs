@@ -7,7 +7,7 @@ import { createHash, createHmac, timingSafeEqual, randomBytes, createCipheriv, c
 import { runInSandbox, computer } from './launcher-client.mjs';
 import { extension, desktop } from './extension-link.mjs';
 
-const VERSION = '0.18.0';
+const VERSION = '0.19.0';
 const PORT = Number(process.env.PORT) || 8787;
 const TOKEN = process.env.OPENCREW_TOKEN || '';
 const DATA = (process.env.OPENCREW_DATA || new URL('./data/', import.meta.url).pathname).replace(/\/?$/, '/');

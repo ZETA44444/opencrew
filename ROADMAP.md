@@ -22,7 +22,7 @@ marca con ⏸ y sus pasos.
 - [x] A1 · SSRF: resolver DNS y bloquear IPs internas en fetch_url, vigilantes, RSS e imágenes (también tras redirecciones), y nombres internos de Docker (C3)
 - [x] A2 · Servidor sin root y Docker solo a través de un proxy que únicamente permite los contenedores de OpenCrew (C2)
 - [x] A3 · Claves y tokens cifrados en disco y en las copias (H2)
-- [ ] A4 · «Permitir siempre» por bot y no global; revocar desde Ajustes (H3)
+- [x] A4 · «Permitir siempre» por bot y no global; revocar desde Ajustes (H3)
 - [ ] A5 · Contenido externo marcado como no confiable; enviar/borrar exige permiso si la tarea leyó contenido externo (H4)
 - [ ] A6 · Límites de peticiones por IP y por usuario en el servidor (H5)
 - [ ] A7 · Copias de seguridad cifradas fuera del servidor (M3) ⏸ elegir dónde (p. ej. un bucket de almacenamiento)

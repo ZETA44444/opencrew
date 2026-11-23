@@ -175,13 +175,13 @@ export default function SettingsModal({ providers, settings, services, sensitive
             <input type="checkbox" checked={settings?.approvals?.enabled !== false} onChange={(e) => { api.setApprovalsEnabled(e.target.checked); onSaved(); }} />
             Pedirme permiso antes de acciones sensibles (crear bots o rutinas, generar imágenes, escribir en GitHub o en apps conectadas)
           </label>
-          {Object.keys(settings?.approvals?.always || {}).length > 0 && (
+          {Object.keys(settings?.approvals?.always || {}).some((k) => k.includes(':')) && (
             <div className="always-list">
-              <div className="muted small">Permitido siempre:</div>
-              {Object.entries(settings.approvals.always).map(([tool, v]) => (
-                <div key={tool} className="mem-item">
-                  <span>{sensitiveTools[tool] || v.label || tool}</span>
-                  <button className="btn small ghost" onClick={() => { api.revokeAlways(tool); onSaved(); }}>Volver a preguntar</button>
+              <div className="muted small">Permitido siempre (cada permiso vale solo para ese bot):</div>
+              {Object.entries(settings.approvals.always).filter(([k]) => k.includes(':')).map(([k, v]) => (
+                <div key={k} className="mem-item">
+                  <span><b>{v.botName || 'Bot'}</b> · {sensitiveTools[v.tool || k.split(':')[1]] || v.label || k}</span>
+                  <button className="btn small ghost" onClick={() => { api.revokeAlways(k); onSaved(); }}>Volver a preguntar</button>
                 </div>
               ))}
             </div>

@@ -256,7 +256,7 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
         let out;
         try {
           // Sensitive action: stop and ask you first.
-          if (needsApproval(call)) {
+          if (needsApproval(call, bot)) {
             update(s, { label: `Esperando tu permiso: ${describeCall(call)}`, waiting: true });
             if (typeof document !== 'undefined' && document.hidden) {
               notify({ kind: 'routine', threadId, title: `🔐 ${bot.name} necesita tu permiso`, body: describeCall(call) });
