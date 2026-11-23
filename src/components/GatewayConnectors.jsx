@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api, serverMode } from '../api.js';
+import { ask } from '../dialog.jsx';
 
 // Gateways: one address that gives your bots hundreds of apps (you connect the apps on the gateway's website).
 const GATEWAYS = {
@@ -122,7 +123,7 @@ export default function GatewayConnectors({ connectors, bots }) {
             <div className="card-actions">
               <button className="btn small ghost" onClick={() => { setOpen(open === c.id ? null : c.id); setFilter(''); }}>{open === c.id ? 'Cerrar opciones' : 'Bots y herramientas'}</button>
               <button className="btn small" disabled={busy === c.id} onClick={() => refresh(c.id)}>{busy === c.id ? 'Conectando…' : 'Actualizar'}</button>
-              <button className="btn small ghost danger" onClick={() => confirm(`¿Quitar ${c.name}?`) && api.removeConnector(c.id)}>Quitar</button>
+              <button className="btn small ghost danger" onClick={async () => await ask(`¿Quitar ${c.name}?`) && api.removeConnector(c.id)}>Quitar</button>
             </div>
           </div>
         );

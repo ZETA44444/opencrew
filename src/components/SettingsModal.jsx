@@ -2,11 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import { api, serverMode } from '../api.js';
 import ServerSection from './ServerSection.jsx';
 import { isAdvanced } from '../uimode.js';
+import { ask } from '../dialog.jsx';
 import { hostedInfo } from '../remote.js';
 import { remoteConfig } from '../remote.js';
 import { voices as listVoices, speechSupported, dictationSupported, speak } from '../voice.js';
 
-export default function SettingsModal({ providers, settings, services, sensitiveTools = {}, onClose, onSaved }) {
+const TABS = [
+  ['modelos', 'Modelos'], ['cuenta', 'Cuenta y datos'], ['apps', 'Apps'], ['preferencias', 'Preferencias'], ['privacidad', 'Privacidad'], ['avanzado', 'Avanzado'],
+];
+
+export default function SettingsModal({ providers, settings, services, sensitiveTools = {}, onClose, onSaved, onConnectors, initialTab = 'modelos' }) {
+  const [tab, setTab] = useState(initialTab);
   const [keys, setKeys] = useState({});
   const [list, setList] = useState(providers);
   const [tests, setTests] = useState({});
@@ -74,7 +80,7 @@ export default function SettingsModal({ providers, settings, services, sensitive
     if (!file) return;
     try {
       const json = JSON.parse(await file.text());
-      if (!confirm('Esto reemplaza tus bots, chats y rutinas actuales por los de la copia. ¿Seguir?')) return;
+      if (!await ask('Esto reemplaza tus bots, chats y rutinas actuales por los de la copia. ¿Seguir?', { okLabel: 'Reemplazar', danger: true })) return;
       await api.importData(json);
       setBackupMsg('Copia restaurada.');
       onSaved();
@@ -85,16 +91,23 @@ export default function SettingsModal({ providers, settings, services, sensitive
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal wide">
+      <div className="modal wide settings-modal">
         <div className="modal-head">
-          <h3>Ajustes y claves</h3>
+          <h3>Ajustes</h3>
           <button className="icon-btn" onClick={onClose} aria-label="Cerrar">×</button>
         </div>
+        <div className="tabs settings-tabs" role="tablist">
+          {TABS.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>)}
+        </div>
         <div className="modal-body">
+          {tab === 'avanzado' && <>
           <label className="check mode-toggle">
             <input type="checkbox" checked={advanced} onChange={(e) => { setAdvanced(e.target.checked); api.updateSettings({ uiMode: e.target.checked ? 'advanced' : 'basic' }).then(onSaved); }} />
             Modo avanzado <span className="muted small">— muestra las opciones técnicas (servidor, Puente, búsqueda, conexiones MCP, delegación…)</span>
           </label>
+          {!advanced && <div className="muted small">Con el modo avanzado apagado, la app muestra solo lo esencial. Enciéndelo para ver aquí la búsqueda en internet y, en otras pestañas, el servidor, el Puente y Ollama.</div>}
+          </>}
+          {tab === 'modelos' && <>
           <p className="muted small">
             Pega aquí tus propias API keys. Se guardan <b>{serverMode ? 'solo en tu servidor' : 'solo en este navegador'}</b> y solo se envían al proveedor de IA
             correspondiente cuando un bot lo usa. Después, en cada bot, elige qué modelo usa.
@@ -139,8 +152,9 @@ export default function SettingsModal({ providers, settings, services, sensitive
             </div>
           </div>
           )}
+          </>}
 
-          {advanced && <>
+          {tab === 'avanzado' && advanced && <>
           <div className="section-title">Búsqueda en internet</div>
           <div className="muted small">
             Los bots buscan con la mejor opción que tengas: <b>Tavily</b> → <b>Gemini + Google</b> → <b>Claude</b> → DuckDuckGo sin clave.
@@ -158,14 +172,18 @@ export default function SettingsModal({ providers, settings, services, sensitive
               {hasTavily && <button className="btn small ghost" onClick={() => saveTavily('')}>Quitar</button>}
             </div>
           </div>
+          </>}
 
+          {tab === 'privacidad' && <>
           <div className="section-title">Lectura de páginas web</div>
           <label className="check">
             <input type="checkbox" checked={webReader} onChange={(e) => { setWebReader(e.target.checked); api.updateSettings({ webReader: e.target.checked }); }} />
             Usar el lector público r.jina.ai cuando una web no deja leerse desde el navegador
           </label>
           <div className="muted small">La mayoría de webs bloquean que otra página las lea. Si lo desactivas, los bots solo podrán leer webs que lo permitan.</div>
+          </>}
 
+          {tab === 'preferencias' && advanced && <>
           <div className="section-title">Bot principal proactivo</div>
           <label className="check">
             <input type="checkbox" checked={proactive} onChange={(e) => { setProactive(e.target.checked); api.updateSettings({ proactive: e.target.checked }); }} />
@@ -174,13 +192,16 @@ export default function SettingsModal({ providers, settings, services, sensitive
           <div className="muted small">Usa una llamada corta a su modelo como mucho cada 12 horas.</div>
 
           </>}
+          {tab === 'preferencias' && <>
           <div className="section-title">Memoria automática</div>
           <label className="check">
             <input type="checkbox" checked={settings?.autoMemory !== false} onChange={(e) => { api.updateSettings({ autoMemory: e.target.checked }); onSaved(); }} />
             Al chatear, los bots me proponen qué recordar (no guardan nada sin mi aprobación)
           </label>
           <div className="muted small">Usa el modelo más barato que tengas y solo cada varios mensajes o cuando dices algo como «me llamo…» o «prefiero…».</div>
+          </>}
 
+          {tab === 'privacidad' && <>
           <div className="section-title">Permisos</div>
           <label className="check">
             <input type="checkbox" checked={settings?.approvals?.enabled !== false} onChange={(e) => { api.setApprovalsEnabled(e.target.checked); onSaved(); }} />
@@ -197,7 +218,9 @@ export default function SettingsModal({ providers, settings, services, sensitive
               ))}
             </div>
           )}
+          </>}
 
+          {tab === 'preferencias' && <>
           <div className="section-title">Voz</div>
           <div className="muted small">
             {dictationSupported ? 'Pulsa el micrófono junto a la caja de texto para dictar. ' : 'Tu navegador no permite dictar (prueba con Chrome o Edge). '}
@@ -251,8 +274,14 @@ export default function SettingsModal({ providers, settings, services, sensitive
             </>
           )}
 
-          {(advanced || hostedInfo()) && <ServerSection />}
-          {advanced && (list || []).some((p) => p.id === 'puente') && (() => {
+          </>}
+
+          {tab === 'cuenta' && (advanced || hostedInfo()) && <ServerSection />}
+          {tab === 'apps' && <>
+            <div className="muted small">Conecta tus apps (Gmail, Calendar, Notion, GitHub…), tu navegador y tu ordenador para que los bots trabajen con ellos. Cada acción sensible te pedirá permiso.</div>
+            <div className="settings-actions"><button className="btn small primary" onClick={() => { onClose(); onConnectors?.(); }}>Abrir conexiones</button></div>
+          </>}
+          {tab === 'modelos' && advanced && (list || []).some((p) => p.id === 'puente') && (() => {
             const pu = list.find((p) => p.id === 'puente');
             const t = tests.puente;
             const models = pu.models || [];
@@ -284,6 +313,7 @@ export default function SettingsModal({ providers, settings, services, sensitive
             );
           })()}
 
+          {tab === 'cuenta' && <>
           <div className="section-title">Copia de seguridad</div>
           <div className="muted small">Tus bots, chats y rutinas viven en {serverMode ? 'tu servidor' : 'este navegador'}. Descarga una copia para no perderlos o para pasarlos a otro ordenador.</div>
           <div className="settings-actions">
@@ -298,11 +328,12 @@ export default function SettingsModal({ providers, settings, services, sensitive
               {storage.used != null && ` · usando ${mb(storage.used)} de ${mb(storage.quota)} disponibles`}
             </div>
           )}
+          </>}
         </div>
         <div className="modal-foot">
           <span className="spacer" />
           <button className="btn ghost" onClick={onClose}>Cerrar</button>
-          <button className="btn primary" onClick={save} disabled={saving || !Object.values(keys).some(Boolean)}>Guardar claves</button>
+          {tab === 'modelos' && <button className="btn primary" onClick={save} disabled={saving || !Object.values(keys).some(Boolean)}>Guardar claves</button>}
         </div>
       </div>
     </div>

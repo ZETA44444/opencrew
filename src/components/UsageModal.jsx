@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import Avatar from './Avatar.jsx';
 import SubscriptionsUsage from './SubscriptionsUsage.jsx';
+import { ask } from '../dialog.jsx';
 
 const RANGES = [[1, 'Hoy'], [7, '7 días'], [30, '30 días'], [0, 'Todo'], ['subs', 'Suscripciones']];
 const fmtTok = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)} k` : String(n));
@@ -144,7 +145,7 @@ export default function UsageModal({ bots, onClose }) {
           </>}
         </div>
         <div className="modal-foot">
-          <button className="btn ghost danger" onClick={() => confirm('¿Borrar todo el historial de uso?') && api.clearUsage().then(load)}>Borrar historial</button>
+          <button className="btn ghost danger" onClick={async () => await ask('¿Borrar todo el historial de uso?') && api.clearUsage().then(load)}>Borrar historial</button>
           {health.length > 0 && <button className="btn ghost" onClick={() => api.clearHealth().then(load)}>Reiniciar salud</button>}
           <span className="spacer" />
           <button className="btn primary" onClick={onClose}>Cerrar</button>

@@ -234,7 +234,7 @@ textarea { resize: vertical; line-height: 1.45; }
 .btn.full { width: 100%; }
 
 /* ---------- modal ---------- */
-.modal-backdrop { position: fixed; inset: 0; background: #000b; backdrop-filter: blur(4px); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.modal-backdrop { position: fixed; inset: 0; background: #000b; backdrop-filter: blur(4px); display: grid; place-items: center; grid-template-columns: minmax(0, 1fr); z-index: 50; padding: 16px; }
 .modal { width: min(560px, 100%); max-height: calc(100vh - 32px); background: var(--bg-1); border: 1px solid var(--line-2); border-radius: 20px; display: flex; flex-direction: column; box-shadow: 0 30px 80px #000; }
 .modal.wide { width: min(640px, 100%); }
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); }
@@ -571,7 +571,7 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .row-actions { display: inline-flex; gap: 6px; }
 
 /* First-run welcome */
-.welcome { z-index: 150; }
+.modal-backdrop.welcome { z-index: 150; }
 .welcome-card { max-width: 560px; padding: 22px; display: flex; flex-direction: column; gap: 12px; }
 .welcome-card h2 { margin: 0; font-size: 21px; }
 .welcome-card p { margin: 0; }
@@ -591,3 +591,14 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .welcome-card textarea { width: 100%; }
 .welcome-card .modal-foot { padding: 0; border: 0; }
 .mode-toggle { padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--bg-2); }
+
+/* App dialogs (instead of the browser's confirm/alert) */
+.dialog-backdrop { z-index: 200; }
+.modal.dialog { width: min(420px, 100%); }
+.dialog-msg { margin: 0; line-height: 1.5; white-space: pre-wrap; }
+.btn.danger-solid { background: var(--err); color: #fff; border-color: transparent; }
+.btn.danger-solid:disabled { opacity: .45; }
+/* Settings tabs */
+.settings-tabs { overflow-x: auto; scrollbar-width: none; flex-shrink: 0; }
+.settings-tabs button { white-space: nowrap; }
+.modal.settings-modal { height: min(680px, 92dvh); }

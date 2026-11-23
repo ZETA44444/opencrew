@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import Markdown from './Markdown.jsx';
+import { ask } from '../dialog.jsx';
 
 export default function SkillsModal({ skills, onClose }) {
   const [editing, setEditing] = useState(null); // skill being edited, or {} for a new one
@@ -62,7 +63,7 @@ export default function SkillsModal({ skills, onClose }) {
             </>
           ) : viewing ? (
             <>
-              <button className="btn ghost danger" onClick={() => confirm(`¿Borrar la skill «${viewing.name}»?`) && api.deleteSkill(viewing.id).then(() => setViewing(null))}>Borrar</button>
+              <button className="btn ghost danger" onClick={async () => await ask(`¿Borrar la skill «${viewing.name}»?`) && api.deleteSkill(viewing.id).then(() => setViewing(null))}>Borrar</button>
               <span className="spacer" />
               <button className="btn ghost" onClick={() => setViewing(null)}>← Volver</button>
               <button className="btn primary" onClick={() => { setEditing(viewing); setViewing(null); }}>Editar</button>

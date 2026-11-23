@@ -18,6 +18,7 @@ import ConnectorsModal from './components/ConnectorsModal.jsx';
 import UsageModal from './components/UsageModal.jsx';
 import ProjectModal from './components/ProjectModal.jsx';
 import CallOverlay from './components/CallOverlay.jsx';
+import { ask, notify } from './dialog.jsx';
 
 export default function App() {
   const [state, setState] = useState(null);
@@ -140,7 +141,7 @@ export default function App() {
         <div className="muted small">{loadError}</div>
         <div className="card-actions">
           <button className="btn small primary" onClick={refresh}>Reintentar</button>
-          <button className="btn small ghost" onClick={() => { if (confirm('¿Volver a usar los datos de este navegador? Tu servidor sigue funcionando con los suyos.')) { localStorage.removeItem('oc.server'); location.reload(); } }}>Usar este navegador sin servidor</button>
+          <button className="btn small ghost" onClick={async () => { if (await ask('¿Volver a usar los datos de este navegador? Tu servidor sigue funcionando con los suyos.')) { localStorage.removeItem('oc.server'); location.reload(); } }}>Usar este navegador sin servidor</button>
         </div>
       </div>
     );
@@ -186,11 +187,11 @@ export default function App() {
         onEditItem={(item, kind) => setModal(kind === 'group' ? { type: 'group', group: item } : { type: 'bot', bot: item })}
         onDeleteItem={async (item, kind) => {
           const msg = kind === 'group' ? `¿Borrar el grupo ${item.name} y su conversación? Los bots no se borran.` : `¿Borrar ${item.name} y su conversación?`;
-          if (!confirm(msg)) return;
+          if (!await ask(msg)) return;
           try {
             await (kind === 'group' ? api.deleteGroup(item.id) : api.deleteBot(item.id));
             refresh();
-          } catch (e) { alert(`No se pudo borrar: ${e.message}`); }
+          } catch (e) { notify(`No se pudo borrar: ${e.message}`); }
         }}
         noKeys={noKeys}
         onClose={() => setNavOpen(false)}
@@ -308,7 +309,7 @@ export default function App() {
       {modal?.type === 'connectors' && <ConnectorsModal connectors={state.connectors} services={state.services} bots={state.bots} onClose={() => setModal(null)} />}
       {modal?.type === 'skills' && <SkillsModal skills={state.skills} onClose={() => setModal(null)} />}
       {modal?.type === 'settings' && (
-        <SettingsModal providers={state.providers} settings={state.settings} services={state.services} sensitiveTools={state.sensitiveTools} onClose={() => setModal(null)} onSaved={refresh} />
+        <SettingsModal providers={state.providers} settings={state.settings} services={state.services} sensitiveTools={state.sensitiveTools} onClose={() => setModal(null)} onSaved={refresh} onConnectors={() => setModal({ type: 'connectors' })} />
       )}
     </div>
   );

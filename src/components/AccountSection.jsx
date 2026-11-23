@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { hostedInfo } from '../remote.js';
+import { askText } from '../dialog.jsx';
 
 // Ajustes → Cuenta (server with accounts): who you are, password, sign out; the owner also
 // manages invitations and users.
@@ -80,7 +81,7 @@ export default function AccountSection() {
                 <span><b>{u.email}</b> · {u.role === 'owner' ? 'administrador' : `plan ${u.plan}`} · desde {new Date(u.createdAt).toLocaleDateString('es-ES')}{u.disabled ? ' · desactivado' : ''}</span>
                 {u.role !== 'owner' && <span className="row-actions">
                   <button className="btn small ghost" onClick={async () => { await call('admin/disable', { id: u.id, disabled: !u.disabled }); loadAdmin(); }}>{u.disabled ? 'Reactivar' : 'Desactivar'}</button>
-                  <button className="btn small ghost danger" onClick={async () => { if (prompt(`Para borrar ${u.email} y todos sus datos, escribe BORRAR`) !== 'BORRAR') return; await call('admin/delete', { id: u.id }); loadAdmin(); }}>Borrar</button>
+                  <button className="btn small ghost danger" onClick={async () => { if (await askText(`Para borrar ${u.email} y todos sus datos, escribe BORRAR`, { expect: 'BORRAR', okLabel: 'Borrar' }) !== 'BORRAR') return; await call('admin/delete', { id: u.id }); loadAdmin(); }}>Borrar</button>
                 </span>}
               </div>
             ))}

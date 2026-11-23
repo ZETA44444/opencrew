@@ -5,6 +5,7 @@ import { api } from '../api.js';
 import { fmtCost } from './UsageModal.jsx';
 import { readAttachment, packMessage, MAX_FILES } from '../attachments.js';
 import { dictationSupported, startDictation, speak, stopSpeaking, speechSupported, startCloudDictation, cloudDictationAvailable, preferCloudDictation, setDictationMode } from '../voice.js';
+import { ask } from '../dialog.jsx';
 
 export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onCall, onViewComputer, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, missed = [], botsById = {}, onResolveMissed, onOpenArtifact, approvals = [], onResolveApproval, onOpenThread, memProposals = [], inProject = false, onResolveMemory, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
@@ -117,7 +118,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
           </button>
           {onViewComputer && <button className="icon-btn" onClick={onViewComputer} title={`Ver el ordenador de ${bot.name}`} aria-label="Ver su ordenador">🖥</button>}
           <button className="icon-btn" onClick={onEdit} title={isGroup ? 'Editar grupo' : 'Editar bot'}>✎</button>
-          <button className="icon-btn" onClick={() => confirm(`¿Borrar la conversación con ${bot.name}?`) && onClear()} title="Borrar conversación">⌫</button>
+          <button className="icon-btn" onClick={async () => await ask(`¿Borrar la conversación con ${bot.name}?`) && onClear()} title="Borrar conversación">⌫</button>
           <button className="icon-btn" onClick={onTogglePanel} title="Panel lateral">▥</button>
         </div>
       </header>

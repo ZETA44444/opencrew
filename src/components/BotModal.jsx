@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, serverMode } from '../api.js';
 import Avatar, { COLORS, SHAPES } from './Avatar.jsx';
 import { TEMPLATE_CATEGORIES, modelForTier } from '../templates.js';
+import { ask, notify } from '../dialog.jsx';
 
 const TOOL_LABELS = {
   delegate_to_bot: 'Delegar a otros bots',
@@ -154,7 +155,7 @@ export default function BotModal({ bot, providers, tools, advanced = true, onClo
                 <label className="check"><input type="checkbox" checked={!!f.computer} onChange={(e) => set({ computer: e.target.checked })} /> 🖥 Darle su propio ordenador (terminal y navegador en tu servidor)</label>
                 <div className="muted small">Puede navegar webs de verdad, ejecutar código y guardar archivos en su carpeta. Usar la terminal o el navegador te pide permiso (puedes darle «siempre»). Gasta algo de memoria del servidor mientras lo usa.</div>
                 {f.computer && !isNew && (
-                  <button type="button" className="link small" onClick={() => confirm(`¿Reiniciar el ordenador de ${bot.name}? Se borran sus archivos y sesiones del navegador.`) && api.resetComputer(bot.id).then(() => alert('Ordenador reiniciado.'))}>Reiniciar su ordenador (borra sus archivos)</button>
+                  <button type="button" className="link small" onClick={async () => await ask(`¿Reiniciar el ordenador de ${bot.name}? Se borran sus archivos y sesiones del navegador.`) && api.resetComputer(bot.id).then(() => notify('Ordenador reiniciado.'))}>Reiniciar su ordenador (borra sus archivos)</button>
                 )}
               </div>
             )}
@@ -165,7 +166,7 @@ export default function BotModal({ bot, providers, tools, advanced = true, onClo
           {err && <div className="banner error">{err}</div>}
         </div>
         <div className="modal-foot">
-          {!isNew && <button className="btn ghost danger" onClick={() => confirm(`¿Borrar ${bot.name} y su conversación?`) && api.deleteBot(bot.id).then(onDeleted)}>Borrar bot</button>}
+          {!isNew && <button className="btn ghost danger" onClick={async () => await ask(`¿Borrar ${bot.name} y su conversación?`) && api.deleteBot(bot.id).then(onDeleted)}>Borrar bot</button>}
           <span className="spacer" />
           <button className="btn ghost" onClick={onClose}>Cancelar</button>
           <button className="btn primary" onClick={submit} disabled={!f.name.trim()}>{isNew ? 'Crear bot' : 'Guardar'}</button>

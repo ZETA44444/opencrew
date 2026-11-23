@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { localApi } from '../localApi.js';
 import { remoteConfig, setRemoteConfig, testServer, rpc, normalizeUrl, hostedInfo } from '../remote.js';
 import AccountSection from './AccountSection.jsx';
+import { ask } from '../dialog.jsx';
 
 // Ajustes → Servidor: connect this app to your own OpenCrew server (bots keep working 24/7).
 export default function ServerSection() {
@@ -28,7 +29,7 @@ export default function ServerSection() {
     const conf = { url: normalizeUrl(url), token: token.trim() };
     try {
       if (upload) {
-        if (!info?.fresh && !confirm('El servidor ya tiene datos. Si subes los de este navegador, se reemplazarán. ¿Seguir?')) { setBusy(''); return; }
+        if (!info?.fresh && !await ask('El servidor ya tiene datos. Si subes los de este navegador, se reemplazarán. ¿Seguir?')) { setBusy(''); return; }
         await rpc('importData', [await localApi.exportData({ includeKeys: true })], conf);
       }
       setRemoteConfig(conf);
@@ -36,8 +37,8 @@ export default function ServerSection() {
     } catch (e) { setErr(e.message); setBusy(''); }
   };
 
-  const disconnect = () => {
-    if (!confirm('La app volverá a usar los datos guardados en este navegador. Tu servidor sigue funcionando con los suyos. ¿Desconectar?')) return;
+  const disconnect = async () => {
+    if (!await ask('La app volverá a usar los datos guardados en este navegador. Tu servidor sigue funcionando con los suyos. ¿Desconectar?')) return;
     setRemoteConfig(null);
     location.reload();
   };

@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client';
+import { DialogHost } from './dialog.jsx';
 import { ready } from './core/store.js';
 import { setHosted } from './remote.js';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
@@ -19,13 +20,13 @@ const root = createRoot(document.getElementById('root'));
   const hosted = await detectHosted();
   if (hosted && !hosted.user) {
     const { default: Login } = await import('./components/Login.jsx');
-    root.render(<ErrorBoundary><Login state={hosted} /></ErrorBoundary>);
+    root.render(<ErrorBoundary><Login state={hosted} /><DialogHost /></ErrorBoundary>);
     return;
   }
   if (hosted) setHosted(hosted);
   await ready;
   const { default: App } = await import('./App.jsx'); // after setHosted: the app then talks to the server
-  root.render(<ErrorBoundary><App /></ErrorBoundary>);
+  root.render(<ErrorBoundary><App /><DialogHost /></ErrorBoundary>);
   window.addEventListener('oc-login-needed', () => location.reload(), { once: true });
 })();
 

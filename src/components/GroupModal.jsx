@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import Avatar from './Avatar.jsx';
+import { ask } from '../dialog.jsx';
 
 export default function GroupModal({ group, bots, onClose, onSaved, onDeleted }) {
   const isNew = !group;
@@ -52,7 +53,7 @@ export default function GroupModal({ group, bots, onClose, onSaved, onDeleted })
           {err && <div className="banner error">{err}</div>}
         </div>
         <div className="modal-foot">
-          {!isNew && <button className="btn ghost danger" onClick={() => confirm(`¿Borrar el grupo ${group.name} y su conversación? Los bots no se borran.`) && api.deleteGroup(group.id).then(onDeleted)}>Borrar grupo</button>}
+          {!isNew && <button className="btn ghost danger" onClick={async () => await ask(`¿Borrar el grupo ${group.name} y su conversación? Los bots no se borran.`) && api.deleteGroup(group.id).then(onDeleted)}>Borrar grupo</button>}
           <span className="spacer" />
           <button className="btn ghost" onClick={onClose}>Cancelar</button>
           <button className="btn primary" onClick={submit} disabled={!name.trim() || memberIds.length < 2}>{isNew ? 'Crear grupo' : 'Guardar'}</button>

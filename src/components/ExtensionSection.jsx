@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, serverMode } from '../api.js';
 import { remoteConfig } from '../remote.js';
+import { ask } from '../dialog.jsx';
 
 // Apps conectadas → Tu navegador: pair the OpenCrew extension with your server.
 export default function ExtensionSection() {
@@ -37,8 +38,8 @@ export default function ExtensionSection() {
           )}
           {code && <div className="muted small">Guárdalo ya: por seguridad no se vuelve a mostrar.</div>}
           <div className="card-actions">
-            <button className="btn small primary" onClick={async () => { if (st?.paired && !confirm('Se creará un código nuevo y la extensión que esté emparejada dejará de funcionar hasta que lo pegues. ¿Seguir?')) return; const r = await api.extensionPair(); setCode(r.key); load(); }}>{st?.paired ? 'Nuevo código' : 'Emparejar mi navegador'}</button>
-            {st?.paired && <button className="btn small ghost" onClick={async () => { if (!confirm('¿Desconectar la extensión? Los bots dejarán de poder usar tu navegador.')) return; await api.extensionRevoke(); setCode(''); load(); }}>Revocar</button>}
+            <button className="btn small primary" onClick={async () => { if (st?.paired && !await ask('Se creará un código nuevo y la extensión que esté emparejada dejará de funcionar hasta que lo pegues. ¿Seguir?')) return; const r = await api.extensionPair(); setCode(r.key); load(); }}>{st?.paired ? 'Nuevo código' : 'Emparejar mi navegador'}</button>
+            {st?.paired && <button className="btn small ghost" onClick={async () => { if (!await ask('¿Desconectar la extensión? Los bots dejarán de poder usar tu navegador.')) return; await api.extensionRevoke(); setCode(''); load(); }}>Revocar</button>}
           </div>
         </>
       )}

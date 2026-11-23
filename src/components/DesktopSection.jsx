@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, serverMode } from '../api.js';
 import { remoteConfig } from '../remote.js';
+import { ask } from '../dialog.jsx';
 
 // Apps conectadas → Tu ordenador: pair the OpenCrew Escritorio app (files and terminal of your Mac).
 export default function DesktopSection() {
@@ -39,8 +40,8 @@ export default function DesktopSection() {
           {code && <div className="hook-url"><code>{code}</code><button className="btn small" onClick={() => copy('code', code)}>{copied === 'code' ? '✓ Copiado' : 'Copiar código'}</button></div>}
           {code && <div className="muted small">Guárdalo ya: por seguridad no se vuelve a mostrar.</div>}
           <div className="card-actions">
-            <button className="btn small primary" onClick={async () => { if (st?.paired && !confirm('Se creará un código nuevo y la app emparejada dejará de funcionar hasta que lo pegues. ¿Seguir?')) return; const r = await api.desktopPair(); setCode(r.key); load(); }}>{st?.paired ? 'Nuevo código' : 'Emparejar mi ordenador'}</button>
-            {st?.paired && <button className="btn small ghost" onClick={async () => { if (!confirm('¿Desconectar tu ordenador? Los bots dejarán de poder usar tus archivos.')) return; await api.desktopRevoke(); setCode(''); load(); }}>Revocar</button>}
+            <button className="btn small primary" onClick={async () => { if (st?.paired && !await ask('Se creará un código nuevo y la app emparejada dejará de funcionar hasta que lo pegues. ¿Seguir?')) return; const r = await api.desktopPair(); setCode(r.key); load(); }}>{st?.paired ? 'Nuevo código' : 'Emparejar mi ordenador'}</button>
+            {st?.paired && <button className="btn small ghost" onClick={async () => { if (!await ask('¿Desconectar tu ordenador? Los bots dejarán de poder usar tus archivos.')) return; await api.desktopRevoke(); setCode(''); load(); }}>Revocar</button>}
           </div>
         </>
       )}

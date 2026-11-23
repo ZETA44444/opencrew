@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, serverMode } from '../api.js';
 import { remoteConfig } from '../remote.js';
 import Markdown from './Markdown.jsx';
+import { ask } from '../dialog.jsx';
 
 const TABS = [['progress', 'Progreso'], ['routines', 'Rutinas'], ['memory', 'Memoria'], ['artifacts', 'Archivos'], ['activity', 'Actividad']];
 
@@ -168,7 +169,7 @@ function Watchers({ bot, watchers, refresh, tenant }) {
           {w.lastError && <div className="small run-error">{w.lastError}</div>}
           <div className="card-actions">
             {w.type !== 'webhook' && <button className="btn small" disabled={checking === w.id} onClick={async () => { setChecking(w.id); await api.checkWatcher(w.id); setChecking(null); refresh(); }}>{checking === w.id ? 'Comprobando…' : 'Comprobar ahora'}</button>}
-            <button className="btn small ghost" onClick={() => confirm('¿Borrar vigilante?') && api.deleteWatcher(w.id).then(refresh)}>Borrar</button>
+            <button className="btn small ghost" onClick={async () => await ask('¿Borrar vigilante?') && api.deleteWatcher(w.id).then(refresh)}>Borrar</button>
           </div>
         </div>
       ))}
@@ -259,7 +260,7 @@ function Routines({ bot, routines, runs, refresh }) {
             <div className="card-actions">
               <button className="btn small" onClick={() => api.runRoutine(r.id)}>Ejecutar ahora</button>
               <button className="btn small ghost" onClick={() => setHistory(history === r.id ? null : r.id)}>{history === r.id ? 'Ocultar historial' : 'Historial'}</button>
-              <button className="btn small ghost" onClick={() => confirm('¿Borrar rutina?') && api.deleteRoutine(r.id).then(refresh)}>Borrar</button>
+              <button className="btn small ghost" onClick={async () => await ask('¿Borrar rutina?') && api.deleteRoutine(r.id).then(refresh)}>Borrar</button>
             </div>
           </div>
         );
@@ -402,7 +403,7 @@ function Artifacts({ bot, tick, onOpen }) {
           <button className="file-name" onClick={() => onOpen(bot.id, f.name)}>{f.name}</button>
           <span className="muted small">{(f.size / 1024).toFixed(1)} KB</span>
           <button className="icon-btn" onClick={() => api.openArtifact(bot.id, f.name, true)} title="Descargar">↓</button>
-          <button className="icon-btn" onClick={() => confirm(`¿Borrar ${f.name}?`) && api.deleteArtifact(bot.id, f.name).then(load)} title="Borrar">×</button>
+          <button className="icon-btn" onClick={async () => await ask(`¿Borrar ${f.name}?`) && api.deleteArtifact(bot.id, f.name).then(load)} title="Borrar">×</button>
         </div>
       ))}
     </div>
@@ -429,7 +430,7 @@ function Activity({ bot }) {
           {a.result && a.status !== 'denied' && <details className="small"><summary className="muted">Resultado</summary><div className="activity-result">{a.result}</div></details>}
         </div>
       ))}
-      <button className="btn small ghost" onClick={() => confirm('¿Borrar el registro de este bot?') && api.clearActivity(bot.id).then(load)}>Borrar registro</button>
+      <button className="btn small ghost" onClick={async () => await ask('¿Borrar el registro de este bot?') && api.clearActivity(bot.id).then(load)}>Borrar registro</button>
     </div>
   );
 }

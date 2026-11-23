@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import Avatar, { COLORS, GroupAvatar } from './Avatar.jsx';
+import { ask } from '../dialog.jsx';
 
 export default function ProjectModal({ project, bots, groups, onClose, onSaved, onDeleted }) {
   const isNew = !project;
@@ -59,7 +60,7 @@ export default function ProjectModal({ project, bots, groups, onClose, onSaved, 
           {err && <div className="banner error">{err}</div>}
         </div>
         <div className="modal-foot">
-          {!isNew && <button className="btn ghost danger" onClick={() => confirm(`¿Borrar el proyecto ${project.name}? Los bots y sus chats no se borran.`) && api.deleteProject(project.id).then(onDeleted)}>Borrar proyecto</button>}
+          {!isNew && <button className="btn ghost danger" onClick={async () => await ask(`¿Borrar el proyecto ${project.name}? Los bots y sus chats no se borran.`) && api.deleteProject(project.id).then(onDeleted)}>Borrar proyecto</button>}
           <span className="spacer" />
           <button className="btn ghost" onClick={onClose}>Cancelar</button>
           <button className="btn primary" onClick={submit} disabled={!f.name.trim()}>{isNew ? 'Crear proyecto' : 'Guardar'}</button>
