@@ -29,12 +29,12 @@ marca con ⏸ y sus pasos.
 
 ## Fase B — Producto multiusuario
 
-- [ ] B1 · Dominio propio para la app y el servidor (H1) ⏸ comprar dominio
-- [ ] B2 · Pasarela con cuentas (correo con enlace mágico; passkeys), sesiones con cookie segura y CSP
-- [ ] B3 · Un motor aislado por usuario (el motor actual con su carpeta de datos cifrada); se duerme sin uso y un planificador lo despierta para rutinas y vigilantes
-- [ ] B4 · Servicio de ordenadores de bots separado, con red aislada por usuario, proxy de salida y cuotas (H6)
-- [ ] B5 · Exportar y borrar la cuenta (RGPD); panel de administración básico
-- [ ] B6 · El Puente solo en la edición autoalojada (C4); la versión alojada no lo muestra
+- [ ] B1 · Dominio propio para la app y el servidor (H1) ⏸ comprar dominio — mientras tanto la app ya se sirve desde el servidor (mismo origen, CSP estricta)
+- [x] B2 · Pasarela con cuentas (correo y contraseña, invitaciones, administrador con código del servidor), sesiones con cookie segura, CSRF y CSP. Pendiente: enlace mágico y recuperar contraseña por correo ⏸ elegir proveedor de correo
+- [x] B3 · Un motor aislado por usuario (contenedor propio sin privilegios, volumen y clave de cifrado propios). Pendiente: dormir motores sin uso y despertarlos para rutinas
+- [ ] B4 · Ordenadores de bots por usuario (hecho: nombres y clave del lanzador por usuario; falta: red aislada por usuario, proxy de salida y cuotas) (H6)
+- [ ] B5 · Exportar y borrar la cuenta (RGPD) — hecho: panel básico de usuarios e invitaciones
+- [x] B6 · El Puente solo para el administrador del servidor (pasa por la pasarela); los demás usuarios no pueden abrirlo
 
 ## Fase C — Experiencia para un usuario nuevo
 
