@@ -1,5 +1,5 @@
-// Runs inside the bot's computer: opens Chromium with the bot's own profile (keeps sign-ins
-// and cookies between calls), follows a list of steps and returns what the page shows.
+// Runs inside the bot's computer: drives the Chromium that is open on its screen (keeps sign-ins,
+// cookies and tabs), follows a list of steps and returns what the page shows.
 import { createRequire } from 'node:module';
 
 // Playwright is installed globally in the image (ES modules don't look there by themselves).
@@ -8,13 +8,18 @@ const { chromium } = createRequire(import.meta.url)('/usr/local/lib/node_modules
 const input = JSON.parse(await new Promise((r) => { let s = ''; process.stdin.on('data', (d) => (s += d)).on('end', () => r(s)); }));
 const out = { ok: true, log: [] };
 const STEP_MS = 15_000;
-let ctx;
+let browser;
 try {
-  ctx = await chromium.launchPersistentContext('/work/.browser-profile', {
-    headless: true, viewport: { width: 1280, height: 800 }, locale: input.locale || 'es-ES',
-    userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 OpenCrew',
-  });
-  const page = ctx.pages()[0] || await ctx.newPage();
+  // Use the Chromium that is already open on the bot's screen (the same one you can watch).
+  for (let i = 0; i < 20 && !browser; i++) {
+    browser = await chromium.connectOverCDP('http://127.0.0.1:9222').catch(() => null);
+    if (!browser) await new Promise((r) => setTimeout(r, 500));
+  }
+  if (!browser) throw new Error('El navegador del ordenador no responde; vuelve a intentarlo en unos segundos');
+  const ctx = browser.contexts()[0];
+  const pages = ctx.pages().filter((p) => !p.url().startsWith('devtools://'));
+  const page = input.newTab || !pages.length ? await ctx.newPage() : pages[pages.length - 1];
+  await page.bringToFront().catch(() => {});
   page.setDefaultTimeout(STEP_MS);
   if (input.url) { await page.goto(input.url, { waitUntil: 'domcontentloaded', timeout: 30_000 }); out.log.push(`abierto ${input.url}`); }
   const target = (t) => {
@@ -51,7 +56,7 @@ try {
 } catch (e) {
   out.ok = false;
   out.error = String(e.message).split('\n')[0];
-} finally {
-  await ctx?.close().catch(() => {});
 }
+// Don't close: the browser stays open on the bot's screen (sessions, tabs, what you see).
 process.stdout.write(`\n__OPENCREW_BROWSE__${JSON.stringify(out)}\n`);
+process.exit(0);

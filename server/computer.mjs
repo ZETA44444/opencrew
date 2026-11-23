@@ -7,6 +7,7 @@ const IMAGE = process.env.OPENCREW_COMPUTER_IMAGE || 'opencrew-computer';
 const IDLE_MS = 30 * 60_000;
 const lastUsed = new Map();
 const starting = new Map();
+const userControl = new Map(); // botId -> until (ms): you're using its screen, the bot waits
 const name = (botId) => `opencrew-pc-${String(botId).replace(/[^\w-]/g, '')}`;
 
 function run(args, { input, timeoutMs = 60_000, maxOut = 200_000 } = {}) {
@@ -30,14 +31,20 @@ async function ensure(botId) {
   lastUsed.set(botId, Date.now());
   if (starting.has(botId)) return starting.get(botId);
   const job = (async () => {
-    const st = await run(['inspect', '-f', '{{.State.Running}}', n], { timeoutMs: 15_000 });
-    if (st.code === 0 && st.out.trim() === 'true') return;
-    if (st.code === 0) { const r = await run(['start', n], { timeoutMs: 30_000 }); if (r.code !== 0) throw new Error(r.err.trim()); return; }
-    const img = await run(['image', 'inspect', IMAGE], { timeoutMs: 15_000 });
+    const img = await run(['image', 'inspect', '-f', '{{.Id}}', IMAGE], { timeoutMs: 15_000 });
     if (img.code !== 0) throw new Error('El ordenador de los bots aún no está instalado en el servidor (ejecuta server/update.sh).');
+    const st = await run(['inspect', '-f', '{{.State.Running}} {{.Image}}', n], { timeoutMs: 15_000 });
+    if (st.code === 0) {
+      const [running, image] = st.out.trim().split(' ');
+      if (image === img.out.trim()) {
+        if (running === 'true') return;
+        const r = await run(['start', n], { timeoutMs: 30_000 }); if (r.code !== 0) throw new Error(r.err.trim()); return;
+      }
+      await run(['rm', '-f', n], { timeoutMs: 30_000 }); // new version of the computer: recreate it (its files stay)
+    }
     const r = await run([
       'run', '-d', '--name', n, '--init', '--hostname', 'bot',
-      '-v', `${n}:/work`, '--memory', '1g', '--memory-swap', '1g', '--cpus', '1', '--pids-limit', '512', '--shm-size', '512m',
+      '-v', `${n}:/work`, '--memory', '1536m', '--memory-swap', '1536m', '--cpus', '1', '--pids-limit', '512', '--shm-size', '512m',
       '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--label', 'opencrew=computer', IMAGE,
     ], { timeoutMs: 60_000 });
     if (r.code !== 0) throw new Error(r.err.trim() || 'No se pudo arrancar el ordenador');
@@ -60,6 +67,7 @@ export const computer = {
   },
 
   async browse(botId, input) {
+    if ((userControl.get(botId) || 0) > Date.now()) throw new Error('El usuario está usando tu ordenador ahora mismo. Espera a que te devuelva el control o díselo en el chat.');
     await ensure(botId);
     const r = await run(['exec', '-i', name(botId), 'node', '/opt/oc/browse.mjs'], { input: JSON.stringify(input), timeoutMs: 150_000, maxOut: 5_000_000 });
     lastUsed.set(botId, Date.now());
@@ -85,6 +93,25 @@ export const computer = {
     const r = await run(['exec', name(botId), 'base64', '-w0', p], { maxOut: maxBytes * 2 });
     if (r.code !== 0) throw new Error(r.err.trim());
     return { path: p, base64: r.out.trim() };
+  },
+
+  // You take over (or give back) the bot's screen. Expires on its own after 20 minutes.
+  setControl(botId, on) {
+    if (on) userControl.set(botId, Date.now() + 20 * 60_000); else userControl.delete(botId);
+    return { control: on };
+  },
+  inControl: (botId) => (userControl.get(botId) || 0) > Date.now(),
+
+  // A raw VNC stream of the bot's screen, piped through `docker exec` (no port is ever opened).
+  async vnc(botId) {
+    await ensure(botId);
+    lastUsed.set(botId, Date.now());
+    const wait = await run(['exec', name(botId), 'bash', '-c', 'for i in $(seq 30); do (echo > /dev/tcp/127.0.0.1/5900) 2>/dev/null && exit 0; sleep 0.5; done; exit 1'], { timeoutMs: 30_000 });
+    if (wait.code !== 0) throw new Error('La pantalla del ordenador no arranca');
+    const p = spawn('docker', ['exec', '-i', name(botId), 'socat', '-', 'TCP:127.0.0.1:5900']);
+    const keepAlive = setInterval(() => lastUsed.set(botId, Date.now()), 60_000);
+    p.on('close', () => clearInterval(keepAlive));
+    return p;
   },
 
   async status(botId) {

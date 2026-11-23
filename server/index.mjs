@@ -3,11 +3,11 @@
 // No dependencies: Node 22+ only.
 import http from 'node:http';
 import { readFile, writeFile, rename, mkdir, stat, statfs, readdir, copyFile, unlink } from 'node:fs/promises';
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 import { runInSandbox } from './sandbox.mjs';
 import { computer } from './computer.mjs';
 
-const VERSION = '0.13.0';
+const VERSION = '0.14.0';
 const PORT = Number(process.env.PORT) || 8787;
 const TOKEN = process.env.OPENCREW_TOKEN || '';
 const DATA = (process.env.OPENCREW_DATA || new URL('./data/', import.meta.url).pathname).replace(/\/?$/, '/');
@@ -72,7 +72,19 @@ await localApi.state(); // starts routines, watchers and the message queue
 
 // Functions that only make sense inside a browser.
 const BROWSER_ONLY = new Set(['subscribe', 'openArtifact', 'notifyPermission', 'askNotifyPermission', 'testNotification', 'connectGoogle']);
+// Short, single-use passes to open a bot's screen (a browser WebSocket can't send our token header).
+const viewTickets = new Map(); // ticket -> { botId, exp }
 const extra = {
+  async computerViewTicket(botId) {
+    const bot = store.getBot(botId);
+    if (!bot?.computer) throw new Error('Este bot no tiene ordenador (actívalo en su configuración).');
+    for (const [k, v] of viewTickets) if (v.exp < Date.now()) viewTickets.delete(k);
+    const ticket = randomBytes(24).toString('hex');
+    viewTickets.set(ticket, { botId, exp: Date.now() + 60_000 });
+    return ticket;
+  },
+  async computerControl(botId, on) { return computer.setControl(botId, !!on); },
+  async computerInControl(botId) { return computer.inControl(botId); },
   async serverInfo() {
     const db = store.getDb();
     const messages = Object.values(db.messages || {}).reduce((n, list) => n + list.length, 0);
@@ -207,6 +219,66 @@ const server = http.createServer(async (req, res) => {
   } catch (e) {
     if (!res.headersSent) send(res, e.status || 400, { error: e.message || String(e) });
   }
+});
+
+// ---------- live screen of a bot's computer: WebSocket ↔ VNC (hand-made, no dependencies) ----------
+const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+function wsFrame(data, opcode = 2) {
+  const len = data.length;
+  let head;
+  if (len < 126) head = Buffer.from([0x80 | opcode, len]);
+  else if (len < 65536) { head = Buffer.alloc(4); head[0] = 0x80 | opcode; head[1] = 126; head.writeUInt16BE(len, 2); }
+  else { head = Buffer.alloc(10); head[0] = 0x80 | opcode; head[1] = 127; head.writeBigUInt64BE(BigInt(len), 2); }
+  return Buffer.concat([head, data]);
+}
+
+server.on('upgrade', async (req, socket) => {
+  const url = new URL(req.url, 'http://x');
+  const fail = (code, text) => { socket.end(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); };
+  if (url.pathname !== '/api/computer/vnc') return fail(404, 'Not Found');
+  const origin = req.headers.origin;
+  if (origin && !ORIGINS.includes(origin)) return fail(403, 'Forbidden');
+  const t = viewTickets.get(url.searchParams.get('ticket') || '');
+  viewTickets.delete(url.searchParams.get('ticket') || '');
+  if (!t || t.exp < Date.now()) return fail(401, 'Unauthorized');
+  const key = req.headers['sec-websocket-key'];
+  if (!key) return fail(400, 'Bad Request');
+  let child;
+  try { child = await computer.vnc(t.botId); } catch (e) { console.error('Pantalla:', e.message); return fail(503, 'Service Unavailable'); }
+  const proto = String(req.headers['sec-websocket-protocol'] || '').split(',')[0].trim();
+  socket.write(['HTTP/1.1 101 Switching Protocols', 'Upgrade: websocket', 'Connection: Upgrade',
+    `Sec-WebSocket-Accept: ${createHash('sha1').update(key + WS_GUID).digest('base64')}`,
+    ...(proto ? [`Sec-WebSocket-Protocol: ${proto}`] : []), '', ''].join('\r\n'));
+  socket.setNoDelay(true);
+  const close = () => { try { child.kill(); } catch { /* gone */ } socket.destroy(); };
+  child.stdout.on('data', (d) => { if (!socket.destroyed) socket.write(wsFrame(d)); });
+  child.on('close', () => { if (!socket.destroyed) { socket.write(wsFrame(Buffer.alloc(0), 8)); socket.end(); } });
+  child.stdin.on('error', () => {});
+  let buf = Buffer.alloc(0);
+  socket.on('data', (chunk) => {
+    buf = Buffer.concat([buf, chunk]);
+    for (;;) {
+      if (buf.length < 2) return;
+      const op = buf[0] & 0x0f;
+      const masked = buf[1] & 0x80;
+      let len = buf[1] & 0x7f;
+      let off = 2;
+      if (len === 126) { if (buf.length < 4) return; len = buf.readUInt16BE(2); off = 4; }
+      else if (len === 127) { if (buf.length < 10) return; len = Number(buf.readBigUInt64BE(2)); off = 10; }
+      if (len > 16 * 1024 * 1024) return close();
+      const mask = masked ? buf.subarray(off, off + 4) : null;
+      if (masked) off += 4;
+      if (buf.length < off + len) return;
+      const payload = Buffer.from(buf.subarray(off, off + len));
+      buf = buf.subarray(off + len);
+      if (mask) for (let i = 0; i < payload.length; i++) payload[i] ^= mask[i & 3];
+      if (op === 0 || op === 1 || op === 2) child.stdin.write(payload);
+      else if (op === 8) { socket.write(wsFrame(Buffer.alloc(0), 8)); return close(); }
+      else if (op === 9) socket.write(wsFrame(payload, 10));
+    }
+  });
+  socket.on('close', close);
+  socket.on('error', close);
 });
 
 server.listen(PORT, () => console.log(`OpenCrew ${VERSION} escuchando en :${PORT} · datos en ${DATA}`));

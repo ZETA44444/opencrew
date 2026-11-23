@@ -6,7 +6,7 @@ import { fmtCost } from './UsageModal.jsx';
 import { readAttachment, packMessage, MAX_FILES } from '../attachments.js';
 import { dictationSupported, startDictation, speak, stopSpeaking, speechSupported, startCloudDictation, cloudDictationAvailable, preferCloudDictation, setDictationMode } from '../voice.js';
 
-export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onCall, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, missed = [], botsById = {}, onResolveMissed, onOpenArtifact, approvals = [], onResolveApproval, onOpenThread, memProposals = [], inProject = false, onResolveMemory, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
+export default function Chat({ bot, bots, providers, messages, busy, draft, onStop, onCall, onViewComputer, onRerun, queued = [], onRemoveQueued, proposals, proposalsLoading, onRefreshProposals, onDismissProposal, missed = [], botsById = {}, onResolveMissed, onOpenArtifact, approvals = [], onResolveApproval, onOpenThread, memProposals = [], inProject = false, onResolveMemory, onSend, onChangeModel, onEdit, onClear, onShowSteps, onTogglePanel, onToggleNav, onOpenSettings }) {
   const [text, setText] = useState('');
   const [err, setErr] = useState('');
   const [listening, setListening] = useState(false);
@@ -115,6 +115,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
           <button className="icon-btn" onClick={onCall} title={isGroup ? 'Llamada de voz con el grupo' : `Llamar a ${bot.name}`} aria-label="Llamar">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" /></svg>
           </button>
+          {onViewComputer && <button className="icon-btn" onClick={onViewComputer} title={`Ver el ordenador de ${bot.name}`} aria-label="Ver su ordenador">🖥</button>}
           <button className="icon-btn" onClick={onEdit} title={isGroup ? 'Editar grupo' : 'Editar bot'}>✎</button>
           <button className="icon-btn" onClick={() => confirm(`¿Borrar la conversación con ${bot.name}?`) && onClear()} title="Borrar conversación">⌫</button>
           <button className="icon-btn" onClick={onTogglePanel} title="Panel lateral">▥</button>
