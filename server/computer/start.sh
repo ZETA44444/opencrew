@@ -11,7 +11,7 @@ fluxbox >/dev/null 2>&1 &
 CHROME=$(ls -d /opt/browsers/chromium-*/chrome-linux*/chrome | head -1)
 while true; do
   rm -f /work/.browser-profile/Singleton*
-  "$CHROME" --no-sandbox --disable-dev-shm-usage --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 \
+  "$CHROME" --no-sandbox --test-type --disable-infobars --disable-dev-shm-usage --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 \
     --user-data-dir=/work/.browser-profile --no-first-run --no-default-browser-check --disable-features=Translate \
     --lang=es-ES --window-position=0,0 --window-size=1280,780 --start-maximized about:blank >/dev/null 2>&1
   sleep 2

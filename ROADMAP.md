@@ -111,6 +111,7 @@ Reglas para cada tarea:
 - [x] Voz nativa a través del servidor con claves temporales: Gemini Live y OpenAI Realtime (tu clave nunca llega al navegador)
 - [x] Sesión de Google permanente a través del servidor (se renueva sola). ⏸ Necesita que añadas el secreto de tu cliente de Google al servidor (pasos en server/README.md)
 - [x] Ordenador por bot en Docker (terminal y navegador Chromium; carpeta propia que se conserva; se apaga solo si no se usa; activar en la configuración de cada bot)
+- [x] Ver en directo el ordenador de cada bot (botón 🖥 en su chat) y «Tomar el control» con ratón y teclado si se atasca; mientras lo tienes, el bot no usa el navegador
 
 ### Pasarelas de apps (añadido)
 
