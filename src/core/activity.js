@@ -3,7 +3,7 @@
 import { getDb, newId, now, save } from './store.js';
 import { broadcast } from './events.js';
 
-export const DEVICE_TOOL = /^(mi_navegador_|computer_)/;
+export const DEVICE_TOOL = /^(mi_navegador_|mi_equipo_|computer_)/;
 export const activity = () => (getDb().activity ??= []);
 
 export function logActivity({ bot, tool, label, args, result, status, approval }) {

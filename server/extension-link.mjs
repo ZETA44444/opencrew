@@ -1,6 +1,6 @@
-// Link with the OpenCrew browser extension (your own Chrome/Brave): a WebSocket the extension
-// opens to your server. Bots send it commands (read a tab, click…) and it answers. Paired with
-// its own code, separate from your main token, that you can revoke at any time.
+// Links with your devices: the OpenCrew browser extension and the OpenCrew desktop app. Each one
+// opens a WebSocket to your server; bots send it commands and it answers. Each kind is paired
+// with its own code, separate from your main token, that you can revoke at any time.
 import { createHash, timingSafeEqual } from 'node:crypto';
 
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
@@ -14,25 +14,30 @@ const frame = (data, opcode = 1) => {
 };
 const same = (a, b) => timingSafeEqual(createHash('sha256').update(String(a)).digest(), createHash('sha256').update(String(b)).digest());
 
+export function createDeviceLink(label) {
 let conn = null; // { socket, send, info, since }
 const waiting = new Map(); // id -> { resolve, reject, timer }
 let seq = 0;
+let onHello = null;
 
-export const extension = {
+const link = {
   connected: () => !!conn,
   info: () => (conn ? { ...conn.info, since: conn.since } : null),
   send(cmd, args = {}, timeoutMs = 60_000) {
-    if (!conn) return Promise.reject(new Error('La extensión de OpenCrew no está conectada (ábrela en tu navegador).'));
+    if (!conn) return Promise.reject(new Error(`${label} no está conectada.`));
     const id = `c${++seq}`;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { waiting.delete(id); reject(new Error('Tu navegador no respondió a tiempo')); }, timeoutMs);
+      const timer = setTimeout(() => { waiting.delete(id); reject(new Error(`${label} no respondió a tiempo`)); }, timeoutMs);
       waiting.set(id, { resolve, reject, timer });
       conn.send({ id, cmd, args });
     });
   },
+  push: (obj) => conn?.send(obj),
+  onHello: (fn) => { onHello = fn; },
+  handleUpgrade,
 };
 
-export function handleExtensionUpgrade(req, socket, url, expectedKey, onChange) {
+function handleUpgrade(req, socket, url, expectedKey, onChange) {
   const fail = (code, text) => socket.end(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`);
   const k = url.searchParams.get('k') || '';
   if (!expectedKey() || !k || !same(k, expectedKey())) return fail(401, 'Unauthorized');
@@ -77,7 +82,7 @@ export function handleExtensionUpgrade(req, socket, url, expectedKey, onChange) 
       const text = Buffer.concat(pieces).toString('utf8');
       pieces = [];
       let m; try { m = JSON.parse(text); } catch { continue; }
-      if (m.type === 'hello') { me.info = { browser: String(m.browser || 'navegador').slice(0, 60), version: String(m.version || '').slice(0, 20) }; onChange?.(); continue; }
+      if (m.type === 'hello') { me.info = { browser: String(m.browser || m.device || 'dispositivo').slice(0, 60), version: String(m.version || '').slice(0, 20), folders: Array.isArray(m.folders) ? m.folders.slice(0, 50) : undefined, terminal: m.terminal }; onChange?.(); onHello?.(); continue; }
       if (m.type === 'ping') { me.send({ type: 'pong' }); continue; }
       const w = m.id && waiting.get(m.id);
       if (w) { clearTimeout(w.timer); waiting.delete(m.id); if (m.ok) w.resolve(m.result); else w.reject(new Error(m.error || 'Error en tu navegador')); }
@@ -86,3 +91,8 @@ export function handleExtensionUpgrade(req, socket, url, expectedKey, onChange) 
   socket.on('close', close);
   socket.on('error', close);
 }
+return link;
+}
+
+export const extension = createDeviceLink('La extensión de OpenCrew (tu navegador)');
+export const desktop = createDeviceLink('La app OpenCrew Escritorio (tu ordenador)');

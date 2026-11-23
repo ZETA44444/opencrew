@@ -6,9 +6,9 @@ import { readFile, writeFile, rename, mkdir, stat, statfs, readdir, copyFile, un
 import { createHash, createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 import { runInSandbox } from './sandbox.mjs';
 import { computer } from './computer.mjs';
-import { extension, handleExtensionUpgrade } from './extension-link.mjs';
+import { extension, desktop } from './extension-link.mjs';
 
-const VERSION = '0.17.0';
+const VERSION = '0.18.0';
 const PORT = Number(process.env.PORT) || 8787;
 const TOKEN = process.env.OPENCREW_TOKEN || '';
 const DATA = (process.env.OPENCREW_DATA || new URL('./data/', import.meta.url).pathname).replace(/\/?$/, '/');
@@ -53,6 +53,7 @@ globalThis.OPENCREW_STORAGE = {
 globalThis.OPENCREW_RUN_JS = runInSandbox;
 globalThis.OPENCREW_COMPUTER = computer;
 globalThis.OPENCREW_EXT = extension;
+globalThis.OPENCREW_DESKTOP = desktop;
 // OpenCrew Puente (your ChatGPT/Claude subscriptions), if installed next to this server.
 if (process.env.OPENCREW_BRIDGE_URL) globalThis.OPENCREW_BRIDGE = { url: process.env.OPENCREW_BRIDGE_URL.replace(/\/$/, ''), token: process.env.OPENCREW_BRIDGE_TOKEN || TOKEN };
 globalThis.OPENCREW_GOOGLE_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
@@ -65,6 +66,12 @@ await store.ready;
 const { subscribe } = await import('../src/core/events.js');
 const { localApi } = await import('../src/localApi.js');
 const { watchers } = await import('../src/core/watchers.js');
+{
+  const { subscribe: sub } = await import('../src/core/events.js');
+  const pushBots = () => desktop.push({ type: 'bots', bots: store.getDb().bots.map((b) => ({ id: b.id, name: b.name, enabled: !!b.userComputer })) });
+  desktop.onHello(pushBots);
+  sub((ev) => { if (ev.type === 'bots') pushBots(); });
+}
 const { receiveWebhook } = await import('../src/core/webhooks.js');
 const { finishGoogleServerAuth } = await import('../src/core/google.js');
 
@@ -115,6 +122,10 @@ const extra = {
   },
   async extensionRevoke() { delete store.getDb().keys.extensionKey; store.save(); return { ok: true }; },
   async extensionStatus() { return { paired: !!store.getDb().keys.extensionKey, connected: extension.connected(), info: extension.info() }; },
+  // Same for the desktop app (OpenCrew Escritorio).
+  async desktopPair() { const k = randomBytes(24).toString('hex'); store.getDb().keys.desktopKey = k; store.save(); return { key: k }; },
+  async desktopRevoke() { delete store.getDb().keys.desktopKey; store.save(); return { ok: true }; },
+  async desktopStatus() { return { paired: !!store.getDb().keys.desktopKey, connected: desktop.connected(), info: desktop.info() }; },
   async computerControl(botId, on) { return computer.setControl(botId, !!on); },
   async computerInControl(botId) { return computer.inControl(botId); },
   async serverInfo() {
@@ -267,9 +278,11 @@ function wsFrame(data, opcode = 2) {
 server.on('upgrade', async (req, socket) => {
   const url = new URL(req.url, 'http://x');
   const fail = (code, text) => { socket.end(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); };
-  if (url.pathname === '/api/ext') {
+  if (url.pathname === '/api/ext' || url.pathname === '/api/desktop') {
     const { getDb } = store;
-    return handleExtensionUpgrade(req, socket, url, () => getDb().keys.extensionKey || '', async () => {
+    const isDesktop = url.pathname === '/api/desktop';
+    const link = isDesktop ? desktop : extension;
+    return link.handleUpgrade(req, socket, url, () => getDb().keys[isDesktop ? 'desktopKey' : 'extensionKey'] || '', async () => {
       const { broadcast } = await import('../src/core/events.js');
       broadcast({ type: 'connectors' });
     });

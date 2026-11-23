@@ -12,6 +12,7 @@ import { googleTools, runGoogleTool, describeGoogle, isGoogleTool } from './goog
 import { notionTools, runNotionTool, describeNotion } from './notion.js';
 import { computerTools, runComputerTool, describeComputer } from './computer.js';
 import { userBrowserTools, runUserBrowserTool, describeUserBrowser } from './userbrowser.js';
+import { myDesktopTools, runMyDesktopTool, describeMyDesktop } from './mydesktop.js';
 import { TREASURER_TOOLS, TREASURER_TOOL_NAMES } from './treasurer.js';
 
 const PALETTE = ['#7dd3fc', '#fca5a5', '#86efac', '#fcd34d', '#c4b5fd', '#f9a8d4', '#fdba74', '#e5e5e5'];
@@ -406,7 +407,7 @@ export function toolsFor(bot, depth) {
     .filter((n) => !(n === 'delegate_to_bot' && depth >= 2)) // avoid infinite delegation chains
     .map((name) => ({ name, description: ALL_TOOLS[name].description, parameters: ALL_TOOLS[name].parameters }))
     // Tools from connected apps (MCP), unless this bot has them switched off.
-    .concat(bot.connectors === false ? [] : [...githubTools(), ...googleTools(bot), ...notionTools(), ...connectorTools(bot)]).concat(computerTools(bot), userBrowserTools(bot));
+    .concat(bot.connectors === false ? [] : [...githubTools(), ...googleTools(bot), ...notionTools(), ...connectorTools(bot)]).concat(computerTools(bot), userBrowserTools(bot), myDesktopTools(bot));
 }
 
 export async function runTool(call, ctx) {
@@ -415,6 +416,7 @@ export async function runTool(call, ctx) {
   if (isGoogleTool(call.name)) return runGoogleTool(call.name, call.args || {}, ctx?.bot);
   if (call.name.startsWith('notion_')) return runNotionTool(call.name, call.args || {});
   if (call.name.startsWith('computer_')) return runComputerTool(call.name, call.args || {}, { ...ctx, artifacts: artifactsOf });
+  if (call.name.startsWith('mi_equipo_')) return runMyDesktopTool(call.name, call.args || {}, ctx);
   if (call.name.startsWith('mi_navegador_')) return runUserBrowserTool(call.name, call.args || {}, { ...ctx, artifacts: artifactsOf });
   const tool = ALL_TOOLS[call.name];
   if (!tool) return `Herramienta desconocida: ${call.name}`;
@@ -428,6 +430,7 @@ export function describeCall(call) {
   if (call.name.startsWith('notion_')) return describeNotion(call.name, a);
   if (call.name.startsWith('computer_')) return describeComputer(call.name, a);
   if (call.name.startsWith('mi_navegador_')) return describeUserBrowser(call.name, a);
+  if (call.name.startsWith('mi_equipo_')) return describeMyDesktop(call.name, a);
   if (call.name.startsWith('mcp_')) {
     const hit = findConnectorTool(call.name);
     return hit ? `${hit.c.name}: ${hit.t.name}` : call.name;

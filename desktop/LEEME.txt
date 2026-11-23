@@ -1,0 +1,14 @@
+OpenCrew Escritorio — deja que tus bots usen archivos de este Mac (con tu permiso)
+
+1. Haz doble clic en «instalar.command». Si macOS dice que no se puede abrir: clic derecho → Abrir → Abrir.
+   (Necesitas Node.js 22 o superior: https://nodejs.org)
+2. Se abrirá la página de ajustes. Pega la dirección de tu servidor y el código de emparejamiento
+   (OpenCrew → Apps conectadas → «Tu ordenador» → Emparejar).
+3. Añade las carpetas que quieras compartir (solo lectura o también escritura) y elige qué bots las usan.
+4. En OpenCrew, edita un bot y marca «Puede usar mi ordenador».
+
+Cada acción la tienes que permitir en OpenCrew, y queda en la pestaña «Actividad» del bot.
+Si macOS pregunta si «node» puede acceder a Documentos, Escritorio o Descargas, acepta solo si has
+añadido carpetas de ahí.
+
+Para quitarlo: doble clic en «desinstalar.command».

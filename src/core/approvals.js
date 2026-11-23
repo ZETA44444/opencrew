@@ -26,6 +26,12 @@ export const SENSITIVE = {
   mi_navegador_clic: 'Hacer clic en tu navegador',
   mi_navegador_escribir: 'Escribir en tu navegador',
   mi_navegador_captura: 'Hacer una captura de tu navegador',
+  mi_equipo_carpetas: 'Ver qué carpetas de tu ordenador puede usar',
+  mi_equipo_listar: 'Ver una carpeta de tu ordenador',
+  mi_equipo_leer: 'Leer un archivo de tu ordenador',
+  mi_equipo_buscar: 'Buscar archivos en tu ordenador',
+  mi_equipo_escribir: 'Guardar un archivo en tu ordenador',
+  mi_equipo_terminal: 'Ejecutar un comando en tu ordenador',
   set_bot_limit: 'Cambiar el límite de gasto de un bot',
 };
 

@@ -132,7 +132,7 @@ Reglas para cada tarea:
 ## Fase 12 — Control de tu navegador y tu ordenador (con permisos)
 
 - [x] Extensión de navegador de OpenCrew (Chrome/Brave): el bot lee tus pestañas, abre webs, hace clic, escribe y captura, pidiendo permiso por acción; nunca contraseñas ni tarjetas; webs prohibidas (bancos y pagos por defecto); emparejada con un código propio revocable
-- [ ] App de escritorio con acceso a archivos y terminal, con permisos por bot y por carpeta
+- [x] App de escritorio «OpenCrew Escritorio» (Mac): archivos de las carpetas que elijas (solo lectura o también escritura, y qué bots), terminal opcional por bot, copias antes de sobrescribir, claves y .env protegidos; arranca sola al encender
 - [x] Registro de todo lo que ha hecho cada bot en tu navegador y en su ordenador (pestaña «Actividad»: qué, cuándo, con qué permiso y resultado)
 
 ## Fase 13 — Cuentas y salas multijugador (requiere servidor)

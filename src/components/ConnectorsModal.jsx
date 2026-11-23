@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, serverMode } from '../api.js';
 import GatewayConnectors from './GatewayConnectors.jsx';
 import ExtensionSection from './ExtensionSection.jsx';
+import DesktopSection from './DesktopSection.jsx';
 
 export default function ConnectorsModal({ connectors, services = {}, bots = [], onClose }) {
   const [ghToken, setGhToken] = useState('');
@@ -174,6 +175,7 @@ export default function ConnectorsModal({ connectors, services = {}, bots = [], 
           </div>
 
           <ExtensionSection />
+          <DesktopSection />
 
           <GatewayConnectors connectors={connectors} bots={bots} />
         </div>

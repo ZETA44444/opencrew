@@ -46,7 +46,7 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
   const submit = async () => {
     setErr('');
     try {
-      const payload = { name: f.name, title: f.title, description: f.description, instructions: f.instructions, color: f.color, shape: f.shape, provider: f.provider, model: f.model, tools: f.tools, toolsKnown: tools, starred: f.starred, connectors: f.connectors !== false, monthlyLimit: f.monthlyLimit || null, delegation: f.delegation || null, autoFallback: f.autoFallback !== false, computer: !!f.computer, userBrowser: !!f.userBrowser };
+      const payload = { name: f.name, title: f.title, description: f.description, instructions: f.instructions, color: f.color, shape: f.shape, provider: f.provider, model: f.model, tools: f.tools, toolsKnown: tools, starred: f.starred, connectors: f.connectors !== false, monthlyLimit: f.monthlyLimit || null, delegation: f.delegation || null, autoFallback: f.autoFallback !== false, computer: !!f.computer, userBrowser: !!f.userBrowser, userComputer: !!f.userComputer };
       const saved = isNew ? await api.createBot(payload) : await api.updateBot(bot.id, payload);
       onSaved(saved);
     } catch (e) { setErr(e.message); }
@@ -141,6 +141,8 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
               <div className="computer-opt">
                 <label className="check"><input type="checkbox" checked={!!f.userBrowser} onChange={(e) => set({ userBrowser: e.target.checked })} /> 🧭 Puede usar mi navegador (con la extensión de OpenCrew)</label>
                 <div className="muted small">Leer tus pestañas, abrir webs, hacer clic y escribir. Cada acción te pide permiso y queda en su pestaña «Actividad».</div>
+                <label className="check"><input type="checkbox" checked={!!f.userComputer} onChange={(e) => set({ userComputer: e.target.checked })} /> 📂 Puede usar mi ordenador (app OpenCrew Escritorio)</label>
+                <div className="muted small">Solo las carpetas que compartas en la app, con el permiso que elijas (y la terminal si la activas). Cada acción te pide permiso.</div>
               </div>
             )}
             {serverMode && (
