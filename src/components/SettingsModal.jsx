@@ -107,6 +107,16 @@ export default function SettingsModal({ providers, settings, services, sensitive
                   <button className="btn small" onClick={() => test(p)} disabled={!p.hasKey && !keys[p.id]}>Probar</button>
                   {p.hasKey && <button className="btn small ghost" onClick={() => remove(p)}>Quitar</button>}
                 </div>
+                {p.id === 'gemini' && (
+                  <details className="small muted">
+                    <summary>¿Tienes Google AI Pro o Ultra? Usa sus créditos incluidos (10 $/mes en Pro) — legal y oficial</summary>
+                    <ol className="gateway-steps">
+                      <li>Únete gratis al <a className="link" href="https://developers.google.com/program" target="_blank" rel="noreferrer">Google Developer Program</a> con la misma cuenta de Google y, en «Mis beneficios», activa los créditos de Google Cloud de tu plan.</li>
+                      <li>Esos créditos van a una cuenta de facturación de Google Cloud. En <a className="link" href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">AI Studio</a>, crea una clave en un proyecto vinculado a esa facturación (Google pide una recarga mínima de 5 $ antes de usar los créditos).</li>
+                      <li>Pega aquí esa clave. Lo que gasten tus bots con Gemini se descuenta de esos créditos; el saldo real lo ves en Uso y coste → Suscripciones → «Ver mi consumo en AI Studio».</li>
+                    </ol>
+                  </details>
+                )}
                 {t && (t.loading ? <div className="muted small">Probando {p.defaultModel}…</div>
                   : t.ok ? <div className="small run-ok">✓ Funciona con {t.model} · respondió «{t.reply}» en {(t.ms / 1000).toFixed(1)}s</div>
                   : <div className="small run-error">✗ {t.error}</div>)}
@@ -247,6 +257,10 @@ export default function SettingsModal({ providers, settings, services, sensitive
                     Sin clave: conecta en el Puente solo las suscripciones que quieras y luego elige en cada bot el proveedor «Mis suscripciones (Puente)».
                     {models.length ? ` Modelos disponibles: ${models.join(', ')}.` : ''}
                   </div>
+                  <label className="check small">
+                    <input type="checkbox" checked={settings?.preferSubscriptions !== false} onChange={(e) => api.updateSettings({ preferSubscriptions: e.target.checked }).then(onSaved)} />
+                    Los bots en «Automático» usan primero mis suscripciones (el Puente elige la que tenga más margen); si se llenan, pasan a mis claves de API
+                  </label>
                   <div className="settings-actions">
                     <a className="btn small primary" href={`${remoteConfig()?.url}/puente/#t=${encodeURIComponent(remoteConfig()?.token || '')}`} target="_blank" rel="noreferrer">Abrir el Puente ↗</a>
                     {models.length > 0 && <button className="btn small" onClick={async () => { setTests((x) => ({ ...x, puente: { loading: true } })); const r = await api.testProvider('puente', models.find((m) => m.startsWith('claude')) || models[0]).catch((e) => ({ ok: false, error: e.message })); setTests((x) => ({ ...x, puente: r })); }}>Probar</button>}

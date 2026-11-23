@@ -3,6 +3,7 @@
 import { PROVIDERS, getKey, modelsOf } from './providers.js';
 import { priceFor } from './usage.js';
 import { healthRows } from './health.js';
+import { getDb } from './store.js';
 
 // Compare whole name parts: "gemini" must not count as "mini".
 const parts = (model) => String(model).toLowerCase().split(/[-/._:]+/);
@@ -53,6 +54,12 @@ const ORDER = { small: ['small', 'mid', 'large'], mid: ['mid', 'large', 'small']
 // Picks { provider, model, reason } or null if you have no keys.
 export function routeModel(convo, step = 0) {
   const task = classifyTask(convo, step);
+  // Your subscriptions first (already paid): the bridge picks the one with most room left and
+  // the right size. If they're full, the agent falls back to your API keys on its own.
+  const puenteDown = healthRows().some((r) => r.key === 'puente/auto' && r.lastError && Date.now() - new Date(r.lastError.at) < 10 * 60_000 && (!r.lastOkAt || r.lastOkAt < r.lastError.at));
+  if (getDb().settings.preferSubscriptions !== false && getKey('puente') && modelsOf('puente').includes('auto') && !puenteDown) {
+    return { provider: 'puente', model: 'auto', reason: `${task.reason} · con tu suscripción`, tier: task.tier };
+  }
   const all = candidates();
   if (!all.length) return null;
   for (const tier of ORDER[task.tier]) {

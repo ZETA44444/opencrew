@@ -7,7 +7,7 @@ import { createHash, createHmac, timingSafeEqual, randomBytes } from 'node:crypt
 import { runInSandbox } from './sandbox.mjs';
 import { computer } from './computer.mjs';
 
-const VERSION = '0.15.0';
+const VERSION = '0.16.0';
 const PORT = Number(process.env.PORT) || 8787;
 const TOKEN = process.env.OPENCREW_TOKEN || '';
 const DATA = (process.env.OPENCREW_DATA || new URL('./data/', import.meta.url).pathname).replace(/\/?$/, '/');
@@ -92,6 +92,17 @@ const extra = {
     const ticket = randomBytes(24).toString('hex');
     viewTickets.set(ticket, { botId, exp: Date.now() + 60_000 });
     return ticket;
+  },
+  // Real plan usage from the official programs (via OpenCrew Puente).
+  async subscriptionUsage(refresh) {
+    const b = globalThis.OPENCREW_BRIDGE;
+    if (!b) return null;
+    const base = b.url.replace(/\/v1$/, '');
+    const h = { authorization: `Bearer ${b.token}`, 'content-type': 'application/json' };
+    if (refresh) await fetch(`${base}/api/usage/refresh`, { method: 'POST', headers: h, body: JSON.stringify({ provider: refresh }), signal: AbortSignal.timeout(90_000) }).catch(() => {});
+    const r = await fetch(`${base}/api/usage`, { headers: h, signal: AbortSignal.timeout(15_000) });
+    if (!r.ok) throw new Error(`El Puente respondió ${r.status}`);
+    return r.json();
   },
   async computerControl(botId, on) { return computer.setControl(botId, !!on); },
   async computerInControl(botId) { return computer.inControl(botId); },

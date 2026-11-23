@@ -2,7 +2,7 @@
 // Their own tools are switched off: they only answer text. OpenCrew's tools are offered through a
 // simple text protocol (<tool_calls>…</tool_calls>) that this bridge turns into normal tool calls.
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,6 +14,82 @@ export const env = () => ({
   PATH: process.env.PATH, HOME, CODEX_HOME: join(HOME, '.codex'), LANG: 'es_ES.UTF-8', TERM: 'xterm-256color',
   NO_COLOR: '1', DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 });
+
+// ---------- real plan usage, as the official programs report it (whole account, not only OpenCrew) ----------
+const USAGE_FILE = join(DATA, 'usage.json');
+let usage = { claude: null, chatgpt: null, counts: {} };
+try { usage = { ...usage, ...JSON.parse(readFileSync(USAGE_FILE, 'utf8')) }; } catch { /* first run */ }
+export const getUsage = () => usage;
+const saveUsage = () => writeFile(USAGE_FILE, JSON.stringify(usage)).catch(() => {});
+export function countUse(provider, model) {
+  const month = new Date().toISOString().slice(0, 7);
+  const c = ((usage.counts[month] ??= {})[provider] ??= { requests: 0, models: {} });
+  c.requests++; c.models[model] = (c.models[model] || 0) + 1;
+  saveUsage();
+}
+function setClaudeLimits(info) {
+  const w = info?.unifiedWindows || {};
+  const win = (x) => (x ? { used: Math.round((x.utilization || 0) * 1000) / 10, resetsAt: x.resetsAt ? x.resetsAt * 1000 : null, status: x.status } : null);
+  usage.claude = {
+    fiveHour: win(w.five_hour), sevenDay: win(w.seven_day),
+    ...Object.fromEntries(Object.entries(w).filter(([k]) => !['five_hour', 'seven_day'].includes(k)).map(([k, v]) => [k, win(v)])),
+    status: info.status, overage: { status: info.overageStatus, using: !!info.isUsingOverage, reason: info.overageDisabledReason || null },
+    updatedAt: Date.now(),
+  };
+  saveUsage();
+}
+// Codex keeps the plan limits it receives in its session files: read the newest snapshot.
+const pctWin = (x) => (x ? { used: Number(x.used_percent ?? x.usedPercent ?? 0), windowMinutes: Number(x.window_minutes ?? x.windowMinutes ?? x.windowDurationMins ?? 0) || null,
+  resetsAt: x.resets_at ? x.resets_at * 1000 : x.resetsAt ? (x.resetsAt > 1e12 ? x.resetsAt : x.resetsAt * 1000) : x.resets_in_seconds ? Date.now() + x.resets_in_seconds * 1000 : null } : null);
+export function setChatgptLimits(rl, source) {
+  if (!rl || (!rl.primary && !rl.secondary)) return false;
+  const p = pctWin(rl.primary), q = pctWin(rl.secondary);
+  const byLen = [p, q].filter(Boolean).sort((a, b) => (a.windowMinutes || 0) - (b.windowMinutes || 0));
+  usage.chatgpt = { fiveHour: byLen[0] || null, sevenDay: byLen[1] || null, plan: rl.plan_type || rl.planType || null, credits: rl.credits || null, source, updatedAt: Date.now() };
+  saveUsage();
+  return true;
+}
+async function latestCodexLimits() {
+  const root = join(HOME, '.codex', 'sessions');
+  const files = [];
+  const walk = async (d, depth) => { for (const e of await readdir(d, { withFileTypes: true }).catch(() => [])) { const f = join(d, e.name); if (e.isDirectory() && depth < 4) await walk(f, depth + 1); else if (/rollout-.*\.jsonl$/.test(e.name)) files.push(f); } };
+  await walk(root, 0);
+  const withTime = await Promise.all(files.map(async (f) => ({ f, t: (await stat(f)).mtimeMs })));
+  for (const { f } of withTime.sort((a, b) => b.t - a.t).slice(0, 3)) {
+    const lines = (await readFile(f, 'utf8')).trim().split('\n').reverse();
+    for (const l of lines) { if (!l.includes('rate_limits')) continue; try { const j = JSON.parse(l); const rl = j.payload?.rate_limits || j.rate_limits || j.msg?.rate_limits; if (setChatgptLimits(rl, 'sesión')) return true; } catch { /* skip */ } }
+  }
+  return false;
+}
+
+// Ask Codex for the plan limits without using any (app-server «account/rateLimits/read»).
+export function readChatgptLimits() {
+  return new Promise((resolve) => {
+    const p = spawn('codex', ['app-server'], { env: env() });
+    let buf = '';
+    let done = false;
+    const finish = (ok) => { if (done) return; done = true; clearTimeout(t); p.kill('SIGKILL'); resolve(ok); };
+    const t = setTimeout(() => finish(false), 20_000);
+    const send = (o) => p.stdin.write(`${JSON.stringify(o)}\n`);
+    p.stdout.on('data', (d) => {
+      buf += d;
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 1);
+        let m; try { m = JSON.parse(line); } catch { continue; }
+        if (m.id === 1) { send({ jsonrpc: '2.0', method: 'initialized', params: {} }); send({ jsonrpc: '2.0', id: 2, method: 'account/rateLimits/read', params: {} }); }
+        if (m.id === 2) {
+          const r = m.result || {};
+          const rl = r.rateLimits || r.rate_limits || r;
+          finish(setChatgptLimits(rl.primary || rl.secondary ? rl : rl.rateLimits || rl, 'consulta'));
+        }
+      }
+    });
+    p.on('error', () => finish(false));
+    p.on('close', () => finish(false));
+    send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientInfo: { name: 'opencrew-puente', version: '1.0.0' } } });
+  });
+}
 
 export const claudeToken = () => { try { return readFileSync(CLAUDE_TOKEN_FILE, 'utf8').trim(); } catch { return ''; } };
 export const saveClaudeToken = async (t) => { await mkdir(DATA, { recursive: true }); await writeFile(CLAUDE_TOKEN_FILE, t, { mode: 0o600 }); };
@@ -69,13 +145,19 @@ export async function askClaude({ model = 'sonnet', system, prompt }) {
   if (!token) throw Object.assign(new Error('Claude no está conectado en el Puente'), { status: 401 });
   const cwd = await mkdtemp(join(tmpdir(), 'puente-'));
   try {
-    const r = await run('claude', ['-p', '--output-format', 'json', '--model', model, '--max-turns', '1',
+    const r = await run('claude', ['-p', '--output-format', 'stream-json', '--verbose', '--model', model, '--max-turns', '1',
       '--system-prompt', system, '--disallowedTools', ...CLAUDE_BUILTIN.split(' ')], { input: prompt, cwd, extraEnv: { CLAUDE_CODE_OAUTH_TOKEN: token } });
     if (r.killed) throw Object.assign(new Error('Claude tardó demasiado'), { status: 504 });
-    let j;
-    try { j = JSON.parse(r.out.trim().split('\n').filter(Boolean).pop()); } catch { throw failure(r.err || r.out, 'Claude'); }
-    if (j.is_error || r.code !== 0) throw failure(j.result || r.err, 'Claude');
-    return { text: redact(j.result || ''), usage: { input: j.usage?.input_tokens || 0, output: j.usage?.output_tokens || 0 } };
+    let result = null;
+    for (const line of r.out.split('\n')) {
+      if (!line.trim()) continue;
+      let j; try { j = JSON.parse(line); } catch { continue; }
+      if (j.type === 'rate_limit_event' && j.rate_limit_info) setClaudeLimits(j.rate_limit_info);
+      if (j.type === 'result') result = j;
+    }
+    if (!result) throw failure(r.err || r.out, 'Claude');
+    if (result.is_error || r.code !== 0) throw failure(result.result || r.err, 'Claude');
+    return { text: redact(result.result || ''), usage: { input: result.usage?.input_tokens || 0, output: result.usage?.output_tokens || 0 }, model: result.modelUsage ? Object.keys(result.modelUsage)[0] : model };
   } finally { rm(cwd, { recursive: true, force: true }).catch(() => {}); }
 }
 
@@ -89,6 +171,7 @@ export async function askChatGPT({ model, system, prompt }) {
     const r = await run('codex', args, { cwd });
     if (r.killed) throw Object.assign(new Error('ChatGPT tardó demasiado'), { status: 504 });
     const text = await readFile(outFile, 'utf8').catch(() => (r.code === 0 ? r.out : ''));
+    latestCodexLimits().catch(() => {}); // the plan limits Codex just received
     if (r.code !== 0 || !text.trim()) throw failure(r.err || r.out, 'ChatGPT');
     return { text: redact(ansi(text).trim()), usage: { input: 0, output: 0 } };
   } finally { rm(cwd, { recursive: true, force: true }).catch(() => {}); }

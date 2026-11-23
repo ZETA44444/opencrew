@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { mkdir, rm, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { askClaude, askChatGPT, buildPrompt, parseToolCalls, chatgptConnected, claudeToken, saveClaudeToken, removeClaudeToken, env, ansi, HOME, DATA } from './cli.mjs';
+import { askClaude, askChatGPT, buildPrompt, parseToolCalls, chatgptConnected, claudeToken, saveClaudeToken, removeClaudeToken, env, ansi, HOME, DATA, getUsage, countUse, readChatgptLimits } from './cli.mjs';
 import { PAGE } from './page.mjs';
 
 const PORT = Number(process.env.PORT) || 8790;
@@ -98,15 +98,50 @@ const queue = [];
 const slot = () => new Promise((r) => { if (running < MAX_RUNNING) { running++; r(); } else queue.push(r); });
 const free = () => { const n = queue.shift(); if (n) n(); else running--; };
 
+// ---------- router: «auto» picks the subscription with most room left, and the right size ----------
+const load = (u) => {
+  if (!u) return 0;
+  if (u.status === 'rejected' || u.fiveHour?.status === 'rejected' || u.sevenDay?.status === 'rejected') return 100;
+  const fresh = (w) => (w && (!w.resetsAt || w.resetsAt > Date.now()) ? w.used || 0 : 0); // a window that already reset is empty
+  return Math.max(fresh(u.fiveHour), fresh(u.sevenDay));
+};
+function taskSize(req) {
+  const text = (req.messages || []).map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content || ''))).join(' ');
+  const last = [...(req.messages || [])].reverse().find((m) => m.role === 'user');
+  const ask = typeof last?.content === 'string' ? last.content : '';
+  if (/(analiza|investiga|estrategia|arquitectura|programa|código|codigo|depura|informe completo|plan detallado|compara a fondo|razona)/i.test(ask) || text.length > 60_000) return 'large';
+  if (ask.length < 120 && !(req.tools || []).length && text.length < 4000) return 'small';
+  return 'mid';
+}
+export function route(req) {
+  const u = getUsage();
+  const size = taskSize(req);
+  const cands = ['claude', 'chatgpt'].filter(inUse).map((p) => ({ p, load: load(u[p]) })).filter((c) => c.load < 95).sort((a, b) => a.load - b.load);
+  if (!cands.length) throw Object.assign(new Error('Tus suscripciones están al límite o no hay ninguna activada'), { status: 429 });
+  return cands.map(({ p, load: l }) => (p === 'chatgpt' ? 'chatgpt'
+    : `claude-${size === 'small' ? 'haiku' : size === 'large' && l < 50 ? 'opus' : 'sonnet'}`));
+}
+
 function models() {
   const out = [];
+  if (inUse('chatgpt') || inUse('claude')) out.push('auto');
   if (inUse('chatgpt')) out.push('chatgpt');
   if (inUse('claude')) out.push('claude-sonnet', 'claude-opus', 'claude-haiku');
   return out;
 }
 
 async function complete(req) {
-  const model = String(req.model || '');
+  const wanted = String(req.model || '');
+  const order = wanted === 'auto' ? route(req) : [wanted];
+  let lastErr;
+  for (const model of order) {
+    try { return { ...(await completeWith(model, req)), routedTo: wanted === 'auto' ? model : undefined }; }
+    catch (e) { lastErr = e; if (wanted !== 'auto' || ![429, 401, 504].includes(e.status)) throw e; } // auto: try the next subscription
+  }
+  throw lastErr;
+}
+
+async function completeWith(model, req) {
   const tools = req.tools || [];
   const which = model.startsWith('claude') ? 'claude' : 'chatgpt';
   if (!req.test && !inUse(which)) throw Object.assign(new Error(`${which === 'claude' ? 'Claude' : 'ChatGPT'} no está activado en el Puente`), { status: 401 });
@@ -114,14 +149,16 @@ async function complete(req) {
   await slot();
   try {
     stats.requests++; stats.last = new Date().toISOString();
-    const r = model.startsWith('claude')
+    const r = which === 'claude'
       ? await askClaude({ model: model.replace(/^claude-?/, '') || 'sonnet', system, prompt })
       : await askChatGPT({ model: model.replace(/^chatgpt-?/, ''), system, prompt });
+    if (!req.test) countUse(which, model);
     return { ...parseToolCalls(r.text, tools), usage: r.usage };
   } catch (e) { stats.errors++; throw e; } finally { free(); }
 }
 
 function chatResponse(res, model, r, stream) {
+  if (r.routedTo) model = `auto→${r.routedTo}`;
   const id = `chatcmpl-${Date.now().toString(36)}`;
   const created = Math.floor(Date.now() / 1000);
   const toolCalls = r.calls.map((c, index) => ({ index, id: c.id, type: 'function', function: { name: c.name, arguments: c.arguments } }));
@@ -202,6 +239,22 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true, text: r.content, ms: Date.now() - t0 });
     }
 
+    if (path === '/api/usage' && req.method === 'GET') {
+      const u = getUsage();
+      const month = new Date().toISOString().slice(0, 7);
+      return send(res, 200, {
+        claude: { connected: !!claudeToken(), enabled: settings.enabled.claude !== false, limits: u.claude },
+        chatgpt: { connected: chatgptConnected(), enabled: settings.enabled.chatgpt !== false, limits: u.chatgpt },
+        thisMonth: u.counts[month] || {}, month,
+      });
+    }
+    if (path === '/api/usage/refresh' && req.method === 'POST') {
+      const { provider } = await body(req);
+      if (provider === 'chatgpt' && chatgptConnected()) await readChatgptLimits();
+      // Claude only reports its limits with an answer: a tiny one with Haiku (a negligible part of your plan).
+      if (provider === 'claude' && claudeToken()) await completeWith('claude-haiku', { test: true, messages: [{ role: 'user', content: 'Responde solo: ok' }] }).catch(() => {});
+      return send(res, 200, { ok: true });
+    }
     if (path === '/v1/models' && req.method === 'GET') return send(res, 200, { object: 'list', data: models().map((id) => ({ id, object: 'model', owned_by: 'tu-suscripcion' })) });
     if (path === '/v1/chat/completions' && req.method === 'POST') {
       const b = await body(req);
@@ -214,4 +267,6 @@ const server = http.createServer(async (req, res) => {
   }
 });
 server.requestTimeout = 0;
+// ChatGPT's limits can be read for free: keep them fresh.
+setInterval(() => { if (chatgptConnected()) readChatgptLimits().catch(() => {}); }, 15 * 60_000).unref();
 server.listen(PORT, () => console.log(`OpenCrew Puente en :${PORT}`));

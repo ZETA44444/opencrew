@@ -125,7 +125,9 @@ Reglas para cada tarea:
 - [x] App aparte en tu servidor (https://TU-HOST/puente/) para conectar tu cuenta de **ChatGPT** (Codex, código de dispositivo) y **Claude** (Claude Code)
 - [x] OpenCrew la usa como proveedor «Mis suscripciones (Puente)» con herramientas; si llegas al límite del plan, cambia solo a tus claves
 - [x] Solo uso personal; nunca se sacan tus sesiones de los programas oficiales y los secretos se ocultan en las respuestas
-- [ ] Gemini: Google ya no permite entrar con cuenta personal en su programa; usar la clave gratuita de la API
+- [x] Gemini con tu Google AI Pro/Ultra de forma legal: sus créditos mensuales de Google Cloud (10 $ en Pro) con la API oficial (guía en Ajustes). Su programa de terminal no se puede usar dentro de otra app (va contra sus condiciones)
+- [x] Enrutador «auto» entre tus suscripciones según su uso real (la que tenga más margen; Haiku/Sonnet/Opus según la tarea); «Automático» las usa primero y si se llenan pasa a tus claves
+- [x] Uso real en Uso y coste → Suscripciones: % de la ventana de 5 h y semanal de Claude y ChatGPT, con lo usado fuera de OpenCrew (datos oficiales); Gemini enlaza a su consumo en AI Studio
 
 ## Fase 12 — Control de tu navegador y tu ordenador (con permisos)
 
