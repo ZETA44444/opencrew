@@ -65,10 +65,11 @@ export function isSensitive(name) {
   return false;
 }
 
-export function needsApproval(call, bot) {
+export function needsApproval(call, bot, { tainted = false } = {}) {
   const a = settings();
   if (a.enabled === false) return false;
-  if (bot && a.always[alwaysKey(bot.id, call.name)]) return false;
+  // «Always» doesn't count if this task already read outside content (possible hidden instructions).
+  if (bot && !tainted && a.always[alwaysKey(bot.id, call.name)]) return false;
   return isSensitive(call.name);
 }
 

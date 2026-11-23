@@ -37,10 +37,10 @@ const link = {
   handleUpgrade,
 };
 
-function handleUpgrade(req, socket, url, expectedKey, onChange) {
+function handleUpgrade(req, socket, url, expectedKey, onChange, onFail) {
   const fail = (code, text) => socket.end(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`);
   const k = url.searchParams.get('k') || '';
-  if (!expectedKey() || !k || !same(k, expectedKey())) return fail(401, 'Unauthorized');
+  if (!expectedKey() || !k || !same(k, expectedKey())) { onFail?.(); return fail(401, 'Unauthorized'); }
   const key = req.headers['sec-websocket-key'];
   if (!key) return fail(400, 'Bad Request');
   socket.write(['HTTP/1.1 101 Switching Protocols', 'Upgrade: websocket', 'Connection: Upgrade',

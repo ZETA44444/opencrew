@@ -163,6 +163,21 @@ const extra = {
   },
 };
 
+// ---------- limits: too many requests or failed logins from one address get slowed down ----------
+const buckets = new Map(); // key -> { n, reset }
+function limited(key, max, windowMs) {
+  const now = Date.now();
+  const b = buckets.get(key);
+  if (!b || b.reset < now) { buckets.set(key, { n: 1, reset: now + windowMs }); return false; }
+  b.n++;
+  return b.n > max;
+}
+setInterval(() => { const now = Date.now(); for (const [k, b] of buckets) if (b.reset < now) buckets.delete(k); }, 60_000).unref();
+// Caddy forwards the real address in X-Forwarded-For (it overwrites what the client sends).
+const ipOf = (req) => String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() || req.socket.remoteAddress || '?';
+const blockedIp = (ip) => (buckets.get(`fail:${ip}`)?.n || 0) > 20 && buckets.get(`fail:${ip}`).reset > Date.now();
+const failed = (ip) => limited(`fail:${ip}`, 20, 15 * 60_000);
+
 // ---------- HTTP ----------
 const hash = (s) => createHash('sha256').update(String(s)).digest();
 const same = (a, b) => timingSafeEqual(hash(a), hash(b));
@@ -175,7 +190,7 @@ async function handleHook(req, res, id, url) {
   const sig = String(req.headers['x-hub-signature-256'] || '');
   const ok = !!secret && ((url.searchParams.get('k') && same(url.searchParams.get('k'), secret))
     || (sig && same(sig, `sha256=${createHmac('sha256', secret).update(raw).digest('hex')}`)));
-  if (!ok) return send(res, 404, { error: 'No encontrado' });
+  if (!ok) { failed(ipOf(req)); return send(res, 404, { error: 'No encontrado' }); }
   let body = {};
   const type = String(req.headers['content-type'] || '');
   try {
@@ -267,9 +282,15 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     const hook = /^\/hooks\/([\w-]{6,40})$/.exec(url.pathname);
-    if (hook && req.method === 'POST') return handleHook(req, res, hook[1], url);
+    if (hook && req.method === 'POST') {
+      if (limited(`hook:${ipOf(req)}`, 120, 60_000)) return send(res, 429, { error: 'Demasiados avisos' });
+      return handleHook(req, res, hook[1], url);
+    }
     if (!url.pathname.startsWith('/api/')) return send(res, 404, { error: 'No encontrado' });
-    if (!authorized(req)) return send(res, 401, { error: 'Token no válido' });
+    const ip = ipOf(req);
+    if (blockedIp(ip)) return send(res, 429, { error: 'Demasiados intentos fallidos. Espera 15 minutos.' });
+    if (!authorized(req)) { failed(ip); return send(res, 401, { error: 'Token no válido' }); }
+    if (limited(`rpc:${ip}`, 600, 60_000)) return send(res, 429, { error: 'Demasiadas peticiones seguidas. Espera un momento.' });
 
     if (url.pathname === '/api/events' && req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
@@ -305,7 +326,8 @@ function wsFrame(data, opcode = 2) {
 
 server.on('upgrade', async (req, socket) => {
   const url = new URL(req.url, 'http://x');
-  const fail = (code, text) => { socket.end(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); };
+  const fail = (code, text) => { if (code === 401) failed(ipOf(req)); socket.end(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); };
+  if (blockedIp(ipOf(req))) return fail(429, 'Too Many Requests');
   if (url.pathname === '/api/ext' || url.pathname === '/api/desktop') {
     const { getDb } = store;
     const isDesktop = url.pathname === '/api/desktop';
@@ -313,7 +335,7 @@ server.on('upgrade', async (req, socket) => {
     return link.handleUpgrade(req, socket, url, () => getDb().keys[isDesktop ? 'desktopKey' : 'extensionKey'] || '', async () => {
       const { broadcast } = await import('../src/core/events.js');
       broadcast({ type: 'connectors' });
-    });
+    }, () => failed(ipOf(req)));
   }
   if (url.pathname !== '/api/computer/vnc') return fail(404, 'Not Found');
   const origin = req.headers.origin;
