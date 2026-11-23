@@ -569,3 +569,24 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .login-brand { font-weight: 700; letter-spacing: .3px; }
 .login-switch { text-align: center; }
 .row-actions { display: inline-flex; gap: 6px; }
+
+/* First-run welcome */
+.welcome { z-index: 150; }
+.welcome-card { max-width: 560px; padding: 22px; display: flex; flex-direction: column; gap: 12px; }
+.welcome-card h2 { margin: 0; font-size: 21px; }
+.welcome-card p { margin: 0; }
+.welcome-steps { display: flex; gap: 6px; }
+.welcome-steps span { flex: 1; height: 4px; border-radius: 999px; background: var(--bg-3); }
+.welcome-steps span.on { background: var(--text); }
+.welcome-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.welcome-option { text-align: left; padding: 12px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--bg-2); display: flex; flex-direction: column; gap: 6px; }
+.welcome-option.small { padding: 9px 12px; font-size: 14px; }
+.welcome-option.on, .welcome-option:hover { border-color: var(--text); }
+.welcome-icon { font-size: 22px; }
+.welcome-howto { margin: 0; padding-left: 20px; color: var(--text-2); font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+.welcome-team { display: flex; flex-direction: column; gap: 8px; }
+.welcome-bot { display: flex; gap: 10px; align-items: flex-start; }
+.welcome-dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 4px; flex: none; }
+.welcome-tasks { display: flex; flex-direction: column; gap: 6px; }
+.welcome-card textarea { width: 100%; }
+.welcome-card .modal-foot { padding: 0; border: 0; }

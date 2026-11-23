@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, serverMode } from './api.js';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
+import Welcome from './components/Welcome.jsx';
 import { lazy, Suspense } from 'react';
 const ComputerViewer = lazy(() => import('./components/ComputerViewer.jsx'));
 import Sidebar from './components/Sidebar.jsx';
@@ -30,6 +31,14 @@ export default function App() {
   const [memProposals, setMemProposals] = useState([]);
   const [call, setCall] = useState(false);
   const [viewPc, setViewPc] = useState(false);
+  // First run (only demo bots, never onboarded): the guided welcome stays open until finished or skipped.
+  const [welcome, setWelcome] = useState(false);
+  const welcomeChecked = useRef(false);
+  useEffect(() => {
+    if (!state || welcomeChecked.current) return;
+    welcomeChecked.current = true;
+    if (!state.settings.onboarded && state.bots.length > 0 && state.bots.every((b) => b.provider === 'demo')) setWelcome(true);
+  }, [state]);
   const [toasts, setToasts] = useState([]);
   const [serverDown, setServerDown] = useState(null);
   const [viewer, setViewer] = useState(null); // { botId, name } of the open file
@@ -265,6 +274,7 @@ export default function App() {
         />
       )}
       </ErrorBoundary>
+      {welcome && <Welcome state={state} onDone={(id) => { setWelcome(false); refresh(); if (id) setSelectedId(id); }} />}
       {viewPc && bot && (
         <ErrorBoundary inline onReset={() => setViewPc(false)}>
           <Suspense fallback={null}><ComputerViewer bot={bot} busy={state.busy.includes(bot.id)} onClose={() => setViewPc(false)} /></Suspense>
