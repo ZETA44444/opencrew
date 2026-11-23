@@ -5,6 +5,8 @@ cd "$(dirname "$0")/.."
 git pull --ff-only
 cd server
 docker pull node:22-alpine >/dev/null
+echo 'Preparando el ordenador de los bots…'
+docker build -q -t opencrew-computer computer >/dev/null
 docker compose up -d --build
 docker image prune -f >/dev/null
 docker compose ps

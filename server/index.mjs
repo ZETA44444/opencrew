@@ -5,8 +5,9 @@ import http from 'node:http';
 import { readFile, writeFile, rename, mkdir, stat, statfs, readdir, copyFile, unlink } from 'node:fs/promises';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { runInSandbox } from './sandbox.mjs';
+import { computer } from './computer.mjs';
 
-const VERSION = '0.12.0';
+const VERSION = '0.13.0';
 const PORT = Number(process.env.PORT) || 8787;
 const TOKEN = process.env.OPENCREW_TOKEN || '';
 const DATA = (process.env.OPENCREW_DATA || new URL('./data/', import.meta.url).pathname).replace(/\/?$/, '/');
@@ -49,6 +50,7 @@ globalThis.OPENCREW_STORAGE = {
   },
 };
 globalThis.OPENCREW_RUN_JS = runInSandbox;
+globalThis.OPENCREW_COMPUTER = computer;
 globalThis.OPENCREW_GOOGLE_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 globalThis.OPENCREW_PUBLIC_URL = (process.env.OPENCREW_PUBLIC_URL || (process.env.OPENCREW_HOST ? `https://${process.env.OPENCREW_HOST}` : `http://localhost:${PORT}`)).replace(/\/$/, '');
 

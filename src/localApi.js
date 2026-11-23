@@ -22,7 +22,7 @@ import { addConnector, refreshConnector, updateConnector, removeConnector } from
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
 import { askPermission, notifyPermission, notify } from './core/notify.js';
 
-const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown', 'connectors', 'monthlyLimit', 'delegation', 'autoFallback', 'sharedMemory'];
+const BOT_FIELDS = ['name', 'title', 'description', 'instructions', 'color', 'shape', 'provider', 'model', 'memory', 'starred', 'tools', 'toolsKnown', 'connectors', 'monthlyLimit', 'delegation', 'autoFallback', 'sharedMemory', 'computer'];
 const ROUTINE_FIELDS = ['botId', 'name', 'prompt', 'schedule', 'enabled', 'catchUp'];
 const GROUP_FIELDS = ['name', 'memberIds'];
 const PROJECT_FIELDS = ['name', 'description', 'color', 'botIds', 'groupIds', 'memory'];
@@ -84,7 +84,7 @@ export const localApi = {
       busy: [...busy],
       tools: TOOL_NAMES,
       settings: db().settings,
-      services: { tavily: !!db().keys.tavily, github: !!db().keys.github, githubWrite: !!db().settings.githubWrite, google: googleStatus(), notion: !!db().keys.notion, notionWrite: !!db().settings.notionWrite, onServer: typeof window === 'undefined', searchBackend: searchBackend() },
+      services: { tavily: !!db().keys.tavily, github: !!db().keys.github, githubWrite: !!db().settings.githubWrite, google: googleStatus(), notion: !!db().keys.notion, notionWrite: !!db().settings.notionWrite, onServer: typeof window === 'undefined', computer: !!globalThis.OPENCREW_COMPUTER, searchBackend: searchBackend() },
     });
   },
 
@@ -164,6 +164,7 @@ export const localApi = {
 
   async deleteBot(id) {
     stopBot(id);
+    globalThis.OPENCREW_COMPUTER?.remove(id).catch(() => {}); // its computer and files, if it had one
     const d = db();
     d.bots = d.bots.filter((b) => b.id !== id);
     delete d.messages[id];
@@ -289,6 +290,9 @@ export const localApi = {
   googleServerAuthUrl,
   async transcribeAudio(data, mime, lang) { return transcribeBase64(data, mime, lang); },
   liveSetup,
+  // The bot's computer on your server: state and a clean reset (deletes its files).
+  async computerStatus(botId) { return globalThis.OPENCREW_COMPUTER ? globalThis.OPENCREW_COMPUTER.status(botId) : 'unavailable'; },
+  async resetComputer(botId) { await globalThis.OPENCREW_COMPUTER?.remove(botId); return { ok: true }; },
   // What was said in a native voice call, saved to the bot's chat when you hang up.
   async appendCallTranscript(threadId, turns = [], model = '') {
     if (!getBot(threadId)) return { ok: false };

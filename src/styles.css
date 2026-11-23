@@ -539,3 +539,4 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .conn-detail { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .tool-check { align-items: flex-start; }
 .tool-check code { font-size: 11px; }
+.computer-opt { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }

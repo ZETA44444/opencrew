@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api } from '../api.js';
+import { api, serverMode } from '../api.js';
 import Avatar, { COLORS, SHAPES } from './Avatar.jsx';
 import { TEMPLATE_CATEGORIES, modelForTier } from '../templates.js';
 
@@ -46,7 +46,7 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
   const submit = async () => {
     setErr('');
     try {
-      const payload = { name: f.name, title: f.title, description: f.description, instructions: f.instructions, color: f.color, shape: f.shape, provider: f.provider, model: f.model, tools: f.tools, toolsKnown: tools, starred: f.starred, connectors: f.connectors !== false, monthlyLimit: f.monthlyLimit || null, delegation: f.delegation || null, autoFallback: f.autoFallback !== false };
+      const payload = { name: f.name, title: f.title, description: f.description, instructions: f.instructions, color: f.color, shape: f.shape, provider: f.provider, model: f.model, tools: f.tools, toolsKnown: tools, starred: f.starred, connectors: f.connectors !== false, monthlyLimit: f.monthlyLimit || null, delegation: f.delegation || null, autoFallback: f.autoFallback !== false, computer: !!f.computer };
       const saved = isNew ? await api.createBot(payload) : await api.updateBot(bot.id, payload);
       onSaved(saved);
     } catch (e) { setErr(e.message); }
@@ -137,6 +137,15 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
             ))}
             <label className="check"><input type="checkbox" checked={f.autoFallback !== false} onChange={(e) => set({ autoFallback: e.target.checked })} /> Si el modelo falla, probar otro automáticamente</label>
             <label className="check"><input type="checkbox" checked={f.connectors !== false} onChange={(e) => set({ connectors: e.target.checked })} /> Usar apps conectadas (MCP)</label>
+            {serverMode && (
+              <div className="computer-opt">
+                <label className="check"><input type="checkbox" checked={!!f.computer} onChange={(e) => set({ computer: e.target.checked })} /> 🖥 Darle su propio ordenador (terminal y navegador en tu servidor)</label>
+                <div className="muted small">Puede navegar webs de verdad, ejecutar código y guardar archivos en su carpeta. Usar la terminal o el navegador te pide permiso (puedes darle «siempre»). Gasta algo de memoria del servidor mientras lo usa.</div>
+                {f.computer && !isNew && (
+                  <button type="button" className="link small" onClick={() => confirm(`¿Reiniciar el ordenador de ${bot.name}? Se borran sus archivos y sesiones del navegador.`) && api.resetComputer(bot.id).then(() => alert('Ordenador reiniciado.'))}>Reiniciar su ordenador (borra sus archivos)</button>
+                )}
+              </div>
+            )}
             <label className="check"><input type="checkbox" checked={!!f.starred} onChange={(e) => set({ starred: e.target.checked })} /> ★ Bot principal</label>
           </div>
           {err && <div className="banner error">{err}</div>}
