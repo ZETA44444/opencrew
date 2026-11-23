@@ -12,6 +12,8 @@ docker pull node:22-alpine >/dev/null
 echo 'Preparando el ordenador de los bots…'
 docker build -q -t opencrew-computer computer >/dev/null
 docker compose up -d --build
+# Caddy keeps the old Caddyfile after git replaces it: restart it so changes apply.
+docker compose restart caddy >/dev/null
 docker image prune -f >/dev/null
 docker compose ps
 exit 0
