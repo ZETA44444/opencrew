@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, serverMode } from './api.js';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Chat, { setVoiceSettings } from './components/Chat.jsx';
 import { speak } from './voice.js';
@@ -234,6 +235,7 @@ export default function App() {
           onOpenArtifact={(botId, name) => setViewer({ botId, name })}
         />
       )}
+      <ErrorBoundary inline key={modal?.type || 'none'} onReset={() => setModal(null)}>
       {modal?.type === 'bot' && (
         <BotModal
           bot={modal.bot}
@@ -258,6 +260,7 @@ export default function App() {
           onDeleted={() => { setModal(null); refresh(); }}
         />
       )}
+      </ErrorBoundary>
       {call && bot && <CallOverlay bot={bot} rate={state.settings.voice?.rate || 1} native={state.settings.voice?.native || ''} onClose={() => setCall(false)} />}
       {serverMode && serverDown && <div className="server-down" role="status">☁️ Sin conexión con tu servidor · reintentando… (tus bots siguen trabajando allí)</div>}
       {toasts.length > 0 && (

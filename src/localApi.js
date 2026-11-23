@@ -66,7 +66,7 @@ export const localApi = {
   async state() {
     boot();
     return clone({
-      bots: db().bots,
+      bots: db().bots.map((b) => ({ ...b, monthCost: monthCost(b.id) })), // monthCost: spent this month (read-only)
       providers: publicProviders(),
       routines: db().routines,
       groups: db().groups,

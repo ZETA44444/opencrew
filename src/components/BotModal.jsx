@@ -115,7 +115,7 @@ export default function BotModal({ bot, providers, tools, onClose, onSaved, onDe
             </label>
           </div>
           {provider && !provider.hasKey && <div className="banner small">Este proveedor aún no tiene API key. Añádela en Ajustes.</div>}
-          <label>Límite de gasto al mes (USD) <span className="hint">Vacío = sin límite. Al llegar, el bot se para y te avisa.{!isNew && ` Este mes: ${api.monthCost(bot.id).toFixed(2)} $.`}</span>
+          <label>Límite de gasto al mes (USD) <span className="hint">Vacío = sin límite. Al llegar, el bot se para y te avisa.{!isNew && ` Este mes: ${Number(bot.monthCost || 0).toFixed(2)} $.`}</span>
             <input type="number" min="0" step="0.5" placeholder="Sin límite" value={f.monthlyLimit ?? ''} onChange={(e) => set({ monthlyLimit: e.target.value === '' ? null : Number(e.target.value) })} />
           </label>
 

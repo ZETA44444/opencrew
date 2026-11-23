@@ -70,7 +70,7 @@ export default function UsageModal({ bots, onClose }) {
                         <td><span className="usage-bot"><Avatar bot={b} size={18} />{b.name}</span><div className="usage-bar"><span style={{ width: `${Math.max(2, share * 100)}%` }} /></div></td>
                         <td>{g.calls}</td>
                         <td>{fmtTok(g.input + g.output)}</td>
-                        <td>{fmtCost(g.cost)}{b.monthlyLimit ? <div className={`limit ${api.monthCost(b.id) >= b.monthlyLimit ? 'over' : ''}`}>este mes {fmtCost(api.monthCost(b.id))} de {fmtCost(b.monthlyLimit)}</div> : null}</td>
+                        <td>{fmtCost(g.cost)}{b.monthlyLimit ? <div className={`limit ${(b.monthCost || 0) >= b.monthlyLimit ? 'over' : ''}`}>este mes {fmtCost(b.monthCost || 0)} de {fmtCost(b.monthlyLimit)}</div> : null}</td>
                       </tr>
                     );
                   })}
