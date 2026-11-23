@@ -23,6 +23,26 @@ services:
       - "8787"
     depends_on:
       - launcher
+  # Accounts and sessions in front of the engines: one isolated engine per user (the owner keeps «opencrew»).
+  gateway:
+    build: ../gateway
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - OWNER_ENGINE_URL=http://opencrew:8787
+      - LAUNCHER_URL=http://launcher:8788
+      - PUENTE_URL=http://puente:8790
+    volumes:
+      - ./data-gateway:/data
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    expose:
+      - "8786"
+    depends_on:
+      - opencrew
+      - launcher
   # The only container with Docker access: creates bot computers and code sandboxes with fixed, safe settings.
   launcher:
     build:

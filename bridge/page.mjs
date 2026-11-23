@@ -44,7 +44,7 @@ const h = new URLSearchParams(location.hash.slice(1)); if (h.get('t')) { session
 let T = sessionStorage.getItem('puente') || '';
 const $ = (id) => document.getElementById(id);
 function saveTok(){ T = $('tok').value.trim(); sessionStorage.setItem('puente', T); load(); }
-async function api(path, data){ const r = await fetch('api/' + path, { method: data ? 'POST' : 'GET', headers: { authorization: 'Bearer ' + T, 'content-type': 'application/json' }, body: data ? JSON.stringify(data) : undefined }); const j = await r.json().catch(() => ({})); if (r.status === 401) { $('auth').style.display = 'block'; $('app').style.display = 'none'; throw new Error('Token no válido'); } if (!r.ok) throw new Error(j.error?.message || ('Error ' + r.status)); return j; }
+async function api(path, data){ const r = await fetch('api/' + path, { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { ...(T ? { authorization: 'Bearer ' + T } : {}), 'x-opencrew': '1', 'content-type': 'application/json' }, body: data ? JSON.stringify(data) : undefined }); const j = await r.json().catch(() => ({})); if (r.status === 401) { $('auth').style.display = 'block'; $('app').style.display = 'none'; throw new Error('Token no válido'); } if (!r.ok) throw new Error(j.error?.message || ('Error ' + r.status)); return j; }
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const msg = {};
 function render(s){
@@ -81,6 +81,6 @@ async function login(p){ msg[p] = ''; if (p === 'claude') msg.ccode = ''; await 
 async function sendCode(){ const c = $('ccode').value; msg.ccode = c; try { await api('login/claude/code', { code: c }); msg.claude = ''; } catch (e) { msg.claude = '<div class="err">' + esc(e.message) + '</div>'; } load(); }
 async function logout(p){ if (!confirm('¿Desconectar ' + p + '?')) return; msg[p]=''; await api('logout', { provider: p }); load(); }
 async function test(p){ msg[p] = '<div class="small">Probando…</div>'; load(); try { const r = await api('test', { provider: p }); msg[p] = '<div class="okmsg">✓ «' + esc(r.text) + '» (' + (r.ms/1000).toFixed(1) + ' s)</div>'; } catch (e) { msg[p] = '<div class="err">' + esc(e.message) + '</div>'; } load(); }
-if (T) load(); else $('auth').style.display = 'block';
-setInterval(() => { if (T && $('app').style.display === 'block') load(); }, 2500);
+load(); // with the server owner's session it works without pasting anything
+setInterval(() => { if ($('app').style.display === 'block') load(); }, 2500);
 </script></main></body></html>`;

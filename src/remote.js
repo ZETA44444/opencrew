@@ -7,7 +7,13 @@ import { openArtifactFile } from './artifactFile.js';
 
 const CONF_KEY = 'oc.server';
 
+// Hosted mode: the app is served by an OpenCrew server with accounts (the gateway). Then the API
+// is on the same address and the session is a secure cookie: no token in the browser at all.
+let hosted = null;
+export function setHosted(info) { hosted = info; }
+export const hostedInfo = () => hosted;
 export function remoteConfig() {
+  if (hosted) return { url: location.origin, token: '', hosted: true };
   try {
     const c = JSON.parse(globalThis.localStorage?.getItem(CONF_KEY) || 'null');
     return c?.url && c?.token ? c : null;
@@ -30,13 +36,15 @@ export async function rpc(method, args = [], conf = remoteConfig()) {
   try {
     res = await fetch(`${conf.url}/api/rpc`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${conf.token}` },
+      credentials: conf.hosted ? 'same-origin' : 'omit',
+      headers: { 'content-type': 'application/json', ...(conf.hosted ? { 'x-opencrew': '1' } : { authorization: `Bearer ${conf.token}` }) },
       body: JSON.stringify({ method, args }),
     });
   } catch {
     throw new Error('No hay conexión con tu servidor. Revisa tu conexión a internet o que el servidor esté encendido.');
   }
   const data = await res.json().catch(() => null);
+  if (res.status === 401 && conf.hosted) { window.dispatchEvent(new Event('oc-login-needed')); throw new Error('Tu sesión ha caducado: vuelve a entrar.'); }
   if (res.status === 401) throw new Error('El servidor ha rechazado el token de acceso.');
   if (!res.ok || data?.error) throw new Error(data?.error || `Servidor ${res.status}`);
   return data.result;
@@ -76,7 +84,8 @@ async function streamEvents() {
     const conf = remoteConfig();
     if (!conf) return;
     try {
-      const res = await fetch(`${conf.url}/api/events`, { headers: { authorization: `Bearer ${conf.token}` } });
+      const res = await fetch(`${conf.url}/api/events`, conf.hosted ? { credentials: 'same-origin' } : { headers: { authorization: `Bearer ${conf.token}` } });
+      if (res.status === 401 && conf.hosted) { window.dispatchEvent(new Event('oc-login-needed')); return; }
       if (!res.ok || !res.body) throw new Error(`eventos ${res.status}`);
       emit({ type: 'server', connected: true });
       if (!first) emit({ type: 'bots' }); // reconnected: refresh everything

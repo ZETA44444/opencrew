@@ -5,11 +5,14 @@ import { EventEmitter } from 'node:events';
 
 const BASE = (process.env.LAUNCHER_URL || 'http://launcher:8788').replace(/\/$/, '');
 const KEY = process.env.LAUNCHER_KEY || '';
+// A user's engine identifies itself; its key only reaches its own bot computers.
+const TENANT = process.env.LAUNCHER_TENANT || '';
+const auth = () => ({ 'x-launcher-key': KEY, ...(TENANT && { 'x-tenant': TENANT }) });
 
 async function call(op, payload, timeoutMs = 320_000) {
   let res;
   try {
-    res = await fetch(`${BASE}/${op}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-launcher-key': KEY }, body: JSON.stringify(payload), signal: AbortSignal.timeout(timeoutMs) });
+    res = await fetch(`${BASE}/${op}`, { method: 'POST', headers: { 'content-type': 'application/json', ...auth() }, body: JSON.stringify(payload), signal: AbortSignal.timeout(timeoutMs) });
   } catch (e) { throw new Error(`El servicio de ordenadores no responde (${e.cause?.code || e.message})`); }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Servicio de ordenadores: ${res.status}`);
@@ -35,7 +38,7 @@ export const computer = {
   // Raw screen stream, shaped like a child process (stdout/stdin/kill/close) for the WebSocket bridge.
   vnc(botId) {
     return new Promise((resolve, reject) => {
-      const req = http.request(`${BASE}/vnc?botId=${encodeURIComponent(botId)}`, { headers: { Connection: 'Upgrade', Upgrade: 'opencrew-vnc', 'x-launcher-key': KEY } });
+      const req = http.request(`${BASE}/vnc?botId=${encodeURIComponent(botId)}`, { headers: { Connection: 'Upgrade', Upgrade: 'opencrew-vnc', ...auth() } });
       req.on('upgrade', (_res, socket) => {
         const child = new EventEmitter();
         child.stdout = socket; child.stdin = socket;

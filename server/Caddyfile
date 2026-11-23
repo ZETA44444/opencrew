@@ -6,15 +6,16 @@
 		-Server
 	}
 	redir /puente /puente/
+	# The Bridge goes through the gateway: only the server owner can open it.
 	handle /puente/* {
-		reverse_proxy puente:8790 {
+		reverse_proxy gateway:8786 {
 			flush_interval -1
 		}
 	}
 	# The app's API, webhooks and sign-in callbacks.
 	@api path /api/* /hooks/* /oauth/*
 	handle @api {
-		reverse_proxy opencrew:8787 {
+		reverse_proxy gateway:8786 {
 			flush_interval -1
 		}
 	}

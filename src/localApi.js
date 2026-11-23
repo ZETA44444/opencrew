@@ -85,7 +85,7 @@ export const localApi = {
       busy: [...busy],
       tools: TOOL_NAMES,
       settings: db().settings,
-      services: { tavily: !!db().keys.tavily, github: !!db().keys.github, githubWrite: !!db().settings.githubWrite, google: googleStatus(), notion: !!db().keys.notion, notionWrite: !!db().settings.notionWrite, onServer: typeof window === 'undefined', computer: !!globalThis.OPENCREW_COMPUTER, searchBackend: searchBackend() },
+      services: { tavily: !!db().keys.tavily, github: !!db().keys.github, githubWrite: !!db().settings.githubWrite, google: googleStatus(), notion: !!db().keys.notion, notionWrite: !!db().settings.notionWrite, onServer: typeof window === 'undefined', tenant: globalThis.OPENCREW_TENANT || null, computer: !!globalThis.OPENCREW_COMPUTER, searchBackend: searchBackend() },
     });
   },
 

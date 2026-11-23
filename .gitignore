@@ -9,3 +9,4 @@ data/
 server/data/
 server/.env
 server/data-puente/
+server/data-gateway/

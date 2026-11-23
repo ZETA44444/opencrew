@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { localApi } from '../localApi.js';
-import { remoteConfig, setRemoteConfig, testServer, rpc, normalizeUrl } from '../remote.js';
+import { remoteConfig, setRemoteConfig, testServer, rpc, normalizeUrl, hostedInfo } from '../remote.js';
+import AccountSection from './AccountSection.jsx';
 
 // Ajustes → Servidor: connect this app to your own OpenCrew server (bots keep working 24/7).
 export default function ServerSection() {
+  if (hostedInfo()) return <AccountSection />; // server with accounts: show the account instead
   const current = remoteConfig();
   const [url, setUrl] = useState(current?.url || '');
   const [token, setToken] = useState('');

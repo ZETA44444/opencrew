@@ -7,7 +7,10 @@ import { createHash, createHmac, timingSafeEqual, randomBytes, createCipheriv, c
 import { runInSandbox, computer } from './launcher-client.mjs';
 import { extension, desktop } from './extension-link.mjs';
 
-const VERSION = '0.19.0';
+const VERSION = '0.20.0';
+// When this engine belongs to one user of a multi-user server (set by the launcher).
+const TENANT = /^[a-f0-9]{12}$/.test(process.env.OPENCREW_TENANT || '') ? process.env.OPENCREW_TENANT : '';
+globalThis.OPENCREW_TENANT = TENANT;
 const PORT = Number(process.env.PORT) || 8787;
 const TOKEN = process.env.OPENCREW_TOKEN || '';
 const DATA = (process.env.OPENCREW_DATA || new URL('./data/', import.meta.url).pathname).replace(/\/?$/, '/');
@@ -146,12 +149,12 @@ const extra = {
     const k = randomBytes(24).toString('hex');
     store.getDb().keys.extensionKey = k;
     store.save();
-    return { key: k };
+    return { key: TENANT ? `${TENANT}.${k}` : k }; // the gateway routes by the «user.» prefix
   },
   async extensionRevoke() { delete store.getDb().keys.extensionKey; store.save(); return { ok: true }; },
   async extensionStatus() { return { paired: !!store.getDb().keys.extensionKey, connected: extension.connected(), info: extension.info() }; },
   // Same for the desktop app (OpenCrew Escritorio).
-  async desktopPair() { const k = randomBytes(24).toString('hex'); store.getDb().keys.desktopKey = k; store.save(); return { key: k }; },
+  async desktopPair() { const k = randomBytes(24).toString('hex'); store.getDb().keys.desktopKey = k; store.save(); return { key: TENANT ? `${TENANT}.${k}` : k }; },
   async desktopRevoke() { delete store.getDb().keys.desktopKey; store.save(); return { ok: true }; },
   async desktopStatus() { return { paired: !!store.getDb().keys.desktopKey, connected: desktop.connected(), info: desktop.info() }; },
   async computerControl(botId, on) { return computer.setControl(botId, !!on); },
@@ -159,7 +162,7 @@ const extra = {
   async serverInfo() {
     const db = store.getDb();
     const messages = Object.values(db.messages || {}).reduce((n, list) => n + list.length, 0);
-    return { version: VERSION, bots: db.bots.length, messages, fresh: messages === 0 && db.bots.every((b) => b.provider === 'demo') };
+    return { version: VERSION, bots: db.bots.length, messages, fresh: messages === 0 && db.bots.every((b) => b.provider === 'demo'), tenant: TENANT || null };
   },
 };
 

@@ -21,7 +21,7 @@ export default function RightPanel({ bot, state, steps, pinned, onUnpin, artifac
         {current === 'progress' && <Progress steps={steps} pinned={pinned} onUnpin={onUnpin} />}
         {current === 'routines' && (
           <>
-            <Watchers bot={bot} watchers={(state.watchers || []).filter((w) => w.botId === bot.id)} refresh={refresh} />
+            <Watchers bot={bot} watchers={(state.watchers || []).filter((w) => w.botId === bot.id)} refresh={refresh} tenant={state.services?.tenant} />
             <div className="section-title">⏱ Rutinas por horario</div>
             <Routines bot={bot} routines={state.routines.filter((r) => r.botId === bot.id)} runs={state.runs} refresh={refresh} />
           </>
@@ -102,15 +102,15 @@ const WATCH_TYPES = {
   gmail: { label: 'Gmail', hint: 'Avisa con cada correo nuevo que coincida con la búsqueda (necesita Google conectado en Apps conectadas)' },
   webhook: { label: 'Webhook (al instante)', hint: 'GitHub, Slack o cualquier servicio avisa a tu servidor en el momento; no se comprueba nada cada pocos minutos', server: true },
 };
-const hookUrl = (w) => `${remoteConfig()?.url || ''}/hooks/${w.id}?k=${w.config?.secret || ''}`;
+const hookUrl = (w, tenant) => `${remoteConfig()?.url || location.origin}/hooks/${tenant ? `${tenant}/` : ''}${w.id}?k=${w.config?.secret || ''}`;
 
-function HookInfo({ w }) {
+function HookInfo({ w, tenant }) {
   const [copied, setCopied] = useState('');
   const copy = (what, text) => navigator.clipboard?.writeText(text).then(() => { setCopied(what); setTimeout(() => setCopied(''), 1500); });
   return (
     <details className="hook-info">
       <summary className="small">Dirección del webhook y cómo configurarlo</summary>
-      <div className="hook-url"><code>{hookUrl(w)}</code><button className="btn small" onClick={() => copy('url', hookUrl(w))}>{copied === 'url' ? '✓ Copiada' : 'Copiar'}</button></div>
+      <div className="hook-url"><code>{hookUrl(w, tenant)}</code><button className="btn small" onClick={() => copy('url', hookUrl(w, tenant))}>{copied === 'url' ? '✓ Copiada' : 'Copiar'}</button></div>
       <div className="muted small">
         <b>GitHub:</b> repositorio → Settings → Webhooks → Add webhook. Payload URL: la dirección de arriba, Content type: <code>application/json</code>,
         y en Secret pega esta clave <button className="link small" onClick={() => copy('secret', w.config?.secret || '')}>{copied === 'secret' ? '✓ copiada' : 'copiar clave'}</button>. Elige los eventos que quieras.
@@ -132,7 +132,7 @@ function describeFilters(f = {}) {
   return [f.include && `contiene «${f.include}»`, f.exclude && `sin «${f.exclude}»`, f.labels && `etiquetas ${f.labels}`, f.author && `de ${f.author}`].filter(Boolean).join(' · ');
 }
 
-function Watchers({ bot, watchers, refresh }) {
+function Watchers({ bot, watchers, refresh, tenant }) {
   const [form, setForm] = useState(null);
   const [checking, setChecking] = useState(null);
   const [err, setErr] = useState('');
@@ -159,7 +159,7 @@ function Watchers({ bot, watchers, refresh }) {
             </label>
           </div>
           <div className="muted small conn-url">{WATCH_TYPES[w.type]?.label}: {describeWatch(w)}{w.type !== 'webhook' && ` · cada ${w.everyMin} min`}</div>
-          {w.type === 'webhook' && <HookInfo w={w} />}
+          {w.type === 'webhook' && <HookInfo w={w} tenant={tenant} />}
           {describeFilters(w.filters) && <div className="muted small">Filtro: {describeFilters(w.filters)}</div>}
           {w.type === 'webhook'
             ? <div className="muted small">{w.lastCheckAt ? `Último aviso recibido: ${new Date(w.lastCheckAt).toLocaleString()}` : 'Esperando el primer aviso'}</div>

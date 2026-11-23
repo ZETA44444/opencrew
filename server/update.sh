@@ -6,7 +6,10 @@ set -e
 cd "$(dirname "$0")/.."
 git pull --ff-only
 cd server
-mkdir -p data-puente
+mkdir -p data-puente data-gateway
+[ "$(stat -c %u data-gateway)" = 1000 ] || sudo chown -R 1000:1000 data-gateway
+# One-time code to create the administrator account in the app (read it with: grep GATEWAY_SETUP_CODE .env).
+grep -q '^GATEWAY_SETUP_CODE=' .env || printf 'GATEWAY_SETUP_CODE=%s\n' "$(openssl rand -hex 8)" >> .env
 # Secret between the main server and the launcher (created once).
 grep -q '^OPENCREW_SECRET_KEY=' .env || printf 'OPENCREW_SECRET_KEY=%s\n' "$(openssl rand -hex 32)" >> .env
 grep -q '^LAUNCHER_KEY=' .env || printf 'LAUNCHER_KEY=%s\n' "$(openssl rand -hex 32)" >> .env

@@ -78,7 +78,8 @@ const redirectUri = () => `${globalThis.OPENCREW_PUBLIC_URL || ''}/oauth/google/
 
 export function googleServerAuthUrl() {
   if (!serverSecret()) throw new Error('Tu servidor no tiene configurado el secreto de Google (GOOGLE_CLIENT_SECRET).');
-  const state = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const rand = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const state = globalThis.OPENCREW_TENANT ? `${globalThis.OPENCREW_TENANT}.${rand}` : rand; // the gateway routes by it
   for (const [k, exp] of pendingStates) if (exp < Date.now()) pendingStates.delete(k);
   pendingStates.set(state, Date.now() + 10 * 60_000);
   const q = new URLSearchParams({
