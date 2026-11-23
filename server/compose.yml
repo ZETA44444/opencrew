@@ -19,6 +19,7 @@ services:
   puente:
     build: ../bridge
     restart: unless-stopped
+    init: true
     environment:
       - BRIDGE_TOKEN=${OPENCREW_TOKEN}
     volumes:

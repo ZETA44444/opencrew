@@ -3,9 +3,9 @@
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, rm, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { askClaude, askChatGPT, buildPrompt, parseToolCalls, chatgptConnected, claudeToken, saveClaudeToken, removeClaudeToken, env, ansi, HOME } from './cli.mjs';
+import { askClaude, askChatGPT, buildPrompt, parseToolCalls, chatgptConnected, claudeToken, saveClaudeToken, removeClaudeToken, env, ansi, HOME, DATA } from './cli.mjs';
 import { PAGE } from './page.mjs';
 
 const PORT = Number(process.env.PORT) || 8790;
@@ -22,14 +22,21 @@ const body = (req) => new Promise((resolve, reject) => {
   req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch { reject(new Error('JSON no válido')); } });
 });
 
+// ---------- which subscriptions OpenCrew may use (you choose; connected ≠ in use) ----------
+const SETTINGS = join(DATA, 'settings.json');
+let settings = { enabled: { chatgpt: true, claude: true } };
+try { settings = { ...settings, ...JSON.parse(await readFile(SETTINGS, 'utf8')) }; } catch { /* first run */ }
+const saveSettings = () => writeFile(SETTINGS, JSON.stringify(settings, null, 2));
+const inUse = (p) => settings.enabled[p] !== false && (p === 'claude' ? !!claudeToken() : chatgptConnected());
+
 // ---------- account sign-in (you do it once, in the bridge page) ----------
 const logins = {}; // provider -> { proc, state, url, code, output, error }
 const status = () => ({
-  chatgpt: { connected: chatgptConnected(), login: pub(logins.chatgpt) },
-  claude: { connected: !!claudeToken(), login: pub(logins.claude) },
+  chatgpt: { connected: chatgptConnected(), enabled: settings.enabled.chatgpt !== false, login: pub(logins.chatgpt) },
+  claude: { connected: !!claudeToken(), enabled: settings.enabled.claude !== false, login: pub(logins.claude) },
   usage: stats,
 });
-const pub = (l) => (l ? { state: l.state, url: l.url, code: l.code, error: l.error } : null);
+const pub = (l) => (l ? { state: l.state, url: l.url, code: l.code, error: l.error, startedAt: l.startedAt } : null);
 
 function startChatGPT() {
   logins.chatgpt?.proc?.kill();
@@ -52,20 +59,29 @@ function startChatGPT() {
 }
 
 function startClaude() {
-  logins.claude?.proc?.kill();
-  const l = (logins.claude = { state: 'starting', output: '' });
+  logins.claude?.proc?.kill('SIGKILL');
+  const l = (logins.claude = { state: 'starting', output: '', startedAt: Date.now() });
   // setup-token needs a terminal: `script` gives it one, wide enough that the token isn't wrapped.
   const p = spawn('script', ['-qfec', 'stty cols 1000 rows 50; claude setup-token', '/dev/null'], { env: env() });
   l.proc = p;
+  const stopAfter = setTimeout(() => { if (l.state !== 'ok') { l.state = 'error'; l.error = 'Han pasado 10 minutos sin terminar. Pulsa «Conectar Claude» otra vez.'; p.kill('SIGKILL'); } }, 10 * 60_000);
   const onData = async (d) => {
-    l.output += ansi(d);
-    l.url ||= (l.output.match(/https:\/\/claude\.ai\/\S+|https:\/\/\S*anthropic\S*/) || [])[0];
+    l.output = (l.output + ansi(d)).slice(-20_000);
+    l.url ||= (l.output.match(/https:\/\/claude\.ai\/oauth\S+|https:\/\/\S*anthropic\S*\/oauth\S*/) || [])[0];
     if (l.url && l.state === 'starting') l.state = 'waiting';
     const tok = (l.output.match(/sk-ant-oat[\w-]{20,}/) || [])[0];
-    if (tok && l.state !== 'ok') { await saveClaudeToken(tok); l.state = 'ok'; l.output = ''; setTimeout(() => p.kill(), 500); }
+    if (tok && l.state !== 'ok') { await saveClaudeToken(tok); l.state = 'ok'; l.output = ''; clearTimeout(stopAfter); setTimeout(() => p.kill('SIGKILL'), 500); return; }
+    // Claude said no (wrong, expired or old code): tell you and stop this attempt.
+    const flat = l.output.replace(/\s+/g, '');
+    if (l.state === 'checking' && /OAuth ?error|wasn'?taccepted|Invalidcode|PressEntertoretry/i.test(flat)) {
+      l.state = 'error';
+      l.error = 'Claude no ha aceptado el código: puede que esté incompleto, caducado o sea de un intento anterior. Pulsa «Conectar Claude» otra vez y usa el enlace NUEVO (copia el código entero).';
+      clearTimeout(stopAfter);
+      p.kill('SIGKILL');
+    }
   };
   p.stdout.on('data', onData); p.stderr.on('data', onData);
-  p.on('close', () => { l.proc = null; if (l.state !== 'ok') { l.state = 'error'; l.error ||= l.output.trim().split('\n').slice(-3).join(' ').slice(0, 400) || 'No se pudo conectar'; } });
+  p.on('close', () => { clearTimeout(stopAfter); l.proc = null; if (l.state !== 'ok' && l.state !== 'error') { l.state = 'error'; l.error = l.output.trim().split('\n').slice(-3).join(' ').slice(0, 400) || 'No se pudo conectar'; } });
   p.on('error', (e) => { l.state = 'error'; l.error = e.message; });
 }
 
@@ -78,14 +94,16 @@ const free = () => { const n = queue.shift(); if (n) n(); else running--; };
 
 function models() {
   const out = [];
-  if (chatgptConnected()) out.push('chatgpt');
-  if (claudeToken()) out.push('claude-sonnet', 'claude-opus', 'claude-haiku');
+  if (inUse('chatgpt')) out.push('chatgpt');
+  if (inUse('claude')) out.push('claude-sonnet', 'claude-opus', 'claude-haiku');
   return out;
 }
 
 async function complete(req) {
   const model = String(req.model || '');
   const tools = req.tools || [];
+  const which = model.startsWith('claude') ? 'claude' : 'chatgpt';
+  if (!req.test && !inUse(which)) throw Object.assign(new Error(`${which === 'claude' ? 'Claude' : 'ChatGPT'} no está activado en el Puente`), { status: 401 });
   const { system, prompt } = buildPrompt(req.messages, tools, req.tool_choice);
   await slot();
   try {
@@ -135,7 +153,10 @@ const server = http.createServer(async (req, res) => {
       const { code } = await body(req);
       const l = logins.claude;
       if (!l?.proc) return send(res, 400, { error: { message: 'Primero pulsa «Conectar Claude»' } });
-      l.proc.stdin.write(`${String(code || '').trim()}\r`);
+      const c = String(code || '').replace(/\s+/g, '');
+      if (c.length < 10) return send(res, 400, { error: { message: 'Ese código parece incompleto: cópialo entero desde la página de Claude.' } });
+      l.output = '';
+      l.proc.stdin.write(`${c}\r`);
       l.state = 'checking';
       return send(res, 200, { ok: true });
     }
@@ -143,13 +164,27 @@ const server = http.createServer(async (req, res) => {
       const { provider } = await body(req);
       if (provider === 'claude') await removeClaudeToken();
       if (provider === 'chatgpt') await rm(join(HOME, '.codex', 'auth.json'), { force: true });
+      logins[provider]?.proc?.kill('SIGKILL');
       delete logins[provider];
+      return send(res, 200, { ok: true });
+    }
+    if (path === '/api/cancel' && req.method === 'POST') {
+      const { provider } = await body(req);
+      logins[provider]?.proc?.kill('SIGKILL');
+      delete logins[provider];
+      return send(res, 200, { ok: true });
+    }
+    if (path === '/api/enable' && req.method === 'POST') {
+      const { provider, enabled } = await body(req);
+      if (!['chatgpt', 'claude'].includes(provider)) return send(res, 400, { error: { message: 'Proveedor no válido' } });
+      settings.enabled[provider] = !!enabled;
+      await saveSettings();
       return send(res, 200, { ok: true });
     }
     if (path === '/api/test' && req.method === 'POST') {
       const { provider } = await body(req);
       const t0 = Date.now();
-      const r = await complete({ model: provider === 'claude' ? 'claude-haiku' : 'chatgpt', messages: [{ role: 'user', content: 'Di hola en una frase corta, en español.' }] });
+      const r = await complete({ test: true, model: provider === 'claude' ? 'claude-haiku' : 'chatgpt', messages: [{ role: 'user', content: 'Di hola en una frase corta, en español.' }] });
       return send(res, 200, { ok: true, text: r.content, ms: Date.now() - t0 });
     }
 
