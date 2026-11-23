@@ -1,6 +1,9 @@
 // Runs inside the bot's computer: opens Chromium with the bot's own profile (keeps sign-ins
 // and cookies between calls), follows a list of steps and returns what the page shows.
-import { chromium } from 'playwright';
+import { createRequire } from 'node:module';
+
+// Playwright is installed globally in the image (ES modules don't look there by themselves).
+const { chromium } = createRequire(import.meta.url)('/usr/local/lib/node_modules/playwright');
 
 const input = JSON.parse(await new Promise((r) => { let s = ''; process.stdin.on('data', (d) => (s += d)).on('end', () => r(s)); }));
 const out = { ok: true, log: [] };
