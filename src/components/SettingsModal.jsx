@@ -92,7 +92,7 @@ export default function SettingsModal({ providers, settings, services, sensitive
             Pega aquí tus propias API keys. Se guardan <b>{serverMode ? 'solo en tu servidor' : 'solo en este navegador'}</b> y solo se envían al proveedor de IA
             correspondiente cuando un bot lo usa. Después, en cada bot, elige qué modelo usa.
           </p>
-          {list.filter((p) => !p.noKey).map((p) => {
+          {list.filter((p) => !p.noKey && !p.bridge).map((p) => {
             const t = tests[p.id];
             return (
               <div key={p.id} className="key-row">
@@ -231,17 +231,29 @@ export default function SettingsModal({ providers, settings, services, sensitive
           )}
 
           <ServerSection />
-          {(list || providers || []).some((p) => p.id === 'puente') && (() => {
-            const pu = (list || providers).find((p) => p.id === 'puente');
+          {(list || []).some((p) => p.id === 'puente') && (() => {
+            const pu = list.find((p) => p.id === 'puente');
+            const t = tests.puente;
+            const models = pu.models || [];
             return (
               <>
                 <div className="section-title">Mis suscripciones (Puente)</div>
-                <div className="muted small">
-                  Usa tu suscripción de <b>ChatGPT</b> o <b>Claude</b> en tus bots en lugar de la API. Conecta tus cuentas en el Puente y después elige en cada bot
-                  el proveedor «Mis suscripciones (Puente)». {pu.models?.length ? `Conectados: ${pu.models.join(', ')}.` : 'Aún no has conectado ninguna cuenta.'}
-                </div>
-                <div className="settings-actions">
-                  <a className="btn small primary" href={`${remoteConfig()?.url}/puente/#t=${encodeURIComponent(remoteConfig()?.token || '')}`} target="_blank" rel="noreferrer">Abrir el Puente ↗</a>
+                <div className="key-row">
+                  <div className="key-head">
+                    <strong>ChatGPT y Claude con tu suscripción</strong>
+                    {models.length ? <span className="pill ok">{models.some((m) => m === 'chatgpt') && models.some((m) => m.startsWith('claude')) ? 'ChatGPT y Claude' : models.some((m) => m.startsWith('claude')) ? 'Claude' : 'ChatGPT'} en uso</span> : <span className="pill">ninguna conectada</span>}
+                  </div>
+                  <div className="muted small">
+                    Sin clave: conecta en el Puente solo las suscripciones que quieras y luego elige en cada bot el proveedor «Mis suscripciones (Puente)».
+                    {models.length ? ` Modelos disponibles: ${models.join(', ')}.` : ''}
+                  </div>
+                  <div className="settings-actions">
+                    <a className="btn small primary" href={`${remoteConfig()?.url}/puente/#t=${encodeURIComponent(remoteConfig()?.token || '')}`} target="_blank" rel="noreferrer">Abrir el Puente ↗</a>
+                    {models.length > 0 && <button className="btn small" onClick={async () => { setTests((x) => ({ ...x, puente: { loading: true } })); const r = await api.testProvider('puente', models.find((m) => m.startsWith('claude')) || models[0]).catch((e) => ({ ok: false, error: e.message })); setTests((x) => ({ ...x, puente: r })); }}>Probar</button>}
+                  </div>
+                  {t && (t.loading ? <div className="muted small">Probando… (tarda unos segundos)</div>
+                    : t.ok ? <div className="small run-ok">✓ Funciona con {t.model} · respondió «{t.reply}» en {(t.ms / 1000).toFixed(1)}s</div>
+                    : <div className="small run-error">✗ {t.error}</div>)}
                 </div>
               </>
             );

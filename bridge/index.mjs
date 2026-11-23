@@ -36,7 +36,9 @@ const status = () => ({
   claude: { connected: !!claudeToken(), enabled: settings.enabled.claude !== false, login: pub(logins.claude) },
   usage: stats,
 });
-const pub = (l) => (l ? { state: l.state, url: l.url, code: l.code, error: l.error, startedAt: l.startedAt } : null);
+// What the program shows on screen, with anything that looks like a key or code hidden.
+const tail = (l) => String(l?.screen || '').replace(/[A-Za-z0-9_#-]{24,}/g, '[…]').replace(/\s+/g, ' ').trim().slice(-500);
+const pub = (l) => (l ? { state: l.state, url: l.url, code: l.code, error: l.error, startedAt: l.startedAt, checkingFor: l.checkingSince ? Math.round((Date.now() - l.checkingSince) / 1000) : 0, detail: l.state === 'checking' || l.state === 'error' ? tail(l) : '' } : null);
 
 function startChatGPT() {
   logins.chatgpt?.proc?.kill();
@@ -60,16 +62,20 @@ function startChatGPT() {
 
 function startClaude() {
   logins.claude?.proc?.kill('SIGKILL');
-  const l = (logins.claude = { state: 'starting', output: '', startedAt: Date.now() });
+  const l = (logins.claude = { state: 'starting', output: '', screen: '', startedAt: Date.now() });
   // setup-token needs a terminal: `script` gives it one, wide enough that the token isn't wrapped.
   const p = spawn('script', ['-qfec', 'stty cols 1000 rows 50; claude setup-token', '/dev/null'], { env: env() });
   l.proc = p;
   const stopAfter = setTimeout(() => { if (l.state !== 'ok') { l.state = 'error'; l.error = 'Han pasado 10 minutos sin terminar. Pulsa «Conectar Claude» otra vez.'; p.kill('SIGKILL'); } }, 10 * 60_000);
   const onData = async (d) => {
-    l.output = (l.output + ansi(d)).slice(-20_000);
+    const clean = ansi(d).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');
+    l.output = (l.output + clean).slice(-20_000);
+    l.screen = (l.screen + clean).slice(-3000);
+    // Some versions ask to press Enter to continue: do it.
+    if (l.state === 'checking' && /Press ?Enter to (continue|confirm)|Presiona Enter/i.test(clean)) p.stdin.write('\r');
     l.url ||= (l.output.match(/https:\/\/claude\.ai\/oauth\S+|https:\/\/\S*anthropic\S*\/oauth\S*/) || [])[0];
     if (l.url && l.state === 'starting') l.state = 'waiting';
-    const tok = (l.output.match(/sk-ant-oat[\w-]{20,}/) || [])[0];
+    const tok = (l.output.match(/sk-ant-[a-z]+\d*-[\w-]{30,}/) || l.output.replace(/[\r\n│║ ]+/g, '').match(/(?<=OAuthtoken[^:]*:)sk-ant-[a-z]+\d*-[\w-]{30,}?(?=Store|$)/) || [])[0];
     if (tok && l.state !== 'ok') { await saveClaudeToken(tok); l.state = 'ok'; l.output = ''; clearTimeout(stopAfter); setTimeout(() => p.kill('SIGKILL'), 500); return; }
     // Claude said no (wrong, expired or old code): tell you and stop this attempt.
     const flat = l.output.replace(/\s+/g, '');
@@ -155,9 +161,10 @@ const server = http.createServer(async (req, res) => {
       if (!l?.proc) return send(res, 400, { error: { message: 'Primero pulsa «Conectar Claude»' } });
       const c = String(code || '').replace(/\s+/g, '');
       if (c.length < 10) return send(res, 400, { error: { message: 'Ese código parece incompleto: cópialo entero desde la página de Claude.' } });
-      l.output = '';
+      l.output = ''; l.screen = '';
       l.proc.stdin.write(`${c}\r`);
       l.state = 'checking';
+      l.checkingSince = Date.now();
       return send(res, 200, { ok: true });
     }
     if (path === '/api/logout' && req.method === 'POST') {
