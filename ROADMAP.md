@@ -26,24 +26,51 @@ se publica y se marca `[x]`. Lo que necesite algo del usuario (cuentas, pagos, d
 
 ### M2 · Cobrar
 
-- [ ] M2.1 · Proveedor de IA de OpenCrew: clave de Anthropic solo en la pasarela, «Automático» con Haiku 5.5 por defecto y Sonnet para tareas difíciles, caché de prompts ⏸ clave de API de empresa
-- [ ] M2.2 · Créditos medidos por llamada en la pasarela, tope mensual, recargas y alertas (reutiliza el panel de Uso y coste)
-- [ ] M2.3 · Planes en la pasarela: Prueba (7 días, 1 € de créditos), Pro (15 €, fundadores 9 €), límites de bots y de horas de ordenador
-- [ ] M2.4 · Cobro con Paddle (o Stripe Managed Payments): alta, suscripción, cancelación y facturas ⏸ alta de autónomo/sociedad y cuenta en Paddle
+- [ ] M2.1 · Proveedor de IA de OpenCrew: clave de Anthropic solo en la pasarela (nunca en el motor del usuario), «Automático» con Haiku 5.5 por defecto y Sonnet para tareas difíciles, caché de prompts ⏸ clave de API de empresa con límite de gasto mensual en la consola de Anthropic
+- [ ] M2.2 · Créditos medidos por llamada en la pasarela (tokens × precio real), tope mensual por usuario, aviso al 80 % y parada al 100 %, recargas; el panel de Uso y coste muestra créditos restantes
+- [ ] M2.3 · Planes en la pasarela: Prueba (7 días, 1 € de créditos), Pro (15 €, fundadores 9 €); límites por plan (bots, rutinas, vigilantes, horas de ordenador de bot, tamaño de archivos)
+- [ ] M2.4 · Bienvenida con créditos incluidos: el usuario nuevo empieza sin pegar ninguna clave (la clave propia pasa a ser opcional)
+- [ ] M2.5 · Cobro con Paddle (o Stripe Managed Payments): pantalla de precios en la app, alta, cambio y cancelación de plan, facturas y portal de cliente ⏸ cuenta en Paddle (pide estar dado de alta)
+- [ ] M2.6 · Avisos de Paddle (webhooks) en la pasarela: pago correcto, fallido, renovación, cancelación y reembolso → plan y créditos actualizados solos; al cancelar, el usuario vuelve a Prueba sin perder sus datos
+- [ ] M2.7 · Precios con IVA incluido, desistimiento de 14 días y reembolsos explicados en la app y en las condiciones
 
 ### M3 · Cuentas listas para desconocidos
 
-- [ ] M3.1 · Dominio propio (B1) ⏸ comprar dominio
-- [ ] M3.2 · Correo: verificar la cuenta y recuperar la contraseña ⏸ elegir proveedor (p. ej. Resend)
-- [ ] M3.3 · Registro abierto con lista de espera e invitaciones de fundador
-- [ ] M3.4 · Dormir los motores sin uso y despertarlos para sus rutinas (B3) y cola para los ordenadores de los bots
-- [ ] M3.5 · Copias cifradas fuera del servidor (A7) ⏸ elegir destino
+- [ ] M3.1 · Dominio propio (B1) y cambiar en todo el proyecto la dirección provisional (sslip.io) ⏸ comprar dominio
+- [ ] M3.2 · Correo de la app: verificar la cuenta, recuperar la contraseña y avisos (créditos al 80 %, pago fallido) ⏸ elegir proveedor (p. ej. Resend) y configurar su DNS en el dominio
+- [ ] M3.3 · Registro abierto con lista de espera, invitaciones de fundador y límite de altas por día (protección contra abusos)
+- [ ] M3.4 · Si cambian las condiciones, pedir aceptarlas de nuevo al entrar (la versión aceptada ya se guarda)
+- [ ] M3.5 · Dormir los motores sin uso y despertarlos para sus rutinas y vigilantes (B3)
+- [ ] M3.6 · Cola y horas para los ordenadores de los bots (máx. 3 a la vez en el servidor actual), con aviso «en cola» al usuario
+- [ ] M3.7 · Copias cifradas fuera del servidor y prueba real de restaurar una copia (A7) ⏸ elegir destino
+- [ ] M3.8 · Vigilancia: aviso al administrador si el servidor cae, se llena el disco o falla un servicio; registro de errores sin datos personales
+- [ ] M3.9 · Panel de administración: usuarios, plan, créditos gastados, coste real de IA por usuario y altas por día (sirve para medir la beta)
+- [ ] M3.10 · Funciones a medio camino en la nube: extensión y app de escritorio visibles como «beta» (instalación manual) o escondidas hasta F1/F2; textos legales también en inglés
 
-### M4 · Lanzar
+### M4 · Seguridad y cumplimiento antes de abrir
 
-- [ ] M4.1 · Página pública mínima: qué es, precio, preguntas frecuentes, textos legales y contacto (Paddle la exige)
-- [ ] M4.2 · Beta cerrada con 20–50 personas: medir activación, tareas por usuario y coste real de IA
-- [ ] M4.3 · Ajustar precio y créditos con esos datos y abrir el registro
+- [ ] M4.1 · Repetir la auditoría con docs/AUDITORIA_PROMPT.md sobre la versión con pagos y corregir lo crítico
+- [ ] M4.2 · Actualizar dependencias y revisar avisos de seguridad (npm audit, imágenes de Docker)
+- [ ] M4.3 · Prueba de carga con ~50 usuarios simulados: memoria del servidor, tiempos de respuesta y cuándo hace falta un servidor mayor
+- [ ] M4.4 · Registro de actividades de tratamiento (RGPD), contratos de encargado firmados (Anthropic, Hostinger, Paddle, proveedor de correo) y procedimiento ante una brecha de datos (avisar en 72 h) ⏸ aceptar los DPA en cada proveedor
+- [ ] M4.5 · Textos legales definitivos: titular, NIF, dirección y contacto; revisión con asesor (M1.7) ⏸
+
+### M5 · Lanzar
+
+- [ ] M5.1 · Página pública mínima: qué es, ejemplos, precio, preguntas frecuentes, textos legales y contacto (Paddle la exige para aprobar la cuenta)
+- [ ] M5.2 · Ayuda y soporte: correo de soporte, guía de inicio corta y respuestas a las dudas frecuentes dentro de la app
+- [ ] M5.3 · Beta cerrada con 20–50 personas (precio de fundador): medir activación, tareas por usuario, retención a 7 días y coste real de IA
+- [ ] M5.4 · Ajustar precio, créditos y límites con esos datos y abrir el registro
+
+### Lo que tienes que hacer tú (en orden, cuando toque)
+
+1. Darte de alta como autónomo o sociedad (aparcado por ahora; sin esto no se puede cobrar ni completar los textos legales).
+2. Comprar el dominio y elegir proveedor de correo (M3.1, M3.2).
+3. Crear la cuenta de empresa en Anthropic, añadir saldo y poner un límite de gasto mensual (M2.1).
+4. Abrir la cuenta en Paddle con la página pública lista (M2.5, M5.1).
+5. Elegir dónde guardar las copias (M3.7) y aceptar los contratos de encargado de cada proveedor (M4.4).
+6. Revisión de los textos legales con un asesor (M4.5).
+7. Buscar las 20–50 personas de la beta (M5.3).
 
 ---
 
@@ -77,18 +104,18 @@ se publica y se marca `[x]`. Lo que necesite algo del usuario (cuentas, pagos, d
 
 ## Fase D — Planes, créditos y cobro (sustituida por M2; queda como referencia)
 
-- [ ] D1 · Planes y límites (Gratis, Pro, Equipo) aplicados en la pasarela
-- [ ] D2 · Proveedor de IA de OpenCrew para planes de pago: claves solo en la pasarela, créditos medidos por llamada, caché de prompts y enrutado al modelo más barato
-- [ ] D3 · Modelo gratuito con límite diario para la versión Gratis
-- [ ] D4 · Cobro con Merchant of Record (Paddle o Lemon Squeezy): suscripciones, recargas y facturas ⏸ crear cuenta de empresa
-- [ ] D5 · Panel de consumo y alertas de presupuesto para el usuario
+- [ ] D1 · (ver M2) Planes y límites (Gratis, Pro, Equipo) aplicados en la pasarela
+- [ ] D2 · (ver M2) Proveedor de IA de OpenCrew para planes de pago: claves solo en la pasarela, créditos medidos por llamada, caché de prompts y enrutado al modelo más barato
+- [x] D3 · ~~Modelo gratuito con límite diario~~ descartado: la capa gratis de Gemini no se puede usar en apps en la UE; se sustituye por la Prueba de 7 días (M2.3)
+- [ ] D4 · (ver M2) Cobro con Merchant of Record (Paddle o Lemon Squeezy): suscripciones, recargas y facturas ⏸ crear cuenta de empresa
+- [ ] D5 · (ver M2) Panel de consumo y alertas de presupuesto para el usuario
 
 ## Fase E — Legal y cumplimiento (lo urgente está en M1)
 
 - [ ] E1 · Condiciones de uso, política de privacidad, subencargados y uso aceptable ⏸ revisión con asesor
-- [ ] E2 · Aviso de IA, edad mínima y consentimiento mínimo de cookies (sin rastreadores)
-- [ ] E3 · Gmail/Calendar para usuarios ajenos: verificación de Google (CASA) o, de inicio, vía pasarela (Composio) ⏸
-- [ ] E4 · Revisión de condiciones de OpenAI, Anthropic y Google para cada función ofrecida
+- [x] E2 · Aviso de IA, edad mínima y sin cookies de rastreo (hecho en M1.4)
+- [x] E3 · Gmail/Calendar para usuarios ajenos: de inicio vía pasarela (M1.6); la verificación de Google (CASA) queda para cuando compense
+- [x] E4 · Revisión de condiciones de OpenAI, Anthropic y Google (docs/LANZAMIENTO.md, aplicada en M1)
 
 ## Fase F — Distribución (después del MVP)
 
