@@ -5,9 +5,13 @@ import { getDb, save } from './store.js';
 // [pattern, input $/M, output $/M] — first match wins.
 const DEFAULT_PRICES = [
   [/opus/i, 15, 75], [/sonnet-5/i, 2, 10], [/haiku-5/i, 0.1, 0.5], [/sonnet/i, 3, 15], [/haiku/i, 1, 5],
-  [/gemini.*pro/i, 1.25, 10], [/gemini-3.*flash-lite/i, 0.25, 1.5], [/gemini.*flash-lite|gemini.*lite/i, 0.1, 0.4], [/gemini-3\.8.*flash/i, 1.5, 7.5], [/gemini.*flash|gemini/i, 0.3, 2.5],
+  // Gemini (Nov 2026). 3.8 Flash: intro price 0,75/3,75 until the end of 2026; we count the later 1,50/7,50.
+  [/gemini-4/i, null], [/gemini-3.*pro/i, 2, 12], [/gemini.*pro/i, 1.25, 10],
+  [/gemini-3\.5.*flash-lite/i, 0.3, 2.5], [/gemini-3.*flash-lite/i, 0.25, 1.5], [/gemini.*flash-lite|gemini.*lite/i, 0.1, 0.4],
+  [/gemini-3\.[6-9].*flash/i, 1.5, 7.5], [/gemini-3.*flash/i, 0.5, 3], [/gemini.*flash|gemini/i, 0.3, 2.5],
   [/gpt-5.*nano/i, 0.05, 0.4], [/gpt-5.*mini/i, 0.25, 2], [/gpt-5|gpt-4\.1/i, 1.25, 10], [/gpt-4o-mini/i, 0.15, 0.6], [/gpt-4o/i, 2.5, 10],
-  [/grok.*(fast|mini)/i, 0.2, 0.5], [/grok/i, 3, 15],
+  // Grok (Nov 2026): fast models 0,20/0,50; flagship 4.6/4.7 at 2/6; 4.3 at 1,25/2,50.
+  [/grok.*(fast|mini)/i, 0.2, 0.5], [/grok-4\.[67]/i, 2, 6], [/grok-4\.3/i, 1.25, 2.5], [/grok-build/i, null], [/grok-4/i, 2, 6], [/grok/i, 3, 15],
 ];
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -18,7 +22,7 @@ export function priceFor(provider, model) {
   const custom = u().prices[`${provider}/${model}`];
   if (custom) return { ...custom, custom: true };
   const hit = DEFAULT_PRICES.find(([re]) => re.test(model));
-  return hit ? { input: hit[1], output: hit[2], custom: false } : { input: 0, output: 0, custom: false, unknown: true };
+  return hit && hit[1] != null ? { input: hit[1], output: hit[2], custom: false } : { input: 0, output: 0, custom: false, unknown: true };
 }
 
 // `input` is the whole prompt; the part read from the provider's cache costs 10 % and the part written to

@@ -16,7 +16,7 @@ const parts = (model) => String(model).toLowerCase().split(/[-/._:]+/);
 const hasPart = (model, words) => parts(model).some((p) => words.includes(p));
 const SMALL_WORDS = ['lite', 'nano', 'haiku', 'mini', 'fast', 'small', 'tiny'];
 const LARGE_WORDS = ['pro', 'opus', 'ultra', 'sonnet', 'large', 'max'];
-const SKIP = /(preview|exp|tts|image|audio|embed|search|realtime|transcribe|vision-only|customtools)/i;
+const SKIP = /(\bexp\b|experimental|tts|image|audio|embed|search|realtime|transcribe|vision-only|customtools)/i;
 const tierOf = (model) => (hasPart(model, SMALL_WORDS) ? 'small'
   : hasPart(model, LARGE_WORDS) || /^(gpt-5|grok-4)$/.test(model) ? 'large' : 'mid');
 

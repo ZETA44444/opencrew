@@ -29,7 +29,7 @@ se publica y se marca `[x]`. Lo que necesite algo del usuario (cuentas, pagos, d
 - [x] M2.0 · Enrutador de calidad garantizada («Automático»): clasifica cada paso (conversación, redacción, investigación, código, razonamiento, imágenes; fácil/normal/difícil), descarta los modelos que no llegan a la calidad mínima de esa tarea y elige el más barato del resto para esa petición (contexto largo, caché). Aprende: si las respuestas de un modelo se reintentan o fallan, deja de usarse para ese tipo de tarea; «Reintentar» sube un nivel. Caché de prompts de Claude (hasta −80-90 % en lo repetido). Banco de pruebas `scripts/router-bench.mjs` y comprobación `scripts/router-check.mjs`
 - [ ] M2.0b · Pasar el banco de pruebas con las claves de empresa (calibrar la calidad real de cada modelo) y repetirlo cada mes o cuando cambien precios y modelos ⏸ claves de empresa
 - [ ] M2.0c · En la nube: el aprendizaje del enrutador se suma entre todos los usuarios en la pasarela (sin contenido, solo «tipo de tarea · modelo · bien/mal»), y un panel de ahorro (coste real frente a usar siempre el modelo grande)
-- [ ] M2.1 · Proveedor de IA de OpenCrew: clave de Anthropic solo en la pasarela (nunca en el motor del usuario), el enrutador de M2.0 elige entre los modelos de OpenCrew ⏸ clave de API de empresa con límite de gasto mensual en la consola de Anthropic
+- [ ] M2.1 · Proveedor de IA de OpenCrew por API con **cuatro proveedores**: Anthropic (Claude), Google (Gemini, servicio de pago), xAI (Grok) y OpenAI. Claves de empresa solo en la pasarela (nunca en el motor del usuario); el enrutador de M2.0 elige entre todos sus modelos el más barato que alcance la calidad de cada tarea ⏸ cuentas de empresa en los cuatro, con saldo y límite de gasto mensual
 - [ ] M2.2 · Créditos medidos por llamada en la pasarela (tokens × precio real), tope mensual por usuario, aviso al 80 % y parada al 100 %, recargas; el panel de Uso y coste muestra créditos restantes
 - [ ] M2.3 · Planes en la pasarela: Prueba (7 días, 1 € de créditos), Pro (15 €, fundadores 9 €); límites por plan (bots, rutinas, vigilantes, horas de ordenador de bot, tamaño de archivos)
 - [ ] M2.4 · Bienvenida con créditos incluidos: el usuario nuevo empieza sin pegar ninguna clave (la clave propia pasa a ser opcional)
@@ -55,7 +55,7 @@ se publica y se marca `[x]`. Lo que necesite algo del usuario (cuentas, pagos, d
 - [ ] M4.1 · Repetir la auditoría con docs/AUDITORIA_PROMPT.md sobre la versión con pagos y corregir lo crítico
 - [ ] M4.2 · Actualizar dependencias y revisar avisos de seguridad (npm audit, imágenes de Docker)
 - [ ] M4.3 · Prueba de carga con ~50 usuarios simulados: memoria del servidor, tiempos de respuesta y cuándo hace falta un servidor mayor
-- [ ] M4.4 · Registro de actividades de tratamiento (RGPD), contratos de encargado firmados (Anthropic, Hostinger, Paddle, proveedor de correo) y procedimiento ante una brecha de datos (avisar en 72 h) ⏸ aceptar los DPA en cada proveedor
+- [ ] M4.4 · Registro de actividades de tratamiento (RGPD), contratos de encargado firmados (Anthropic, Google, xAI, OpenAI, Hostinger, Paddle, proveedor de correo) y procedimiento ante una brecha de datos (avisar en 72 h) ⏸ aceptar los DPA en cada proveedor
 - [ ] M4.5 · Textos legales definitivos: titular, NIF, dirección y contacto; revisión con asesor (M1.7) ⏸
 
 ### M5 · Lanzar
@@ -69,7 +69,7 @@ se publica y se marca `[x]`. Lo que necesite algo del usuario (cuentas, pagos, d
 
 1. Darte de alta como autónomo o sociedad (aparcado por ahora; sin esto no se puede cobrar ni completar los textos legales).
 2. Comprar el dominio y elegir proveedor de correo (M3.1, M3.2).
-3. Crear la cuenta de empresa en Anthropic, añadir saldo y poner un límite de gasto mensual (M2.1).
+3. Crear las cuentas de empresa de API en Anthropic, Google Cloud (Gemini con facturación), xAI y OpenAI, con saldo y límite de gasto mensual; en xAI, pedir su contrato de tratamiento de datos (DPA) para clientes de la UE (M2.1).
 4. Abrir la cuenta en Paddle con la página pública lista (M2.5, M5.1).
 5. Elegir dónde guardar las copias (M3.7) y aceptar los contratos de encargado de cada proveedor (M4.4).
 6. Revisión de los textos legales con un asesor (M4.5).

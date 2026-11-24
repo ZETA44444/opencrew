@@ -11,13 +11,13 @@ export const PROVIDERS = [
     models: ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5'] },
   { id: 'gemini', label: 'Gemini (Google)', kind: 'gemini', env: 'GEMINI_API_KEY',
     keyUrl: 'https://aistudio.google.com/apikey',
-    models: ['gemini-3.8-flash'] },
+    models: ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview'] }, // with a key, the live list replaces these
   { id: 'openai', label: 'OpenAI', kind: 'openai', env: 'OPENAI_API_KEY', baseUrl: 'https://api.openai.com/v1',
     keyUrl: 'https://platform.openai.com/api-keys',
-    models: ['gpt-5', 'gpt-5-mini'] },
+    models: ['gpt-5', 'gpt-5-mini', 'gpt-5-nano'] },
   { id: 'xai', label: 'Grok (xAI)', kind: 'openai', env: 'XAI_API_KEY', baseUrl: 'https://api.x.ai/v1',
     keyUrl: 'https://console.x.ai',
-    models: ['grok-4', 'grok-4-fast'] },
+    models: ['grok-4.7', 'grok-4.3', 'grok-4-fast'] }, // with a key, the live list replaces these
   { id: 'openrouter', label: 'OpenRouter (cualquier modelo)', kind: 'openai', env: 'OPENROUTER_API_KEY',
     baseUrl: 'https://openrouter.ai/api/v1', keyUrl: 'https://openrouter.ai/keys',
     models: ['openrouter/auto'] },

@@ -3,7 +3,9 @@
 const store = await import('../src/core/store.js');
 await store.ready;
 const db = store.getDb();
-Object.assign(db.keys, { anthropic: 'x', gemini: 'x', openai: 'x' });
+const only = process.env.PROVIDERS ? process.env.PROVIDERS.split(',') : ['anthropic', 'gemini', 'openai', 'xai'];
+for (const id of only) db.keys[id] = 'x';
+console.log(`Con claves de: ${only.join(', ')}\n`);
 const { routeModel, recordRouteOutcome } = await import('../src/core/router.js');
 const cases = [
   ['hola', {}],

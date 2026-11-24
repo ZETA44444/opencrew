@@ -97,6 +97,16 @@ Una tarea típica con herramientas: ~45.000 tokens de entrada y ~2.400 de salida
 | Gemini 3.1 Flash-Lite (0,25 $ / 1,50 $) | ~0,015 $ | ~4,5 $/mes | ~22 $/mes |
 | Gemini 3.8 Flash (0,75 $ / 3,75 $; **sube a 1,50 $ / 7,50 $ el 1 de diciembre**) | ~0,04–0,08 $ | ~12–24 $/mes | — |
 | Claude Sonnet 5.5 (2 $ / 10 $) | ~0,11 $ | ~34 $/mes | ~170 $/mes |
+| Grok 4 Fast (0,20 $ / 0,50 $) | ~0,010 $ | ~3 $/mes | ~15 $/mes |
+| Grok 4.3 (1,25 $ / 2,50 $) | ~0,06 $ | ~18 $/mes | — |
+| Grok 4.7 (2 $ / 6 $; el doble por encima de 200.000 tokens) | ~0,10 $ | ~30 $/mes | — |
+| Gemini 3.1 Flash-Lite (0,25 $ / 1,50 $) · 3.1 Pro (2 $ / 12 $) | ~0,015 $ · ~0,12 $ | ~4,5 · ~36 $/mes | — |
+
+**El plan de pago funciona por API con cuatro proveedores** (Claude, Gemini, Grok y OpenAI). El enrutador
+(«Automático») elige en cada paso, entre todos sus modelos, el más barato que alcanza la calidad mínima de esa
+tarea. Así baja el coste para OpenCrew sin empeorar el resultado para el usuario. Con Gemini solo se puede usar
+el servicio de pago (la capa gratis está prohibida para apps en la UE). En xAI hay que confirmar por escrito su
+contrato de tratamiento de datos para clientes europeos antes de usarlo con ellos.
 
 **Conclusiones:**
 - **Claude Haiku 5.5 es el mejor modelo por defecto:** el más barato y bueno con herramientas. Sonnet queda
