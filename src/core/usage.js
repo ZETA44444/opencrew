@@ -5,7 +5,7 @@ import { getDb, save } from './store.js';
 // [pattern, input $/M, output $/M] — first match wins.
 const DEFAULT_PRICES = [
   [/opus/i, 15, 75], [/sonnet-5/i, 2, 10], [/haiku-5/i, 0.1, 0.5], [/sonnet/i, 3, 15], [/haiku/i, 1, 5],
-  [/gemini.*pro/i, 1.25, 10], [/gemini.*flash-lite|gemini.*lite/i, 0.1, 0.4], [/gemini.*flash|gemini/i, 0.3, 2.5],
+  [/gemini.*pro/i, 1.25, 10], [/gemini-3.*flash-lite/i, 0.25, 1.5], [/gemini.*flash-lite|gemini.*lite/i, 0.1, 0.4], [/gemini-3\.8.*flash/i, 1.5, 7.5], [/gemini.*flash|gemini/i, 0.3, 2.5],
   [/gpt-5.*nano/i, 0.05, 0.4], [/gpt-5.*mini/i, 0.25, 2], [/gpt-5|gpt-4\.1/i, 1.25, 10], [/gpt-4o-mini/i, 0.15, 0.6], [/gpt-4o/i, 2.5, 10],
   [/grok.*(fast|mini)/i, 0.2, 0.5], [/grok/i, 3, 15],
 ];
@@ -21,21 +21,26 @@ export function priceFor(provider, model) {
   return hit ? { input: hit[1], output: hit[2], custom: false } : { input: 0, output: 0, custom: false, unknown: true };
 }
 
-export const costOf = (provider, model, input, output) => {
+// `input` is the whole prompt; the part read from the provider's cache costs 10 % and the part written to
+// it 125 % (Anthropic's prompt caching prices).
+export const costOf = (provider, model, input, output, cacheRead = 0, cacheWrite = 0) => {
   const p = priceFor(provider, model);
-  return (input * p.input + output * p.output) / 1_000_000;
+  const plain = Math.max(0, input - cacheRead - cacheWrite);
+  return ((plain + cacheRead * 0.1 + cacheWrite * 1.25) * p.input + output * p.output) / 1_000_000;
 };
 
-export function recordUsage({ botId, provider, model, input = 0, output = 0 }) {
+export function recordUsage({ botId, provider, model, input = 0, output = 0, cacheRead = 0, cacheWrite = 0 }) {
   if (!input && !output) return 0;
   const day = (u().days[today()] ??= {});
   const key = `${botId}|${provider}|${model}`;
   const row = (day[key] ??= { input: 0, output: 0, calls: 0 });
   row.input += input;
   row.output += output;
+  if (cacheRead) row.cacheRead = (row.cacheRead || 0) + cacheRead;
+  if (cacheWrite) row.cacheWrite = (row.cacheWrite || 0) + cacheWrite;
   row.calls += 1;
   save();
-  return costOf(provider, model, input, output);
+  return costOf(provider, model, input, output, cacheRead, cacheWrite);
 }
 
 // Rows for the last N days (or all): [{ day, botId, provider, model, input, output, calls, cost }]
@@ -47,7 +52,7 @@ export function usageRows(days = 30) {
     for (const [key, r] of Object.entries(entries)) {
       const [botId, provider, ...m] = key.split('|');
       const model = m.join('|');
-      rows.push({ day, botId, provider, model, ...r, cost: costOf(provider, model, r.input, r.output) });
+      rows.push({ day, botId, provider, model, ...r, cost: costOf(provider, model, r.input, r.output, r.cacheRead, r.cacheWrite) });
     }
   }
   return rows;

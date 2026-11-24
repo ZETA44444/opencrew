@@ -9,7 +9,7 @@ import { errorMarkdown } from './errors.js';
 import { needsApproval, requestApproval } from './approvals.js';
 import { recordUsage, checkBudget, monthCost } from './usage.js';
 import { recordModelResult, recordFallback, recentlyDown } from './health.js';
-import { routeModel } from './router.js';
+import { routeModel, recordRouteOutcome } from './router.js';
 import { maybeProposeMemories } from './automemory.js';
 
 const MAX_STEPS = 8;
@@ -121,7 +121,7 @@ function delegationPrompt(bot, team) {
 
 // Runs one bot. Normally in its own chat (threadId = botId). In a group chat, the group runner
 // passes `group` + `convo` (the shared transcript) and manages busy/stop for the whole group.
-export async function runAgent({ botId, input, attachments = [], chain = [], from = null, source = 'user', depth = 0, runId = newId(), emit = broadcast, controller = new AbortController(), group = null, convo: groupConvo = null }) {
+export async function runAgent({ botId, input, attachments = [], chain = [], from = null, source = 'user', depth = 0, runId = newId(), emit = broadcast, controller = new AbortController(), group = null, convo: groupConvo = null, boost = 0 }) {
   const bot = getBot(botId);
   if (!bot) throw new Error('Bot no encontrado');
   const threadId = group ? group.id : botId;
@@ -168,6 +168,7 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
   const spent = { input: 0, output: 0, cost: 0 }; // this answer's own model calls
   let lastModel = null; // the model that actually answered (may differ after a fallback)
   let sticky = null; // once a model failed in this answer, keep using the one that worked
+  let routed = null; // «Automático»: kind of task of this answer (to learn which models do it well)
 
   try {
     for (let i = 0; i < MAX_STEPS && final === null; i++) {
@@ -199,7 +200,8 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
       }
       // «Automático»: pick the cheapest model good enough for this step.
       if (!sticky && bot.provider === 'auto') {
-        const route = routeModel(convo, i);
+        const route = routeModel(convo, i, { boost, system: callArgs.system, toolCount: callArgs.tools.length });
+        if (route) routed ??= { skill: route.skill };
         if (route) {
           used = { provider: route.provider, model: route.model };
           stepLabel = `automático → ${route.provider}/${route.model} · ${route.reason}`;
@@ -242,7 +244,7 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
       if (res.usage) {
         spent.input += res.usage.input || 0;
         spent.output += res.usage.output || 0;
-        spent.cost += recordUsage({ botId: bot.id, provider: used.provider, model: used.model, input: res.usage.input, output: res.usage.output });
+        spent.cost += recordUsage({ botId: bot.id, provider: used.provider, model: used.model, input: res.usage.input, output: res.usage.output, cacheRead: res.usage.cacheRead, cacheWrite: res.usage.cacheWrite });
         warnBudget(bot, threadId);
       }
 
@@ -318,7 +320,11 @@ export async function runAgent({ botId, input, attachments = [], chain = [], fro
     // The bot (or group) was deleted while working: don't bring its conversation back.
     return { id: newId(), role: 'assistant', botId, content: final, steps, stopped: true, error: !!error };
   }
-  const reply = { id: newId(), role: 'assistant', botId, content: final, steps, usage: spent.input || spent.output ? spent : undefined, stopped: signal.aborted, model: lastModel || `${bot.provider}/${bot.model}`, error: !!error, source, createdAt: now() };
+  if (routed && lastModel) {
+    const [provider, ...m] = lastModel.split('/');
+    recordRouteOutcome({ skill: routed.skill, provider, model: m.join('/'), ok: !error && !signal.aborted && !/^He llegado al límite de pasos/.test(final) });
+  }
+  const reply = { id: newId(), role: 'assistant', botId, content: final, steps, usage: spent.input || spent.output ? spent : undefined, stopped: signal.aborted, model: lastModel || `${bot.provider}/${bot.model}`, ...(routed && { route: routed }), error: !!error, source, createdAt: now() };
   const live = messagesOf(threadId); // not `thread`: the chat may have been cleared meanwhile
   live.push(reply);
   if (live.length > 500) live.splice(0, live.length - 500);

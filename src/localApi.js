@@ -3,6 +3,7 @@
 import { getDb, getBot, newId, now, save, messagesOf, exportData, importData, storageKind, storageUsage } from './core/store.js';
 import { publicProviders, providerById, callModel, refreshModels, refreshAllModels, defaultModel } from './core/providers.js';
 import { runAgent, runGroup, getGroup, busy, stopBot } from './core/agent.js';
+import { markRetried } from './core/router.js';
 import { broadcast, subscribe } from './core/events.js';
 import { computeNext, runRoutine, startScheduler, missed, resolveMissed } from './core/routines.js';
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
@@ -129,10 +130,13 @@ export const localApi = {
     const old = thread[i];
     const text = (newText ?? old.content).trim();
     if (!text) throw new Error('Mensaje vacío');
+    // Same question again = the answer wasn't good enough: learn it, and answer one level up.
+    const prev = newText == null && thread.slice(i + 1).reverse().find((m) => m.role === 'assistant' && m.route && m.model);
+    if (prev) { const [provider, ...m] = prev.model.split('/'); markRetried({ skill: prev.route.skill, provider, model: m.join('/') }); }
     thread.splice(i);
     save();
     if (getGroup(botId)) start(botId, text, old.attachments || []);
-    else runAgent({ botId, input: text, attachments: old.attachments || [], from: old.from, source: old.source === 'routine' ? 'routine' : 'user' }).catch((e) => console.error(e));
+    else runAgent({ botId, input: text, attachments: old.attachments || [], from: old.from, source: old.source === 'routine' ? 'routine' : 'user', boost: prev ? 1 : 0 }).catch((e) => console.error(e));
     return clone(thread);
   },
 

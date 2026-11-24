@@ -26,7 +26,10 @@ se publica y se marca `[x]`. Lo que necesite algo del usuario (cuentas, pagos, d
 
 ### M2 · Cobrar
 
-- [ ] M2.1 · Proveedor de IA de OpenCrew: clave de Anthropic solo en la pasarela (nunca en el motor del usuario), «Automático» con Haiku 5.5 por defecto y Sonnet para tareas difíciles, caché de prompts ⏸ clave de API de empresa con límite de gasto mensual en la consola de Anthropic
+- [x] M2.0 · Enrutador de calidad garantizada («Automático»): clasifica cada paso (conversación, redacción, investigación, código, razonamiento, imágenes; fácil/normal/difícil), descarta los modelos que no llegan a la calidad mínima de esa tarea y elige el más barato del resto para esa petición (contexto largo, caché). Aprende: si las respuestas de un modelo se reintentan o fallan, deja de usarse para ese tipo de tarea; «Reintentar» sube un nivel. Caché de prompts de Claude (hasta −80-90 % en lo repetido). Banco de pruebas `scripts/router-bench.mjs` y comprobación `scripts/router-check.mjs`
+- [ ] M2.0b · Pasar el banco de pruebas con las claves de empresa (calibrar la calidad real de cada modelo) y repetirlo cada mes o cuando cambien precios y modelos ⏸ claves de empresa
+- [ ] M2.0c · En la nube: el aprendizaje del enrutador se suma entre todos los usuarios en la pasarela (sin contenido, solo «tipo de tarea · modelo · bien/mal»), y un panel de ahorro (coste real frente a usar siempre el modelo grande)
+- [ ] M2.1 · Proveedor de IA de OpenCrew: clave de Anthropic solo en la pasarela (nunca en el motor del usuario), el enrutador de M2.0 elige entre los modelos de OpenCrew ⏸ clave de API de empresa con límite de gasto mensual en la consola de Anthropic
 - [ ] M2.2 · Créditos medidos por llamada en la pasarela (tokens × precio real), tope mensual por usuario, aviso al 80 % y parada al 100 %, recargas; el panel de Uso y coste muestra créditos restantes
 - [ ] M2.3 · Planes en la pasarela: Prueba (7 días, 1 € de créditos), Pro (15 €, fundadores 9 €); límites por plan (bots, rutinas, vigilantes, horas de ordenador de bot, tamaño de archivos)
 - [ ] M2.4 · Bienvenida con créditos incluidos: el usuario nuevo empieza sin pegar ninguna clave (la clave propia pasa a ser opcional)

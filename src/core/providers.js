@@ -213,20 +213,32 @@ async function callAnthropic({ model, apiKey, system, messages, tools, onText, s
       else out.push({ role: 'user', content: [block] });
     }
   }
+  // Prompt cache: tools, instructions and the conversation so far are the same on every step of a task,
+  // so they are marked for caching and re-read at ~10 % of the price (Anthropic keeps them ~5 minutes).
+  const CACHE = { type: 'ephemeral' };
+  const last = out[out.length - 1];
+  if (last) {
+    if (typeof last.content === 'string') last.content = [{ type: 'text', text: last.content || '(vacío)' }];
+    last.content[last.content.length - 1] = { ...last.content[last.content.length - 1], cache_control: CACHE };
+  }
+  const toolDefs = tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
+  if (toolDefs.length) toolDefs[toolDefs.length - 1].cache_control = CACHE;
   const res = await request('https://api.anthropic.com/v1/messages',
     { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
     {
-      model, max_tokens: 8192, system, messages: out, stream: true,
-      ...(tools.length && { tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })) }),
+      model, max_tokens: 8192, system: [{ type: 'text', text: system, cache_control: CACHE }], messages: out, stream: true,
+      ...(tools.length && { tools: toolDefs }),
       ...(tools.length && forceTool && { tool_choice: { type: 'any' } }),
     }, 'Anthropic', signal);
   let text = '';
   const blocks = {};
-  const usage = { input: 0, output: 0 };
+  const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   for await (const ev of sse(res, signal)) {
     if (ev.type === 'message_start') {
       const u = ev.message?.usage || {};
-      usage.input = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+      usage.cacheRead = u.cache_read_input_tokens || 0;
+      usage.cacheWrite = u.cache_creation_input_tokens || 0;
+      usage.input = (u.input_tokens || 0) + usage.cacheRead + usage.cacheWrite; // total; the cached part is priced apart
     }
     if (ev.type === 'content_block_start' && ev.content_block.type === 'tool_use') {
       blocks[ev.index] = { id: ev.content_block.id, name: ev.content_block.name, json: '' };
