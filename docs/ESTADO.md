@@ -1,6 +1,7 @@
 # Estado de OpenCrew (para retomar en cualquier sesión)
 
-Última actualización: 23 nov 2026. Qué sigue: ver [ROADMAP.md](../ROADMAP.md) (Fases A–G, orientadas al lanzamiento).
+Última actualización: 24 nov 2026. Qué sigue: ver [ROADMAP.md](../ROADMAP.md) — **Fase M (MVP)** primero.
+Legal (condiciones de las IAs, RGPD, Ley de IA) y economía del MVP: [LANZAMIENTO.md](LANZAMIENTO.md).
 Auditoría y modelo de negocio: [AUDITORIA.md](AUDITORIA.md). Cómo repetir la auditoría: [AUDITORIA_PROMPT.md](AUDITORIA_PROMPT.md).
 
 ## Dónde está todo
@@ -55,4 +56,6 @@ Otros: `extension/` (extensión Chrome/Brave), `desktop/` (OpenCrew Escritorio p
 - Habla en español, claro y sin jerga; explica cada cosa en pasos cortos.
 - Avanza solo por el ROADMAP, probando cada cambio en local y en el servidor antes de publicar.
 - Nunca introducir claves, contraseñas ni crear cuentas por el usuario; nunca mostrar secretos en el chat.
-- Las funciones de suscripciones (Puente) son solo uso personal del dueño, nunca para otros usuarios.
+- Las funciones de suscripciones (Puente) son solo uso personal del dueño, nunca para otros usuarios; y Anthropic
+  prohíbe usar la suscripción de Claude en otras apps (ver LANZAMIENTO.md, M1.1 pendiente de decisión).
+- Los bots no eluden bloqueos anti-bots de las webs: si una web los bloquea, paran y avisan.

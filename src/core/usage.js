@@ -4,7 +4,7 @@ import { getDb, save } from './store.js';
 
 // [pattern, input $/M, output $/M] — first match wins.
 const DEFAULT_PRICES = [
-  [/opus/i, 15, 75], [/sonnet/i, 3, 15], [/haiku/i, 1, 5],
+  [/opus/i, 15, 75], [/sonnet-5/i, 2, 10], [/haiku-5/i, 0.1, 0.5], [/sonnet/i, 3, 15], [/haiku/i, 1, 5],
   [/gemini.*pro/i, 1.25, 10], [/gemini.*flash-lite|gemini.*lite/i, 0.1, 0.4], [/gemini.*flash|gemini/i, 0.3, 2.5],
   [/gpt-5.*nano/i, 0.05, 0.4], [/gpt-5.*mini/i, 0.25, 2], [/gpt-5|gpt-4\.1/i, 1.25, 10], [/gpt-4o-mini/i, 0.15, 0.6], [/gpt-4o/i, 2.5, 10],
   [/grok.*(fast|mini)/i, 0.2, 0.5], [/grok/i, 3, 15],
