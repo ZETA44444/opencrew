@@ -166,7 +166,7 @@ const ALL_TOOLS = {
       const img = await generateImage(String(prompt), { demoMode: ctx.bot.provider === 'demo' });
       const ext = (img.dataUrl.match(/^data:image\/([\w+]+)/)?.[1] || 'png').replace('svg+xml', 'svg').replace('jpeg', 'jpg');
       const base = safeName(filename || String(prompt).slice(0, 40)).replace(/\.[^.]*$/, '').replace(/\s+/g, '-').toLowerCase() || 'imagen';
-      const name = `${base}.${ext}`;
+      const name = `${base}-ia.${ext}`; // generated images say so in their name (EU AI Act)
       const list = artifactsOf(ctx.bot.id);
       const existing = list.find((a) => a.name === name);
       if (existing) Object.assign(existing, { content: img.dataUrl, updatedAt: now() });

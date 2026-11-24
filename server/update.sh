@@ -6,7 +6,7 @@ set -e
 cd "$(dirname "$0")/.."
 git pull --ff-only
 cd server
-mkdir -p data-puente data-gateway
+mkdir -p data-gateway
 [ "$(stat -c %u data-gateway)" = 1000 ] || sudo chown -R 1000:1000 data-gateway
 # One-time code to create the administrator account in the app (read it with: grep GATEWAY_SETUP_CODE .env).
 grep -q '^GATEWAY_SETUP_CODE=' .env || printf 'GATEWAY_SETUP_CODE=%s\n' "$(openssl rand -hex 8)" >> .env
@@ -15,7 +15,6 @@ grep -q '^OPENCREW_SECRET_KEY=' .env || printf 'OPENCREW_SECRET_KEY=%s\n' "$(ope
 grep -q '^LAUNCHER_KEY=' .env || printf 'LAUNCHER_KEY=%s\n' "$(openssl rand -hex 32)" >> .env
 # The main server runs as an unprivileged user (uid 1000): it must own its data.
 [ -z "$(sudo find data ! -uid 1000 -print -quit)" ] || sudo chown -R 1000:1000 data
-[ "$(stat -c %u data-puente)" = 1002 ] || sudo chown -R 1002:1002 data-puente
 # The built app, published on the gh-pages branch, also served from this server.
 git -C .. fetch -q origin gh-pages
 rm -rf web.new && mkdir web.new && git -C .. archive origin/gh-pages | tar -x -C web.new
@@ -30,7 +29,7 @@ if [ ! -f /etc/systemd/system/opencrew-firewall.service ] || ! cmp -s "$PWD/fire
   sudo systemctl daemon-reload && sudo systemctl enable opencrew-firewall.service >/dev/null 2>&1
 fi
 sudo /usr/local/sbin/opencrew-firewall.sh >/dev/null
-docker compose up -d --build
+docker compose up -d --build --remove-orphans
 # Caddy keeps the old Caddyfile after git replaces it: restart it so changes apply.
 docker compose restart caddy >/dev/null
 docker image prune -f >/dev/null

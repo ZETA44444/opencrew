@@ -18,13 +18,12 @@ Auditoría y modelo de negocio: [AUDITORIA.md](AUDITORIA.md). Cómo repetir la a
 
 | Servicio | Qué hace |
 |---|---|
-| `caddy` | HTTPS, sirve la app (`server/web`, rama gh-pages) con CSP; `/api`, `/hooks`, `/oauth`, `/puente` → `gateway` |
-| `gateway` (`gateway/`) | Cuentas, sesiones (cookie), invitaciones, admin; enruta a motores; Puente solo para el dueño |
+| `caddy` | HTTPS, sirve la app (`server/web`, rama gh-pages) con CSP; `/api`, `/hooks`, `/oauth` → `gateway` |
+| `gateway` (`gateway/`) | Cuentas (18+ y condiciones aceptadas), sesiones (cookie), invitaciones, admin; enruta a motores |
 | `opencrew` (`server/index.mjs`) | Motor del dueño (usuario `owner`), sin privilegios, datos cifrados en `server/data` |
 | `opencrew-engine-<id>` | Motor aislado por usuario, creado por el lanzador (volumen `opencrew-data-<id>`) |
 | `launcher` (`server/launcher.mjs`) | Único con Docker: ordenadores de bots, sandbox, motores por usuario (operaciones fijas) |
 | red `opencrew-pcs` | Ordenadores de bots: sin comunicación entre ellos; cortafuegos `server/firewall.sh` (servicio `opencrew-firewall`) |
-| `puente` (`bridge/`) | Suscripciones ChatGPT/Claude del dueño (Codex/Claude Code oficiales), solo uso personal |
 
 Otros: `extension/` (extensión Chrome/Brave), `desktop/` (OpenCrew Escritorio para Mac), `server/computer/`
 (imagen del ordenador de los bots).
@@ -42,20 +41,19 @@ Otros: `extension/` (extensión Chrome/Brave), `desktop/` (OpenCrew Escritorio p
 - Fase A (seguridad): A1–A6 hechas (SSRF, sin root + lanzador, datos cifrados, permisos por bot, contenido
   externo no confiable, límites). A7 (copias fuera) pendiente de elegir destino.
 - Fase B (multiusuario): app servida por el servidor con CSP; pasarela con cuentas e invitaciones; motor aislado
-  por usuario; Puente solo para el dueño; exportar/borrar cuenta (B5); ordenadores aislados con cortafuegos y
+  por usuario; exportar/borrar cuenta (B5); ordenadores aislados con cortafuegos y
   límites (B4). Cuenta de administrador ya creada por el usuario. Pendiente: B1 (dominio), B3 (dormir motores).
 
 ## Pendiente que necesita al usuario
 
 - Dominio propio (B1); proveedor de correo (recuperar contraseña / enlace mágico); destino de copias (A7);
-  cuenta de cobro Paddle/Lemon Squeezy (D4); asesor legal (E1); conectar ChatGPT en el Puente (opcional);
-  instalar extensión y app de escritorio; Composio; credenciales de Gemini con créditos de AI Pro.
+  cuenta de cobro Paddle/Lemon Squeezy (D4); asesor legal (E1); instalar extensión y app de escritorio; Composio; credenciales de Gemini con créditos de AI Pro.
 
 ## Reglas de trabajo con el usuario
 
 - Habla en español, claro y sin jerga; explica cada cosa en pasos cortos.
 - Avanza solo por el ROADMAP, probando cada cambio en local y en el servidor antes de publicar.
 - Nunca introducir claves, contraseñas ni crear cuentas por el usuario; nunca mostrar secretos en el chat.
-- Las funciones de suscripciones (Puente) son solo uso personal del dueño, nunca para otros usuarios; y Anthropic
-  prohíbe usar la suscripción de Claude en otras apps (ver LANZAMIENTO.md, M1.1 pendiente de decisión).
+- El Puente (suscripciones de Claude/ChatGPT) se retiró el 24 nov 2026: Anthropic prohíbe usar suscripciones en
+  otras apps. No volver a añadirlo; ChatGPT solo con el programa oficial «Sign in with ChatGPT».
 - Los bots no eluden bloqueos anti-bots de las webs: si una web los bloquea, paran y avisan.

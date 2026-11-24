@@ -24,9 +24,6 @@ export const PROVIDERS = [
   { id: 'ollama', label: 'Ollama (local, gratis)', kind: 'openai', noKey: true,
     baseUrl: 'http://localhost:11434/v1',
     models: ['llama3.2', 'qwen3'] },
-  // Your ChatGPT / Claude subscriptions through OpenCrew Puente (only on your server, when installed).
-  { id: 'puente', label: 'Mis suscripciones (Puente)', kind: 'openai', bridge: true, models: [],
-    get baseUrl() { return globalThis.OPENCREW_BRIDGE?.url || ''; } },
   { id: 'auto', label: 'Automático (el más barato que sirva)', kind: 'auto', noKey: true, models: ['auto'] },
   { id: 'demo', label: 'Demo (sin clave)', kind: 'demo', noKey: true, models: ['demo'] },
 ];
@@ -34,10 +31,8 @@ export const PROVIDERS = [
 export const providerById = (id) => PROVIDERS.find((p) => p.id === id);
 
 export function getKey(providerId) {
-  if (providerId === 'puente') return globalThis.OPENCREW_BRIDGE?.token || '';
   return getDb().keys[providerId] || '';
 }
-const bridgeOn = () => !!globalThis.OPENCREW_BRIDGE?.url;
 
 // Models fetched live from each provider's API (so the list never goes stale).
 const liveModels = {};
@@ -95,7 +90,7 @@ export function defaultModel(providerId) {
   return (prefer && list.find((m) => prefer.test(m))) || list[0];
 }
 
-export const publicProviders = () => PROVIDERS.filter((p) => !p.bridge || bridgeOn()).map((p) => ({
+export const publicProviders = () => PROVIDERS.map((p) => ({
   id: p.id, label: p.label, models: modelsOf(p.id), defaultModel: defaultModel(p.id), live: !!liveModels[p.id], keyUrl: p.keyUrl, noKey: !!p.noKey, bridge: !!p.bridge,
   hasKey: p.noKey ? true : !!getKey(p.id),
   keySource: p.noKey ? null : getKey(p.id) ? 'app' : null,

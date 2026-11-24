@@ -39,7 +39,10 @@ export const TREASURER_BOT = {
 };
 
 function fill(d) {
-  d.keys ??= {}; d.bots ??= []; d.messages ??= {}; d.routines ??= []; d.runs ??= [];
+  d.keys ??= {}; d.bots ??= [];
+  for (const b of d.bots) if (b.provider === 'puente') { b.provider = 'auto'; b.model = 'auto'; } // the Puente was retired
+  if (d.settings) delete d.settings.preferSubscriptions;
+  d.messages ??= {}; d.routines ??= []; d.runs ??= [];
   d.artifacts ??= {}; d.settings ??= {}; d.groups ??= []; d.skills ??= []; d.connectors ??= []; d.projects ??= []; d.globalMemory ??= [];
   d.settings.webReader ??= true;
   d.settings.proactive ??= true;

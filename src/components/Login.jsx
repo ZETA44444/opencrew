@@ -12,7 +12,7 @@ const post = async (path, data) => {
 export default function Login({ state }) {
   const invite = new URLSearchParams(location.search).get('invitacion') || '';
   const [mode, setMode] = useState(state.setupNeeded ? 'setup' : invite ? 'signup' : 'login');
-  const [f, setF] = useState({ email: '', password: '', password2: '', code: '', invite });
+  const [f, setF] = useState({ email: '', password: '', password2: '', code: '', invite, accept: false });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -23,8 +23,8 @@ export default function Login({ state }) {
     if (mode !== 'login' && f.password !== f.password2) { setErr('Las contraseñas no coinciden'); return; }
     setBusy(true);
     try {
-      if (mode === 'setup') await post('setup', { code: f.code, email: f.email, password: f.password });
-      else if (mode === 'signup') await post('signup', { invite: f.invite, email: f.email, password: f.password });
+      if (mode === 'setup') await post('setup', { code: f.code, email: f.email, password: f.password, accept: f.accept });
+      else if (mode === 'signup') await post('signup', { invite: f.invite, email: f.email, password: f.password, accept: f.accept });
       else await post('login', { email: f.email, password: f.password });
       location.href = location.pathname; // fresh start, without the invitation in the address
     } catch (e2) { setErr(e2.message); setBusy(false); }
@@ -44,6 +44,13 @@ export default function Login({ state }) {
         <label>Contraseña<input type="password" value={f.password} onChange={set('password')} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'login' ? 1 : 10} required /></label>
         {mode !== 'login' && <label>Repite la contraseña<input type="password" value={f.password2} onChange={set('password2')} autoComplete="new-password" minLength={10} required /></label>}
         {mode !== 'login' && <p className="muted small">Al menos 10 caracteres. Mejor una frase que una palabra.</p>}
+        {mode !== 'login' && (
+          <label className="check small">
+            <input type="checkbox" checked={f.accept} onChange={(e) => setF({ ...f, accept: e.target.checked })} required />
+            <span>Tengo 18 años o más y acepto las <a className="link" href="./legal/condiciones.html" target="_blank" rel="noreferrer">Condiciones</a>, la <a className="link" href="./legal/privacidad.html" target="_blank" rel="noreferrer">Privacidad</a> y el <a className="link" href="./legal/uso-aceptable.html" target="_blank" rel="noreferrer">Uso aceptable</a>.</span>
+          </label>
+        )}
+        <p className="muted small login-ai">OpenCrew es un equipo de bots de <b>inteligencia artificial</b>: no son personas y pueden equivocarse.</p>
         {err && <div className="banner error small">{err}</div>}
         <button className="btn primary full" disabled={busy}>{busy ? 'Un momento…' : mode === 'login' ? 'Entrar' : 'Crear cuenta'}</button>
         {!state.setupNeeded && (

@@ -18,26 +18,35 @@ const PURPOSES = [
     tasks: ['Investiga y resúmeme en 10 viñetas: ', 'Redacta un correo profesional para: ', 'Explícame como si tuviera 12 años: '] },
 ];
 const allTemplates = TEMPLATE_CATEGORIES.flatMap((c) => c.items);
+// Pay-as-you-go keys (free tiers can't back an app offered in the EU, and are not for consumer use).
+const KEY_OPTIONS = [
+  { id: 'anthropic', label: 'Claude (recomendado)', url: 'https://console.anthropic.com/settings/keys', site: 'la consola de Anthropic',
+    steps: ['Entra con tu cuenta y, en «Billing», añade saldo (desde 5 $; con el modelo rápido da para meses de uso normal).', 'En «API keys», pulsa «Create key» y cópiala.'] },
+  { id: 'openai', label: 'OpenAI', url: 'https://platform.openai.com/api-keys', site: 'la plataforma de OpenAI',
+    steps: ['Entra con tu cuenta y añade saldo en «Billing».', 'Pulsa «Create new secret key» y cópiala.'] },
+  { id: 'gemini', label: 'Gemini (con facturación)', url: 'https://aistudio.google.com/apikey', site: 'Google AI Studio',
+    steps: ['Activa la facturación de Google Cloud en tu proyecto (la capa gratuita no se puede usar en apps en Europa).', 'Pulsa «Create API key» y cópiala.'] },
+];
 
 export default function Welcome({ state, onDone }) {
   const [step, setStep] = useState(1);
   const [purpose, setPurpose] = useState(null);
   const [key, setKey] = useState('');
+  const [prov, setProv] = useState(KEY_OPTIONS[0]);
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
   const [task, setTask] = useState('');
-  const puente = state.providers.find((p) => p.id === 'puente' && p.models?.length);
   const hasKey = state.providers.some((p) => !p.noKey && p.hasKey);
 
   const finish = async (botId) => { await api.updateSettings({ onboarded: true }).catch(() => {}); onDone(botId); };
 
   // Step 2: how the bots will think.
-  const useGemini = async () => {
-    setErr(''); setBusy('gemini');
+  const useKey = async () => {
+    setErr(''); setBusy('key');
     try {
-      await api.saveKeys({ gemini: key.trim() });
-      const r = await api.testProvider('gemini');
-      if (!r.ok) { await api.saveKeys({ gemini: '' }); throw new Error('Esa clave no funciona. Cópiala entera desde Google AI Studio.'); }
+      await api.saveKeys({ [prov.id]: key.trim() });
+      const r = await api.testProvider(prov.id);
+      if (!r.ok) { await api.saveKeys({ [prov.id]: '' }); throw new Error(`Esa clave no funciona (${r.error || 'sin detalle'}). Cópiala entera y comprueba que tienes saldo.`); }
       setStep(3);
     } catch (e) { setErr(e.message); } finally { setBusy(''); }
   };
@@ -46,8 +55,7 @@ export default function Welcome({ state, onDone }) {
   const buildTeam = async () => {
     setErr(''); setBusy('team');
     try {
-      const provider = hasKey || puente ? 'auto' : 'demo';
-      if (puente) await api.updateSettings({ preferSubscriptions: true });
+      const provider = hasKey || key ? 'auto' : 'demo';
       for (const name of purpose.team) {
         const t = allTemplates.find((x) => x.name === name);
         if (!t || state.bots.some((b) => b.name === name)) continue;
@@ -76,6 +84,7 @@ export default function Welcome({ state, onDone }) {
           <>
             <h2>Bienvenido a OpenCrew 👋</h2>
             <p className="muted">Un equipo de bots con IA que trabaja para ti: investigan, escriben, programan y hacen tareas solos. ¿Para qué lo quieres sobre todo?</p>
+            <p className="muted small">Los bots son programas de inteligencia artificial, no personas, y pueden equivocarse. OpenCrew es para mayores de 18 años.</p>
             <div className="welcome-grid">
               {PURPOSES.map((p) => (
                 <button key={p.id} className={`welcome-option ${purpose?.id === p.id ? 'on' : ''}`} onClick={() => setPurpose(p)}>
@@ -89,7 +98,7 @@ export default function Welcome({ state, onDone }) {
                 {LANGS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
               </select>
               <span className="spacer" />
-              <button className="btn primary" disabled={!purpose} onClick={() => setStep(hasKey || puente ? 3 : 2)}>Siguiente</button>
+              <button className="btn primary" disabled={!purpose} onClick={() => setStep(hasKey ? 3 : 2)}>Siguiente</button>
             </div>
           </>
         )}
@@ -97,19 +106,22 @@ export default function Welcome({ state, onDone }) {
         {step === 2 && (
           <>
             <h2>¿Con qué «piensan» tus bots?</h2>
-            <p className="muted">Los bots usan un modelo de IA. La forma más fácil y gratuita es una clave de Google Gemini (tiene un uso gratis cada día).</p>
+            <p className="muted">Los bots usan un modelo de IA de pago por uso: pagas al proveedor solo lo que gastan, normalmente céntimos al día. Elige uno:</p>
+            <div className="welcome-providers">
+              {KEY_OPTIONS.map((o) => <button key={o.id} className={`welcome-option small ${prov.id === o.id ? 'on' : ''}`} onClick={() => { setProv(o); setErr(''); }}>{o.label}</button>)}
+            </div>
             <ol className="welcome-howto">
-              <li>Abre <a className="link" href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio</a> con tu cuenta de Google.</li>
-              <li>Pulsa «Create API key» y copia la clave.</li>
+              <li>Abre <a className="link" href={prov.url} target="_blank" rel="noreferrer">{prov.site}</a>.</li>
+              {prov.steps.map((t) => <li key={t}>{t}</li>)}
               <li>Pégala aquí:</li>
             </ol>
-            <input type="password" autoComplete="off" placeholder="Pega tu clave de Gemini" value={key} onChange={(e) => setKey(e.target.value)} />
-            <p className="muted small">Se guarda cifrada y solo se usa para hablar con Google. Puedes añadir otras (Claude, OpenAI…) cuando quieras en Ajustes.</p>
+            <input type="password" autoComplete="off" placeholder="Pega tu clave de API" value={key} onChange={(e) => setKey(e.target.value)} />
+            <p className="muted small">Se guarda cifrada y solo se usa para hablar con ese proveedor. Puedes añadir otras cuando quieras en Ajustes.</p>
             {err && <div className="banner error small">{err}</div>}
             <div className="modal-foot">
               <button className="btn ghost" onClick={() => setStep(3)}>Ahora no (modo demostración)</button>
               <span className="spacer" />
-              <button className="btn primary" disabled={!key.trim() || !!busy} onClick={useGemini}>{busy ? 'Comprobando…' : 'Usar esta clave'}</button>
+              <button className="btn primary" disabled={!key.trim() || !!busy} onClick={useKey}>{busy ? 'Comprobando…' : 'Usar esta clave'}</button>
             </div>
           </>
         )}
@@ -123,7 +135,7 @@ export default function Welcome({ state, onDone }) {
                 <div key={name} className="welcome-bot"><span className="welcome-dot" style={{ background: t.color }} /><div><b>{t.name}</b> · {t.title}<div className="muted small">{t.description}</div></div></div>
               ); })}
             </div>
-            <p className="muted small">{puente ? 'Usarán tus suscripciones primero y, si se llenan, tus claves.' : hasKey ? 'Usarán «Automático»: el modelo más barato que sirva para cada tarea.' : 'Estarán en modo demostración hasta que añadas una clave en Ajustes.'}</p>
+            <p className="muted small">{hasKey || key ? 'Usarán «Automático»: el modelo más barato que sirva para cada tarea.' : 'Estarán en modo demostración hasta que añadas una clave en Ajustes.'}</p>
             {err && <div className="banner error small">{err}</div>}
             <div className="modal-foot">
               <button className="btn ghost" onClick={() => setStep(1)}>Atrás</button>

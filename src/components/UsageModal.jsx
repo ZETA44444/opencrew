@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import Avatar from './Avatar.jsx';
-import SubscriptionsUsage from './SubscriptionsUsage.jsx';
 import { ask } from '../dialog.jsx';
 
-const RANGES = [[1, 'Hoy'], [7, '7 días'], [30, '30 días'], [0, 'Todo'], ['subs', 'Suscripciones']];
+const RANGES = [[1, 'Hoy'], [7, '7 días'], [30, '30 días'], [0, 'Todo']];
 const fmtTok = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)} k` : String(n));
 export const fmtCost = (c) => (c === 0 ? '0 $' : c < 0.01 ? '< 0,01 $' : `${c.toFixed(2).replace('.', ',')} $`);
 
@@ -24,9 +23,7 @@ export default function UsageModal({ bots, onClose }) {
   const [data, setData] = useState(null);
   const [editing, setEditing] = useState(null);
   const [health, setHealth] = useState([]);
-  const [monthRows, setMonthRows] = useState([]);
   const load = () => {
-    if (range === 'subs') { api.usage(31).then((d) => setMonthRows(d.rows.filter((r) => r.day >= new Date().toISOString().slice(0, 8) + '01'))); return; }
     api.usage(range).then(setData); api.health().then(setHealth);
   };
   useEffect(() => { load(); }, [range]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -53,8 +50,7 @@ export default function UsageModal({ bots, onClose }) {
           <div className="cat-tabs">
             {RANGES.map(([d, l]) => <button key={d} className={range === d ? 'on' : ''} onClick={() => setRange(d)}>{l}</button>)}
           </div>
-          {range === 'subs' && <SubscriptionsUsage monthRows={monthRows} />}
-          {range !== 'subs' && <>
+          {<>
           <div className="usage-totals">
             <div><span className="muted small">Coste estimado</span><b>{fmtCost(total.cost)}</b></div>
             <div><span className="muted small">Tokens enviados</span><b>{fmtTok(total.input)}</b></div>

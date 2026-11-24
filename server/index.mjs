@@ -84,8 +84,6 @@ globalThis.OPENCREW_RUN_JS = runInSandbox;
 globalThis.OPENCREW_COMPUTER = computer;
 globalThis.OPENCREW_EXT = extension;
 globalThis.OPENCREW_DESKTOP = desktop;
-// OpenCrew Puente (your ChatGPT/Claude subscriptions), if installed next to this server.
-if (process.env.OPENCREW_BRIDGE_URL) globalThis.OPENCREW_BRIDGE = { url: process.env.OPENCREW_BRIDGE_URL.replace(/\/$/, ''), token: process.env.OPENCREW_BRIDGE_TOKEN || TOKEN };
 globalThis.OPENCREW_GOOGLE_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 globalThis.OPENCREW_PUBLIC_URL = (process.env.OPENCREW_PUBLIC_URL || (process.env.OPENCREW_HOST ? `https://${process.env.OPENCREW_HOST}` : `http://localhost:${PORT}`)).replace(/\/$/, '');
 
@@ -111,14 +109,6 @@ const page = (title, text, ok) => `<!doctype html><html lang="es"><head><meta ch
 <body><main><h1>${ok ? '✓' : '⚠️'} ${title}</h1><p>${text}</p></main>${ok ? '<script>setTimeout(()=>window.close(),2000)</script>' : ''}</body></html>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 await localApi.state(); // starts routines, watchers and the message queue
-if (globalThis.OPENCREW_BRIDGE) {
-  // Notice when you connect or disconnect a subscription in the bridge page.
-  const { refreshModels, modelsOf } = await import('../src/core/providers.js');
-  const { broadcast } = await import('../src/core/events.js');
-  let last = '';
-  const check = async () => { await refreshModels('puente').catch(() => {}); const now = modelsOf('puente').join(','); if (now !== last) { last = now; broadcast({ type: 'bots' }); } };
-  check(); setInterval(check, 30_000).unref();
-}
 
 // Functions that only make sense inside a browser.
 const BROWSER_ONLY = new Set(['subscribe', 'openArtifact', 'notifyPermission', 'askNotifyPermission', 'testNotification', 'connectGoogle']);
@@ -132,17 +122,6 @@ const extra = {
     const ticket = randomBytes(24).toString('hex');
     viewTickets.set(ticket, { botId, exp: Date.now() + 60_000 });
     return ticket;
-  },
-  // Real plan usage from the official programs (via OpenCrew Puente).
-  async subscriptionUsage(refresh) {
-    const b = globalThis.OPENCREW_BRIDGE;
-    if (!b) return null;
-    const base = b.url.replace(/\/v1$/, '');
-    const h = { authorization: `Bearer ${b.token}`, 'content-type': 'application/json' };
-    if (refresh) await fetch(`${base}/api/usage/refresh`, { method: 'POST', headers: h, body: JSON.stringify({ provider: refresh }), signal: AbortSignal.timeout(90_000) }).catch(() => {});
-    const r = await fetch(`${base}/api/usage`, { headers: h, signal: AbortSignal.timeout(15_000) });
-    if (!r.ok) throw new Error(`El Puente respondió ${r.status}`);
-    return r.json();
   },
   // Pair the browser extension: a separate key just for it (shown once, revocable).
   async extensionPair() {
@@ -278,6 +257,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/oauth/google/callback' && req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       try {
+        if (TENANT) throw new Error('En OpenCrew en la nube, Gmail y Calendar se conectan con una pasarela (Apps conectadas).');
         if (url.searchParams.get('error')) throw new Error(url.searchParams.get('error') === 'access_denied' ? 'Has cancelado el permiso.' : url.searchParams.get('error'));
         const r = await finishGoogleServerAuth(url.searchParams.get('code') || '', url.searchParams.get('state') || '');
         res.end(page('Google conectado', `Tus bots ya pueden usar el correo y la agenda de ${esc(r.email || 'tu cuenta')} sin caducar. Puedes cerrar esta ventana.`, true));

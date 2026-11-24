@@ -104,16 +104,16 @@ export default function SettingsModal({ providers, settings, services, sensitive
           {tab === 'avanzado' && <>
           <label className="check mode-toggle">
             <input type="checkbox" checked={advanced} onChange={(e) => { setAdvanced(e.target.checked); api.updateSettings({ uiMode: e.target.checked ? 'advanced' : 'basic' }).then(onSaved); }} />
-            Modo avanzado <span className="muted small">— muestra las opciones técnicas (servidor, Puente, búsqueda, conexiones MCP, delegación…)</span>
+            Modo avanzado <span className="muted small">— muestra las opciones técnicas (servidor, búsqueda, conexiones MCP, delegación…)</span>
           </label>
-          {!advanced && <div className="muted small">Con el modo avanzado apagado, la app muestra solo lo esencial. Enciéndelo para ver aquí la búsqueda en internet y, en otras pestañas, el servidor, el Puente y Ollama.</div>}
+          {!advanced && <div className="muted small">Con el modo avanzado apagado, la app muestra solo lo esencial. Enciéndelo para ver aquí la búsqueda en internet y, en otras pestañas, el servidor y Ollama.</div>}
           </>}
           {tab === 'modelos' && <>
           <p className="muted small">
             Pega aquí tus propias API keys. Se guardan <b>{serverMode ? 'solo en tu servidor' : 'solo en este navegador'}</b> y solo se envían al proveedor de IA
             correspondiente cuando un bot lo usa. Después, en cada bot, elige qué modelo usa.
           </p>
-          {list.filter((p) => !p.noKey && !p.bridge && (advanced || ['gemini', 'anthropic', 'openai'].includes(p.id) || p.hasKey)).map((p) => {
+          {list.filter((p) => !p.noKey && (advanced || ['gemini', 'anthropic', 'openai'].includes(p.id) || p.hasKey)).map((p) => {
             const t = tests[p.id];
             return (
               <div key={p.id} className="key-row">
@@ -134,7 +134,7 @@ export default function SettingsModal({ providers, settings, services, sensitive
                     <ol className="gateway-steps">
                       <li>Únete gratis al <a className="link" href="https://developers.google.com/program" target="_blank" rel="noreferrer">Google Developer Program</a> con la misma cuenta de Google y, en «Mis beneficios», activa los créditos de Google Cloud de tu plan.</li>
                       <li>Esos créditos van a una cuenta de facturación de Google Cloud. En <a className="link" href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">AI Studio</a>, crea una clave en un proyecto vinculado a esa facturación (Google pide una recarga mínima de 5 $ antes de usar los créditos).</li>
-                      <li>Pega aquí esa clave. Lo que gasten tus bots con Gemini se descuenta de esos créditos; el saldo real lo ves en Uso y coste → Suscripciones → «Ver mi consumo en AI Studio».</li>
+                      <li>Pega aquí esa clave. Lo que gasten tus bots con Gemini se descuenta de esos créditos; el saldo real lo ves en <a className="link" href="https://aistudio.google.com/usage" target="_blank" rel="noreferrer">AI Studio → Uso</a>.</li>
                     </ol>
                   </details>
                 )}
@@ -208,6 +208,13 @@ export default function SettingsModal({ providers, settings, services, sensitive
           </>}
 
           {tab === 'privacidad' && <>
+          <div className="section-title">Mensajes a otras personas</div>
+          <div className="muted small">Todo lo que un bot envía o publica en tu nombre (correos, comentarios, mensajes en apps conectadas, invitaciones) te pide permiso cada vez, aunque tengas los permisos desactivados.</div>
+          <label className="check">
+            <input type="checkbox" checked={!!settings?.aiSignature} onChange={(e) => { api.updateSettings({ aiSignature: e.target.checked }); onSaved(); }} />
+            Añadir al final de los correos «Redactado con ayuda de IA (OpenCrew) y revisado por mí»
+          </label>
+
           <div className="section-title">Permisos</div>
           <label className="check">
             <input type="checkbox" checked={settings?.approvals?.enabled !== false} onChange={(e) => { api.setApprovalsEnabled(e.target.checked); onSaved(); }} />
@@ -287,39 +294,9 @@ export default function SettingsModal({ providers, settings, services, sensitive
             <div className="muted small">Conecta tus apps (Gmail, Calendar, Notion, GitHub…), tu navegador y tu ordenador para que los bots trabajen con ellos. Cada acción sensible te pedirá permiso.</div>
             <div className="settings-actions"><button className="btn small primary" onClick={() => { onClose(); onConnectors?.(); }}>Abrir conexiones</button></div>
           </>}
-          {tab === 'modelos' && advanced && (list || []).some((p) => p.id === 'puente') && (() => {
-            const pu = list.find((p) => p.id === 'puente');
-            const t = tests.puente;
-            const models = pu.models || [];
-            return (
-              <>
-                <div className="section-title">Mis suscripciones (Puente)</div>
-                <div className="key-row">
-                  <div className="key-head">
-                    <strong>ChatGPT y Claude con tu suscripción</strong>
-                    {models.length ? <span className="pill ok">{models.some((m) => m === 'chatgpt') && models.some((m) => m.startsWith('claude')) ? 'ChatGPT y Claude' : models.some((m) => m.startsWith('claude')) ? 'Claude' : 'ChatGPT'} en uso</span> : <span className="pill">ninguna conectada</span>}
-                  </div>
-                  <div className="muted small">
-                    Sin clave: conecta en el Puente solo las suscripciones que quieras y luego elige en cada bot el proveedor «Mis suscripciones (Puente)».
-                    {models.length ? ` Modelos disponibles: ${models.join(', ')}.` : ''}
-                  </div>
-                  <label className="check small">
-                    <input type="checkbox" checked={settings?.preferSubscriptions !== false} onChange={(e) => api.updateSettings({ preferSubscriptions: e.target.checked }).then(onSaved)} />
-                    Los bots en «Automático» usan primero mis suscripciones (el Puente elige la que tenga más margen); si se llenan, pasan a mis claves de API
-                  </label>
-                  <div className="settings-actions">
-                    <a className="btn small primary" href={`${remoteConfig()?.url}/puente/#t=${encodeURIComponent(remoteConfig()?.token || '')}`} target="_blank" rel="noreferrer">Abrir el Puente ↗</a>
-                    {models.length > 0 && <button className="btn small" onClick={async () => { setTests((x) => ({ ...x, puente: { loading: true } })); const r = await api.testProvider('puente', models.find((m) => m.startsWith('claude')) || models[0]).catch((e) => ({ ok: false, error: e.message })); setTests((x) => ({ ...x, puente: r })); }}>Probar</button>}
-                  </div>
-                  {t && (t.loading ? <div className="muted small">Probando… (tarda unos segundos)</div>
-                    : t.ok ? <div className="small run-ok">✓ Funciona con {t.model} · respondió «{t.reply}» en {(t.ms / 1000).toFixed(1)}s</div>
-                    : <div className="small run-error">✗ {t.error}</div>)}
-                </div>
-              </>
-            );
-          })()}
 
           {tab === 'cuenta' && <>
+          <div className="muted small"><a className="link" href="./legal/condiciones.html" target="_blank" rel="noreferrer">Condiciones</a> · <a className="link" href="./legal/privacidad.html" target="_blank" rel="noreferrer">Privacidad</a> · <a className="link" href="./legal/uso-aceptable.html" target="_blank" rel="noreferrer">Uso aceptable</a></div>
           <div className="section-title">Copia de seguridad</div>
           <div className="muted small">Tus bots, chats y rutinas viven en {serverMode ? 'tu servidor' : 'este navegador'}. Descarga una copia para no perderlos o para pasarlos a otro ordenador.</div>
           <div className="settings-actions">

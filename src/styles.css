@@ -603,3 +603,6 @@ label.member-row { flex-direction: row; justify-content: flex-start; cursor: poi
 .settings-tabs button { white-space: nowrap; }
 .modal.settings-modal { height: min(680px, 92dvh); }
 .welcome-lang { width: auto; }
+.welcome-providers { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-notice { text-align: center; font-size: 11px; color: var(--text-3); padding: 4px 0 2px; }
+.login-ai { margin: 0; }

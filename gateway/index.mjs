@@ -8,6 +8,7 @@ import { createHash, createHmac, timingSafeEqual, randomBytes, scrypt as scryptC
 import { promisify } from 'node:util';
 
 const scrypt = promisify(scryptCb);
+const TERMS_VERSION = '2026-11-24'; // version of the legal texts each account accepted (public/legal)
 const PORT = Number(process.env.PORT) || 8786;
 const DATA = (process.env.GATEWAY_DATA || '/data').replace(/\/?$/, '/');
 const MASTER = Buffer.from(process.env.OPENCREW_SECRET_KEY || '', 'hex');
@@ -17,7 +18,6 @@ const LAUNCHER = (process.env.LAUNCHER_URL || 'http://launcher:8788').replace(/\
 const LAUNCHER_KEY = process.env.LAUNCHER_KEY || '';
 const SETUP_CODE = process.env.GATEWAY_SETUP_CODE || '';
 const HOST = process.env.OPENCREW_HOST || '';
-const PUENTE = process.env.PUENTE_URL || 'http://puente:8790';
 if (MASTER.length !== 32 || OWNER_TOKEN.length < 24) { console.error('Faltan OPENCREW_SECRET_KEY u OPENCREW_TOKEN'); process.exit(1); }
 
 const hmac = (label) => createHmac('sha256', MASTER).update(label).digest('hex');
@@ -121,13 +121,17 @@ async function auth(req, res, path) {
   if (req.method !== 'POST' || !fromApp(req)) return send(res, 403, { error: 'Prohibido' });
   const b = await body(req);
   const email = String(b.email || '').trim().toLowerCase();
+  // New accounts must confirm they are 18+ and accept the terms (version recorded with the date).
+  const accepted = { version: TERMS_VERSION, at: new Date().toISOString() };
+  const needsAccept = () => (b.accept === true ? null : 'Para crear la cuenta tienes que confirmar que tienes 18 años o más y aceptar las condiciones');
   if (path === '/api/auth/setup') {
     if (db.users.some((u) => u.role === 'owner')) return send(res, 409, { error: 'La cuenta de administrador ya existe' });
     if (limited(`setup:${ip}`, 10, 15 * 60_000)) return send(res, 429, { error: 'Demasiados intentos; espera 15 minutos' });
     if (!SETUP_CODE || !same(String(b.code || '').trim(), SETUP_CODE)) return send(res, 401, { error: 'El código de configuración no es correcto' });
     if (!validEmail(email)) return send(res, 400, { error: 'Correo no válido' });
+    if (needsAccept()) return send(res, 400, { error: needsAccept() });
     if (String(b.password || '').length < 10) return send(res, 400, { error: 'La contraseña debe tener al menos 10 caracteres' });
-    const user = { id: 'owner', email, hash: await hashPassword(String(b.password)), role: 'owner', plan: 'owner', createdAt: new Date().toISOString() };
+    const user = { id: 'owner', email, hash: await hashPassword(String(b.password)), role: 'owner', plan: 'owner', accepted, createdAt: new Date().toISOString() };
     db.users.push(user); startSession(res, user, req); await save();
     return send(res, 200, { user: publicUser(user) });
   }
@@ -146,8 +150,9 @@ async function auth(req, res, path) {
     if (!inv || inv.usedBy || inv.exp < Date.now()) return send(res, 403, { error: 'Hace falta una invitación válida (OpenCrew aún no está abierto a todo el mundo)' });
     if (!validEmail(email)) return send(res, 400, { error: 'Correo no válido' });
     if (db.users.some((u) => u.email === email)) return send(res, 409, { error: 'Ya hay una cuenta con ese correo' });
+    if (needsAccept()) return send(res, 400, { error: needsAccept() });
     if (String(b.password || '').length < 10) return send(res, 400, { error: 'La contraseña debe tener al menos 10 caracteres' });
-    const user = { id: randomBytes(6).toString('hex'), email, hash: await hashPassword(String(b.password)), role: 'user', plan: 'free', createdAt: new Date().toISOString() };
+    const user = { id: randomBytes(6).toString('hex'), email, hash: await hashPassword(String(b.password)), role: 'user', plan: 'free', accepted, createdAt: new Date().toISOString() };
     db.users.push(user); inv.usedBy = user.id; inv.usedAt = Date.now();
     startSession(res, user, req); await save();
     return send(res, 200, { user: publicUser(user) });
@@ -256,12 +261,6 @@ const server = http.createServer(async (req, res) => {
     const bearer = /^Bearer (.+)$/.exec(req.headers.authorization || '')?.[1];
     if (bearer && same(bearer, OWNER_TOKEN)) return proxy(req, res, 'owner', req.url);
     const user = sessionUser(req);
-    // OpenCrew Puente (your subscriptions): only for the server owner, never for other users.
-    if (path === '/puente' || path.startsWith('/puente/')) {
-      if (user?.role !== 'owner') return send(res, 403, { error: 'El Puente solo está disponible para el administrador del servidor' });
-      if (req.method === 'POST' && !fromApp(req) && path.startsWith('/puente/api/')) return send(res, 403, { error: 'Prohibido' });
-      return proxyTo(req, res, PUENTE, OWNER_TOKEN, req.url);
-    }
     if (path.startsWith('/api/admin/')) return await admin(req, res, path, user);
     if (path.startsWith('/api/account/')) return await account(req, res, path, user);
     if (!user) return send(res, 401, { error: 'Inicia sesión', login: true });

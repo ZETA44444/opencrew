@@ -15,7 +15,9 @@ const SCOPES = [
 const cfg = () => (getDb().settings.google ??= { botIds: null, write: false });
 const tok = () => getDb().keys.googleToken;
 export const clientId = () => cfg().clientId || DEFAULT_CLIENT_ID;
-export const googleConnected = () => !!tok()?.token;
+// Other users of a hosted server don't get the direct connection (see ConnectorsModal): only the owner's engine.
+const directAllowed = () => !globalThis.OPENCREW_TENANT;
+export const googleConnected = () => directAllowed() && !!tok()?.token;
 export const googleExpired = () => !!tok() && Date.now() > (tok().exp || 0) - 60_000;
 export const googleCanWrite = () => !!cfg().write;
 // Permanent sign-in (server only): Google gives a refresh token that the server uses to renew access.
@@ -77,6 +79,7 @@ const pendingStates = new Map(); // state -> expiry
 const redirectUri = () => `${globalThis.OPENCREW_PUBLIC_URL || ''}/oauth/google/callback`;
 
 export function googleServerAuthUrl() {
+  if (!directAllowed()) throw new Error('En OpenCrew en la nube, Gmail y Calendar se conectan con una pasarela (Apps conectadas).');
   if (!serverSecret()) throw new Error('Tu servidor no tiene configurado el secreto de Google (GOOGLE_CLIENT_SECRET).');
   const rand = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
   const state = globalThis.OPENCREW_TENANT ? `${globalThis.OPENCREW_TENANT}.${rand}` : rand; // the gateway routes by it
@@ -277,6 +280,7 @@ const TOOLS = {
     description: 'ENVÍA un correo. Úsalo SOLO si el usuario lo ha pedido expresamente; si no, crea un borrador. Para responder, pasa reply_to_id.',
     parameters: { type: 'object', properties: { to: { type: 'string' }, cc: { type: 'string' }, subject: { type: 'string' }, body: { type: 'string' }, reply_to_id: { type: 'string' } }, required: ['body'] },
     async run(a) {
+      if (getDb().settings.aiSignature) a = { ...a, body: `${a.body || ''}\n\n—\nRedactado con ayuda de IA (OpenCrew) y revisado por mí.` };
       const msg = await buildMessage(a);
       await gapi(`${GM}/messages/send`, { method: 'POST', body: { raw: msg.raw, ...(msg.threadId && { threadId: msg.threadId }) } });
       return `Correo enviado a ${msg.to} · «${msg.subject}».`;

@@ -16,13 +16,13 @@ se publica y se marca `[x]`. Lo que necesite algo del usuario (cuentas, pagos, d
 
 ### M1 · Cumplir las condiciones de las IAs y la ley (sin esto no se lanza)
 
-- [ ] M1.1 · Puente: retirar el modo Claude (Anthropic prohíbe usar suscripciones en otras apps) y el de ChatGPT hasta entrar en el programa oficial «Sign in with ChatGPT» ⏸ decisión del dueño
+- [x] M1.1 · Puente retirado (Anthropic prohíbe usar suscripciones en otras apps; ChatGPT solo con el programa oficial «Sign in with ChatGPT», más adelante). Los bots que lo usaban pasan a «Automático»
 - [x] M1.2 · Ordenador de los bots sin ocultar que está automatizado; si una web bloquea bots, el bot para y avisa
-- [ ] M1.3 · Versión alojada: la bienvenida no recomienda la clave gratis de Gemini (prohibida para apps en la UE); usa los créditos del plan o una clave de pago
-- [ ] M1.4 · Registro: casilla de 18+, aceptar condiciones, privacidad y uso aceptable; aviso «hablas con bots de IA»
-- [ ] M1.5 · Mensajes a terceros: lo que un bot envía en tu nombre requiere tu aprobación; opción de firma «redactado con IA»; imágenes generadas marcadas como IA
-- [ ] M1.6 · Versión alojada: Gmail/Calendar directos solo para el administrador; el resto vía Composio (evita la auditoría CASA de Google)
-- [ ] M1.7 · Textos legales: condiciones, privacidad, subencargados, uso aceptable (respetar las condiciones de cada web, sin spam), desistimiento y reembolsos ⏸ revisión con asesor
+- [x] M1.3 · Versión alojada: la bienvenida no recomienda la clave gratis de Gemini (prohibida para apps en la UE); usa los créditos del plan o una clave de pago
+- [x] M1.4 · Registro: casilla de 18+, aceptar condiciones, privacidad y uso aceptable; aviso «hablas con bots de IA»
+- [x] M1.5 · Mensajes a terceros: lo que un bot envía en tu nombre requiere tu aprobación; opción de firma «redactado con IA»; imágenes generadas marcadas como IA
+- [x] M1.6 · Versión alojada: Gmail/Calendar directos solo para el administrador; el resto vía Composio (evita la auditoría CASA de Google)
+- [ ] M1.7 · Textos legales: condiciones, privacidad, subencargados, uso aceptable (respetar las condiciones de cada web, sin spam), desistimiento y reembolsos. Borradores hechos en `public/legal/` (enlazados al registrarse y en Ajustes) ⏸ completar titular y contacto, y revisión con asesor
 
 ### M2 · Cobrar
 

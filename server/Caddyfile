@@ -5,13 +5,6 @@
 		X-Content-Type-Options nosniff
 		-Server
 	}
-	redir /puente /puente/
-	# The Bridge goes through the gateway: only the server owner can open it.
-	handle /puente/* {
-		reverse_proxy gateway:8786 {
-			flush_interval -1
-		}
-	}
 	# The app's API, webhooks and sign-in callbacks.
 	@api path /api/* /hooks/* /oauth/*
 	handle @api {

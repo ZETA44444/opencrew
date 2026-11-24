@@ -1,5 +1,10 @@
 import { useState } from 'react';
 import { api, serverMode } from '../api.js';
+import { hostedInfo } from '../remote.js';
+
+// With hosted accounts, only the server's administrator connects Gmail directly (Google requires a paid
+// security audit to offer it to everyone); other users connect it through a verified gateway.
+const googleDirect = () => !hostedInfo() || hostedInfo().user?.role === 'owner';
 import GatewayConnectors from './GatewayConnectors.jsx';
 import ExtensionSection from './ExtensionSection.jsx';
 import DesktopSection from './DesktopSection.jsx';
@@ -95,54 +100,61 @@ export default function ConnectorsModal({ connectors, services = {}, bots = [], 
             {ghErr && <div className="small run-error">{ghErr}</div>}
           </div>
 
+          {googleDirect() ? (
           <div className="key-row">
-            <div className="key-head">
-              <strong>Gmail y Google Calendar</strong>
-              {g.connected ? (g.expired ? <span className="pill err">sesión caducada</span> : <span className="pill ok">conectado{g.email ? ` · ${g.email}` : ''}{g.permanent ? ' · sin caducar' : ''}</span>) : <span className="pill">sin conectar</span>}
-            </div>
-            <div className="muted small">
-              Inicia sesión con Google y tus bots podrán buscar y leer tus correos y ver tu agenda.
-              {g.serverOAuth ? ' Con tu servidor la sesión no caduca: tus vigilantes de Gmail funcionan 24/7.' : ' La sesión dura 1 hora; después pulsa «Reconectar».'}
-            </div>
-            <div className="card-actions">
-              {g.serverOAuth
-                ? <button className="btn small primary" onClick={connectPermanent}>{g.permanent ? 'Volver a conectar' : 'Conectar con Google (sin caducar)'}</button>
-                : <button className="btn small primary" disabled={gBusy} onClick={connectG}>{gBusy ? 'Abriendo Google…' : g.connected ? 'Reconectar' : 'Conectar con Google'}</button>}
-              {g.connected && <button className="btn small ghost" onClick={() => api.disconnectGoogle()}>Desconectar</button>}
-              <button className="btn small ghost" onClick={() => setGAdv(!gAdv)}>{gAdv ? 'Ocultar opciones' : 'Opciones'}</button>
-            </div>
-            {g.connected && (
-              <>
-                <label className="check small">
-                  <input type="checkbox" checked={!!g.write} onChange={(e) => api.updateGoogle({ write: e.target.checked })} />
-                  Permitir enviar correos, guardar borradores y crear eventos (siempre te pedirán permiso antes)
+              <div className="key-head">
+                <strong>Gmail y Google Calendar</strong>
+                {g.connected ? (g.expired ? <span className="pill err">sesión caducada</span> : <span className="pill ok">conectado{g.email ? ` · ${g.email}` : ''}{g.permanent ? ' · sin caducar' : ''}</span>) : <span className="pill">sin conectar</span>}
+              </div>
+              <div className="muted small">
+                Inicia sesión con Google y tus bots podrán buscar y leer tus correos y ver tu agenda.
+                {g.serverOAuth ? ' Con tu servidor la sesión no caduca: tus vigilantes de Gmail funcionan 24/7.' : ' La sesión dura 1 hora; después pulsa «Reconectar».'}
+              </div>
+              <div className="card-actions">
+                {g.serverOAuth
+                  ? <button className="btn small primary" onClick={connectPermanent}>{g.permanent ? 'Volver a conectar' : 'Conectar con Google (sin caducar)'}</button>
+                  : <button className="btn small primary" disabled={gBusy} onClick={connectG}>{gBusy ? 'Abriendo Google…' : g.connected ? 'Reconectar' : 'Conectar con Google'}</button>}
+                {g.connected && <button className="btn small ghost" onClick={() => api.disconnectGoogle()}>Desconectar</button>}
+                <button className="btn small ghost" onClick={() => setGAdv(!gAdv)}>{gAdv ? 'Ocultar opciones' : 'Opciones'}</button>
+              </div>
+              {g.connected && (
+                <>
+                  <label className="check small">
+                    <input type="checkbox" checked={!!g.write} onChange={(e) => api.updateGoogle({ write: e.target.checked })} />
+                    Permitir enviar correos, guardar borradores y crear eventos (siempre te pedirán permiso antes)
+                  </label>
+                  <div className="small muted">Bots que pueden usar tu correo y tu agenda:</div>
+                  <div className="chip-checks">
+                    {bots.map((b) => (
+                      <label key={b.id} className="check small">
+                        <input type="checkbox" checked={!g.botIds || g.botIds.includes(b.id)} onChange={(e) => toggleBot(b.id, e.target.checked)} /> {b.name}
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+              {gAdv && (
+                <label className="small">Client ID de Google propio (solo si usas OpenCrew en otra web)
+                  <div className="key-input">
+                    <input placeholder="…apps.googleusercontent.com (vacío = el de OpenCrew)" value={gClient} onChange={(e) => setGClient(e.target.value)} />
+                    <button className="btn small" onClick={() => api.updateGoogle({ clientId: gClient.trim() || undefined })}>Guardar</button>
+                  </div>
                 </label>
-                <div className="small muted">Bots que pueden usar tu correo y tu agenda:</div>
-                <div className="chip-checks">
-                  {bots.map((b) => (
-                    <label key={b.id} className="check small">
-                      <input type="checkbox" checked={!g.botIds || g.botIds.includes(b.id)} onChange={(e) => toggleBot(b.id, e.target.checked)} /> {b.name}
-                    </label>
-                  ))}
-                </div>
-              </>
-            )}
-            {gAdv && (
-              <label className="small">Client ID de Google propio (solo si usas OpenCrew en otra web)
-                <div className="key-input">
-                  <input placeholder="…apps.googleusercontent.com (vacío = el de OpenCrew)" value={gClient} onChange={(e) => setGClient(e.target.value)} />
-                  <button className="btn small" onClick={() => api.updateGoogle({ clientId: gClient.trim() || undefined })}>Guardar</button>
-                </div>
-              </label>
-            )}
-            {serverMode && !g.serverOAuth && (
-              <details className="small muted">
-                <summary>¿Quieres que no caduque cada hora?</summary>
-                Tu servidor puede renovar la sesión solo. Hace falta añadir el secreto de tu cliente de Google al servidor (te lo explica el asistente de OpenCrew paso a paso).
-              </details>
-            )}
-            {gErr && <div className="small run-error">{gErr}</div>}
-          </div>
+              )}
+              {serverMode && !g.serverOAuth && (
+                <details className="small muted">
+                  <summary>¿Quieres que no caduque cada hora?</summary>
+                  Tu servidor puede renovar la sesión solo. Hace falta añadir el secreto de tu cliente de Google al servidor (te lo explica el asistente de OpenCrew paso a paso).
+                </details>
+              )}
+              {gErr && <div className="small run-error">{gErr}</div>}
+            </div>
+          ) : (
+            <div className="key-row">
+              <div className="key-head"><strong>Gmail y Google Calendar</strong><span className="pill">vía pasarela</span></div>
+              <div className="muted small">En OpenCrew en la nube, Gmail y Calendar se conectan con una pasarela verificada por Google (por ejemplo Composio, más abajo): inicias sesión con Google en su web y pegas aquí la dirección. Así tu correo no pasa por una conexión sin verificar.</div>
+            </div>
+          )}
 
           <div className="key-row">
             <div className="key-head">

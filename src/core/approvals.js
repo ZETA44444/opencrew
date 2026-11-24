@@ -35,6 +35,17 @@ export const SENSITIVE = {
   set_bot_limit: 'Cambiar el límite de gasto de un bot',
 };
 
+// What a bot sends or publishes in your name to OTHER people: you approve every single one (no «always»,
+// and it still asks with permissions turned off), so a person always stands behind the message.
+const OUTBOUND = new Set(['gmail_send', 'github_comment', 'github_create_issue', 'calendar_create_event']);
+const OUTBOUND_WORDS = /^(send|reply|post|publish|invite|share|message|tweet|comment|forward|email|sms|dm)$/;
+export function isOutbound(name) {
+  if (OUTBOUND.has(name)) return true;
+  if (!name.startsWith('mcp_')) return false;
+  const hit = findConnectorTool(name);
+  return (hit?.t.name || name).toLowerCase().split(/[^a-z0-9]+/).some((w) => OUTBOUND_WORDS.test(w));
+}
+
 const pending = new Map(); // id -> { meta, resolve, reject }
 
 // «Permitir siempre» is remembered per bot AND tool (key «botId:tool»), never for every bot at once.
@@ -66,6 +77,7 @@ export function isSensitive(name) {
 }
 
 export function needsApproval(call, bot, { tainted = false } = {}) {
+  if (isOutbound(call.name)) return true;
   const a = settings();
   if (a.enabled === false) return false;
   // «Always» doesn't count if this task already read outside content (possible hidden instructions).
@@ -76,7 +88,7 @@ export function needsApproval(call, bot, { tainted = false } = {}) {
 export function requestApproval({ call, bot, threadId, label, signal, timeoutMs = 0 }) {
   return new Promise((resolve, reject) => {
     const id = newId();
-    const meta = { id, threadId, botId: bot.id, botName: bot.name, tool: call.name, label, args: call.args || {}, at: now() };
+    const meta = { id, threadId, botId: bot.id, botName: bot.name, tool: call.name, label, args: call.args || {}, at: now(), outbound: isOutbound(call.name) };
     const done = (fn, v) => { pending.delete(id); signal?.removeEventListener?.('abort', onAbort); broadcast({ type: 'approvals' }); fn(v); };
     const onAbort = () => { const e = new Error('Detenido por el usuario'); e.name = 'AbortError'; done(reject, e); };
     if (signal?.aborted) return onAbort();
@@ -90,7 +102,7 @@ export function requestApproval({ call, bot, threadId, label, signal, timeoutMs 
 export function resolveApproval(id, decision) {
   const p = pending.get(id);
   if (!p) return;
-  if (decision === 'always') {
+  if (decision === 'always' && !p.meta.outbound) {
     settings().always[alwaysKey(p.meta.botId, p.meta.tool)] = { label: p.meta.label, botName: p.meta.botName, tool: p.meta.tool, at: now() };
     save();
   }

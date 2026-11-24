@@ -169,7 +169,8 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
                 )}
                 <div className="approval-actions">
                   <button className="btn small primary" onClick={() => onResolveApproval(a.id, 'once')}>Permitir una vez</button>
-                  <button className="btn small" onClick={() => onResolveApproval(a.id, 'always')}>Permitir siempre</button>
+                  {a.outbound ? <span className="muted small">Se envía en tu nombre a otras personas: siempre te lo preguntamos.</span>
+                    : <button className="btn small" onClick={() => onResolveApproval(a.id, 'always')}>Permitir siempre</button>}
                   <button className="btn small ghost danger" onClick={() => onResolveApproval(a.id, 'deny')}>Denegar</button>
                 </div>
               </div>
@@ -302,6 +303,7 @@ export default function Chat({ bot, bots, providers, messages, busy, draft, onSt
             )}
           </div>
         </div>
+        <div className="ai-notice">Hablas con bots de inteligencia artificial: pueden equivocarse. Revisa lo importante.</div>
       </div>
     </main>
   );
