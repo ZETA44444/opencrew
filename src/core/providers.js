@@ -295,7 +295,7 @@ async function callOpenAI({ provider, model, apiKey, system, messages, tools, on
       if (tc.function?.name) c.name += tc.function.name;
       if (tc.function?.arguments) c.args += tc.function.arguments;
     }
-    if (ev.usage) usage = { input: ev.usage.prompt_tokens || 0, output: ev.usage.completion_tokens || 0 };
+    if (ev.usage) usage = { input: ev.usage.prompt_tokens || 0, output: ev.usage.completion_tokens || 0, cacheRead: ev.usage.prompt_tokens_details?.cached_tokens || 0 }; // automatic cache (OpenAI, xAI)
   }
   const toolCalls = calls.filter(Boolean).map((c) => ({ id: c.id || newId(), name: c.name, args: parseArgs(c.args) }));
   return { text, toolCalls, usage };
@@ -366,7 +366,7 @@ async function callGemini({ model, apiKey, system, messages, tools, onText, sign
       parts.push(p);
       if (p.text && !p.thought) onText?.(p.text);
     }
-    if (ev.usageMetadata) usage = { input: ev.usageMetadata.promptTokenCount || 0, output: (ev.usageMetadata.candidatesTokenCount || 0) + (ev.usageMetadata.thoughtsTokenCount || 0) };
+    if (ev.usageMetadata) usage = { input: ev.usageMetadata.promptTokenCount || 0, output: (ev.usageMetadata.candidatesTokenCount || 0) + (ev.usageMetadata.thoughtsTokenCount || 0), cacheRead: ev.usageMetadata.cachedContentTokenCount || 0 }; // implicit cache
     if (ev.promptFeedback?.blockReason) blocked = ev.promptFeedback.blockReason;
   }
   if (!parts.length && blocked) throw new Error(`Gemini bloqueó la respuesta: ${blocked}`);

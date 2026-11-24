@@ -7,6 +7,19 @@ const only = process.env.PROVIDERS ? process.env.PROVIDERS.split(',') : ['anthro
 for (const id of only) db.keys[id] = 'x';
 console.log(`Con claves de: ${only.join(', ')}\n`);
 const { routeModel, recordRouteOutcome } = await import('../src/core/router.js');
+if (process.env.LIVE) {
+  const { refreshPrices, livePricesInfo } = await import('../src/core/pricing.js');
+  const n = await refreshPrices({ force: true });
+  console.log(`Precios en vivo: ${n} modelos (${JSON.stringify(livePricesInfo().sources)})`);
+  // The model lists the providers would return today (what a key would show), taken from the live list.
+  const { PROVIDERS } = await import('../src/core/providers.js');
+  const byProv = {};
+  for (const k of Object.keys(db.livePrices.models)) { const [p, m] = k.split('/'); (byProv[p] ??= []).push(m); }
+  const pick = { anthropic: /^claude-(haiku|sonnet|opus)-5-5$/, gemini: /^gemini-3-(1-flash-lite|5-flash-lite|8-flash|1-pro-preview)$|^gemini-4-(argon|neon|carbon|hydrogen)$/, openai: /^gpt-5(-mini|-nano)?$|^gpt-5-6-(luna|terra|sol)$/, xai: /^grok-4-(3|7)$|^grok-4-20$/ };
+  const dotted = (p, m) => (p === 'anthropic' ? m : m.replace(/(\d)-(\d)/g, '$1.$2'));
+  for (const p of PROVIDERS) if (pick[p.id]) p.models = (byProv[p.id] || []).filter((m) => pick[p.id].test(m)).map((m) => dotted(p.id, m));
+  for (const p of PROVIDERS) if (pick[p.id]) console.log(`  ${p.id}: ${p.models.join(', ')}`);
+}
 const cases = [
   ['hola', {}],
   ['Escríbeme 5 posts para LinkedIn sobre mi tienda de café', {}],

@@ -23,6 +23,7 @@ export default function UsageModal({ bots, onClose }) {
   const [data, setData] = useState(null);
   const [editing, setEditing] = useState(null);
   const [health, setHealth] = useState([]);
+  const [pricesBusy, setPricesBusy] = useState(false);
   const load = () => {
     api.usage(range).then(setData); api.health().then(setHealth);
   };
@@ -106,7 +107,7 @@ export default function UsageModal({ bots, onClose }) {
                             </span>
                           ) : (
                             <button className="link" title="Cambiar precio" onClick={() => setEditing({ provider, model, input: p.input, output: p.output })}>
-                              {p.input} $ / {p.output} ${p.custom ? ' ✎' : ''}{p.unknown ? ' (desconocido)' : ''}
+                              {+p.input.toFixed(3)} $ / {+p.output.toFixed(3)} ${p.custom ? ' ✎' : p.live ? ' · en vivo' : ''}{p.unknown ? ' (desconocido)' : ''}
                             </button>
                           )}
                         </td>
@@ -134,8 +135,15 @@ export default function UsageModal({ bots, onClose }) {
               </tbody>
             </table>
           )}
+          <div className="section-title">Precios en vivo</div>
+          <div className="settings-actions">
+            <span className="muted small">
+              {data?.live ? <>{data.live.count} modelos de Anthropic, Google, OpenAI y xAI con su precio publicado · actualizado {new Date(data.live.at).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}{data.live.errors?.length ? ' · alguna fuente no respondió' : ''}</> : 'Aún no se han descargado los precios en vivo.'}
+            </span>
+            <button className="btn small" disabled={pricesBusy} onClick={async () => { setPricesBusy(true); await api.refreshPrices().catch(() => {}); setPricesBusy(false); load(); }}>{pricesBusy ? 'Actualizando…' : 'Actualizar precios'}</button>
+          </div>
           <p className="muted small" style={{ margin: 0 }}>
-            Los precios son aproximados y puedes cambiarlos pulsando sobre ellos. La factura real es la de tu proveedor de IA.
+            Los precios se actualizan solos cada 12 horas con lo que publica cada proveedor (también los modelos nuevos), y «Automático» los usa para elegir el modelo más barato que sirva. Puedes fijar uno a mano pulsando sobre él. La factura real es la de tu proveedor de IA.
             El modo demo y Ollama (local) no cuestan nada.
           </p>
           </>}

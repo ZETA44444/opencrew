@@ -1,6 +1,7 @@
 // Token usage and estimated cost, per day, bot and model. Prices are approximate (USD per
 // million tokens) and you can edit them in «Uso y coste»; your provider's bill is the real number.
 import { getDb, save } from './store.js';
+import { livePrice } from './pricing.js';
 
 // [pattern, input $/M, output $/M] — first match wins.
 const DEFAULT_PRICES = [
@@ -21,16 +22,26 @@ export function priceFor(provider, model) {
   if (provider === 'demo' || provider === 'ollama') return { input: 0, output: 0, custom: false };
   const custom = u().prices[`${provider}/${model}`];
   if (custom) return { ...custom, custom: true };
+  // Live price list (updated every 12 h from the providers' published prices), then the built-in table.
+  const lp = livePrice(provider, model);
+  if (lp) return { ...lp, custom: false, live: true };
   const hit = DEFAULT_PRICES.find(([re]) => re.test(model));
   return hit && hit[1] != null ? { input: hit[1], output: hit[2], custom: false } : { input: 0, output: 0, custom: false, unknown: true };
 }
 
 // `input` is the whole prompt; the part read from the provider's cache costs 10 % and the part written to
 // it 125 % (Anthropic's prompt caching prices).
+// With the live price list, the provider's own cache prices and its surcharge for very long prompts
+// (e.g. above 100.000 or 200.000 tokens) are used; otherwise the usual cache discounts.
 export const costOf = (provider, model, input, output, cacheRead = 0, cacheWrite = 0) => {
   const p = priceFor(provider, model);
+  const long = p.long && input > p.long.tokens;
+  const pin = long ? p.long.input : p.input;
+  const pout = long ? p.long.output : p.output;
+  const rRead = p.cacheRead != null && p.input ? p.cacheRead / p.input : 0.1;
+  const rWrite = p.cacheWrite != null && p.input ? p.cacheWrite / p.input : provider === 'anthropic' ? 1.25 : 1;
   const plain = Math.max(0, input - cacheRead - cacheWrite);
-  return ((plain + cacheRead * 0.1 + cacheWrite * 1.25) * p.input + output * p.output) / 1_000_000;
+  return ((plain + cacheRead * rRead + cacheWrite * rWrite) * pin + output * pout) / 1_000_000;
 };
 
 export function recordUsage({ botId, provider, model, input = 0, output = 0, cacheRead = 0, cacheWrite = 0 }) {
@@ -43,8 +54,11 @@ export function recordUsage({ botId, provider, model, input = 0, output = 0, cac
   if (cacheRead) row.cacheRead = (row.cacheRead || 0) + cacheRead;
   if (cacheWrite) row.cacheWrite = (row.cacheWrite || 0) + cacheWrite;
   row.calls += 1;
+  // The exact cost of each call, at that moment's price (prices may change later).
+  const cost = costOf(provider, model, input, output, cacheRead, cacheWrite);
+  row.cost = (row.cost || 0) + cost;
   save();
-  return costOf(provider, model, input, output, cacheRead, cacheWrite);
+  return cost;
 }
 
 // Rows for the last N days (or all): [{ day, botId, provider, model, input, output, calls, cost }]
@@ -56,7 +70,7 @@ export function usageRows(days = 30) {
     for (const [key, r] of Object.entries(entries)) {
       const [botId, provider, ...m] = key.split('|');
       const model = m.join('|');
-      rows.push({ day, botId, provider, model, ...r, cost: costOf(provider, model, r.input, r.output, r.cacheRead, r.cacheWrite) });
+      rows.push({ day, botId, provider, model, ...r, cost: r.cost ?? costOf(provider, model, r.input, r.output, r.cacheRead, r.cacheWrite) });
     }
   }
   return rows;

@@ -70,10 +70,16 @@ export function markRetried({ skill, provider, model }) {
 const tokensOf = (convo, extra = '') => Math.ceil((JSON.stringify(convo).length + extra.length) / 3.6);
 const OUTPUT = [0, 400, 1200, 2500]; // typical answer length per difficulty
 function estimate(c, inputTokens, level, step) {
-  const long = c.longContext && inputTokens > c.longContext.tokens ? c.longContext.factor : 1;
-  // Anthropic prompt cache: after the first step most of the prompt is read from cache at ~10 % of the price.
-  const cached = c.provider === 'anthropic' && step > 0 ? 0.7 : 0;
-  return (inputTokens * c.price.input * long * (1 - cached + cached * 0.1) + OUTPUT[level] * c.price.output * long) / 1_000_000;
+  // Long prompts: the provider's own surcharge (live price list) or the catalog's.
+  const longLive = c.price.long && inputTokens > c.price.long.tokens;
+  const factor = !longLive && c.longContext && inputTokens > c.longContext.tokens ? c.longContext.factor : 1;
+  const pin = (longLive ? c.price.long.input : c.price.input) * factor;
+  const pout = (longLive ? c.price.long.output : c.price.output) * factor;
+  // Cache: after the first step most of the prompt repeats. Claude caches what we mark (~70 %); OpenAI,
+  // Gemini and Grok cache on their own (count ~50 %). Cached tokens cost the provider's cache price.
+  const share = step > 0 ? (c.provider === 'anthropic' ? 0.7 : 0.5) : 0;
+  const ratio = c.price.cacheRead != null && c.price.input ? c.price.cacheRead / c.price.input : 0.1;
+  return (inputTokens * pin * (1 - share + share * ratio) + OUTPUT[level] * pout) / 1_000_000;
 }
 
 function candidates() {
@@ -86,9 +92,9 @@ function candidates() {
     if (p.noKey || !getKey(p.id)) continue; // only providers with a key (yours, or OpenCrew's on paid plans)
     for (const m of modelsOf(p.id)) {
       if (SKIP.test(m) || recentBad.has(`${p.id}/${m}`)) continue;
-      const price = priceFor(p.id, m);
+      const price = priceFor(p.id, m); // live price when available (pricing.js)
       if (price.unknown) continue;
-      out.push({ provider: p.id, model: m, price, ...profileOf(m, tierOf(m)) });
+      out.push({ provider: p.id, model: m, price, ...profileOf(m, tierOf(m), price) });
     }
   }
   return out;
@@ -104,10 +110,12 @@ export function routeModel(convo, step = 0, opts = {}) {
   const wanted = task.level + (opts.boost || 0);
   const level = Math.min(3, wanted);
   const need = FLOOR[task.skill][level - 1] + Math.max(0, wanted - 3); // beyond «hard»: one more point
-  const score = (c) => (c.scores[task.skill] ?? 0) - penalty(task.skill, c.provider, c.model);
+  // Unknown (new) models need one point more: never worse for the user while they're being measured.
+  const score = (c) => (c.scores[task.skill] ?? 0) - penalty(task.skill, c.provider, c.model) - (c.known ? 0 : 1);
   // Good enough for this task, then the cheapest; if none reaches the level, the best available.
-  const good = all.filter((c) => score(c) >= need);
-  const pool = good.length ? good : [...all].sort((a, b) => score(b) - score(a)).slice(0, 1);
+  const able = task.vision ? all.filter((c) => c.price.vision !== false) : all; // images/PDF need a model that reads them
+  const good = able.filter((c) => score(c) >= need);
+  const pool = good.length ? good : [...(able.length ? able : all)].sort((a, b) => score(b) - score(a)).slice(0, 1);
   const best = pool.map((c) => ({ c, cost: estimate(c, inputTokens, level, step) })).sort((a, b) => a.cost - b.cost || score(b.c) - score(a.c))[0];
   return { provider: best.c.provider, model: best.c.model, reason: `${task.reason}${opts.boost ? ' · subo de nivel' : ''}`, skill: task.skill, level, estimatedCost: best.cost };
 }

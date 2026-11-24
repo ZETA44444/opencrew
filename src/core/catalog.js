@@ -9,6 +9,7 @@ export const SKILLS = ['chat', 'writing', 'research', 'code', 'reasoning', 'visi
 // [name pattern, scores {chat, writing, research, code, reasoning, vision}, extra]
 // extra.longContext: above this many input tokens the provider charges `factor` times more.
 const FAMILIES = [
+  [/fable/i, { chat: 10, writing: 10, research: 10, code: 10, reasoning: 10, vision: 10 }],
   [/opus/i, { chat: 10, writing: 10, research: 10, code: 10, reasoning: 10, vision: 9 }],
   [/sonnet-5/i, { chat: 9, writing: 9, research: 9, code: 9, reasoning: 9, vision: 9 }],
   [/sonnet/i, { chat: 9, writing: 9, research: 8, code: 9, reasoning: 8, vision: 8 }],
@@ -23,13 +24,13 @@ const FAMILIES = [
   [/gemini.*flash/i, { chat: 8, writing: 7, research: 7, code: 7, reasoning: 7, vision: 8 }],
   [/gpt-5.*nano/i, { chat: 6, writing: 5, research: 5, code: 5, reasoning: 5, vision: 5 }],
   [/gpt-5.*mini/i, { chat: 7, writing: 7, research: 7, code: 7, reasoning: 7, vision: 7 }],
-  [/gpt-5/i, { chat: 9, writing: 9, research: 9, code: 9, reasoning: 9, vision: 8 }],
+  [/^gpt-5(\.\d+)?$/i, { chat: 9, writing: 9, research: 9, code: 9, reasoning: 9, vision: 8 }],
   [/gpt-4o-mini/i, { chat: 6, writing: 6, research: 5, code: 5, reasoning: 5, vision: 6 }],
   [/gpt-4o|gpt-4\.1/i, { chat: 8, writing: 8, research: 7, code: 7, reasoning: 7, vision: 8 }],
   [/grok.*(fast|mini)/i, { chat: 7, writing: 7, research: 7, code: 7, reasoning: 7, vision: 5 }],
-  [/grok-4\.[67]/i, { chat: 9, writing: 8, research: 9, code: 9, reasoning: 9, vision: 7 }, { longContext: { tokens: 200_000, factor: 2 } }],
-  [/grok-4\.3/i, { chat: 8, writing: 8, research: 8, code: 8, reasoning: 8, vision: 6 }],
-  [/grok/i, { chat: 8, writing: 8, research: 8, code: 8, reasoning: 8, vision: 6 }],
+  [/^grok-4\.[67]$/i, { chat: 9, writing: 8, research: 9, code: 9, reasoning: 9, vision: 7 }, { longContext: { tokens: 200_000, factor: 2 } }],
+  [/^grok-4\.3$/i, { chat: 8, writing: 8, research: 8, code: 8, reasoning: 8, vision: 6 }],
+  [/^grok-4$/i, { chat: 8, writing: 8, research: 8, code: 8, reasoning: 8, vision: 6 }],
 ];
 // Unknown models: guess from their size words.
 const BY_TIER = {
@@ -38,9 +39,14 @@ const BY_TIER = {
   large: { chat: 8, writing: 8, research: 8, code: 8, reasoning: 8, vision: 6 },
 };
 
-export function profileOf(model, tier = 'mid') {
+// New or unknown models: their level is guessed from the price (cheap ≈ small model, expensive ≈ large),
+// never from a name that looks like a flagship. `known: false` makes «Automático» ask them for one extra
+// point of quality until the test bench (scripts/router-bench.mjs) measures them.
+const tierFromPrice = (price) => (!price ? null : price.input < 0.5 ? 'small' : price.input < 2 ? 'mid' : 'large');
+export function profileOf(model, tier = 'mid', price = null) {
   const hit = FAMILIES.find(([re]) => re.test(model));
-  const scores = { ...(hit ? hit[1] : BY_TIER[tier]), ...(measured[model] || {}) };
+  const guess = BY_TIER[tierFromPrice(price) || tier];
+  const scores = { ...(hit ? hit[1] : guess), ...(measured[model] || {}) };
   return { scores, known: !!hit || !!measured[model], ...(hit?.[2] || {}) };
 }
 

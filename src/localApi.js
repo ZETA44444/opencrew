@@ -19,6 +19,7 @@ import { usageRows, priceFor, setPrice, clearUsage, monthCost } from './core/usa
 import { healthRows, clearHealth } from './core/health.js';
 import { proposalsFor, resolveProposal } from './core/automemory.js';
 import { startWatchers, saveWatcher, deleteWatcher, checkWatcher, watchers } from './core/watchers.js';
+import { startPriceUpdates, refreshPrices, livePricesInfo } from './core/pricing.js';
 import { pendingApprovals, resolveApproval, revokeAlways, setApprovalsEnabled, SENSITIVE } from './core/approvals.js';
 import { addConnector, refreshConnector, updateConnector, removeConnector } from './core/mcp.js';
 import { refreshSuggestions, dismissSuggestion, suggestionsLoading } from './core/proactive.js';
@@ -58,6 +59,7 @@ function boot() {
   for (const botId of Object.keys(db().queues || {})) setTimeout(() => drain(botId), 1000);
   startScheduler();
   startWatchers();
+  startPriceUpdates();
   refreshAllModels().then(() => broadcast({ type: 'bots' }));
   setTimeout(() => refreshSuggestions(), 1500); // proactive main bot
 }
@@ -274,8 +276,10 @@ export const localApi = {
     const rows = usageRows(days);
     const prices = {};
     for (const r of rows) prices[`${r.provider}/${r.model}`] ??= priceFor(r.provider, r.model);
-    return { rows, prices };
+    return { rows, prices, live: livePricesInfo() };
   },
+  // Live price list: download it again now (normally every 12 h on its own).
+  async refreshPrices() { await refreshPrices({ force: true }); return livePricesInfo(); },
   monthCost,
   async setPrice(provider, model, input, output) { setPrice(provider, model, input, output); },
   async clearUsage() { clearUsage(); },
