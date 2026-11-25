@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Vista previa</title></head><body>
+<script>
+// Shows an HTML file a bot wrote. This page runs in a sandboxed iframe with an opaque origin and
+// its own permissive rules, so bot pages can use their scripts without weakening the app's rules,
+// and still can't read anything of the app (cookies, chats, keys).
+window.addEventListener('message', function (e) {
+  if (e.source !== window.parent || typeof e.data !== 'object' || e.data.type !== 'opencrew-artifact') return;
+  document.open(); document.write(String(e.data.html || '')); document.close();
+}, { once: true });
+window.parent.postMessage({ type: 'opencrew-artifact-ready' }, '*');
+</script></body></html>
