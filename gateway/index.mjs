@@ -61,6 +61,7 @@ function startSession(res, user, req) {
   save();
   res.setHeader('set-cookie', `oc_sid=${sid}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_DAYS * 86400}`);
 }
+const needsTerms = (u) => u.accepted?.version !== TERMS_VERSION;
 const publicUser = (u) => u && { id: u.id, email: u.email, role: u.role, plan: planOf(u), createdAt: u.createdAt };
 // Plan and credits as the user sees them (euros).
 const eur = (usd) => (usd == null || usd === Infinity ? null : Math.round(usd * EUR_PER_USD * 100) / 100);
@@ -74,10 +75,14 @@ const ipOf = (req) => String(req.headers['x-forwarded-for'] || '').split(',').po
 
 // ---------- engines: the owner's original one, or an isolated one per user ----------
 const engineToken = (uid) => (uid === 'owner' ? OWNER_TOKEN : hmac(`engine-token:${uid}`));
-const engineUrl = (uid) => (uid === 'owner' ? OWNER_ENGINE : `http://opencrew-engine-${uid}:8787`);
+const engineUrl = (uid) => (uid === 'owner' ? OWNER_ENGINE : (process.env.ENGINE_URL_TEMPLATE || 'http://opencrew-engine-{uid}:8787').replace('{uid}', uid)); // the template is for tests
 const starting = new Map();
+const running = new Map(); // uid → when we last confirmed it was up (checked again every 10 minutes)
 async function ensureEngine(uid) {
   if (uid === 'owner') return;
+  seen(uid);
+  if (db.sleeping?.[uid]) { delete db.sleeping[uid]; running.delete(uid); save(); }
+  if (Date.now() - (running.get(uid) || 0) < 10 * 60_000) return;
   if (starting.has(uid)) return starting.get(uid);
   const job = (async () => {
     const r = await fetch(`${LAUNCHER}/engineStart`, {
@@ -88,7 +93,7 @@ async function ensureEngine(uid) {
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || `No se pudo arrancar tu espacio (${r.status})`);
     for (let i = 0; i < 40; i++) { // wait until it answers
-      try { const h = await fetch(`${engineUrl(uid)}/api/health`, { signal: AbortSignal.timeout(2000) }); if (h.ok) return; } catch { /* starting */ }
+      try { const h = await fetch(`${engineUrl(uid)}/api/health`, { signal: AbortSignal.timeout(2000) }); if (h.ok) { running.set(uid, Date.now()); return; } } catch { /* starting */ }
       await new Promise((res) => setTimeout(res, 500));
     }
     throw new Error('Tu espacio tarda en arrancar; vuelve a intentarlo');
@@ -97,11 +102,41 @@ async function ensureEngine(uid) {
   return job;
 }
 
+// ---------- sleeping engines ----------
+// An engine that nobody used for 30 minutes is stopped (its data stays) unless a bot is working or it has
+// watchers to check; it's woken up 2 minutes before its next routine, or when the user or a webhook comes.
+const IDLE_MS = Number(process.env.ENGINE_IDLE_MS) || 30 * 60_000;
+const lastSeen = new Map();
+const seen = (uid) => {
+  lastSeen.set(uid, Date.now());
+  const u = db.users.find((x) => x.id === uid);
+  if (u && Date.now() - (u.lastSeenAt || 0) > 10 * 60_000) { u.lastSeenAt = Date.now(); save(); }
+};
+async function sleepCycle() {
+  db.sleeping ??= {};
+  for (const u of db.users) {
+    if (u.role === 'owner' || u.disabled || db.sleeping[u.id] || starting.has(u.id)) continue;
+    if (Date.now() - (lastSeen.get(u.id) || 0) < IDLE_MS) continue;
+    try {
+      const info = await engineCall(u.id, 'sleepInfo');
+      // Busy, watchers to check, or a routine within 15 minutes: stay awake (check again later).
+      if (info.busy || info.watchers > 0 || (info.nextRunAt && info.nextRunAt - Date.now() < 15 * 60_000)) { seen(u.id); continue; }
+      const r = await fetch(`${LAUNCHER}/engineStop`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-launcher-key': LAUNCHER_KEY }, body: JSON.stringify({ tenant: u.id }), signal: AbortSignal.timeout(60_000) });
+      if (r.ok) { db.sleeping[u.id] = { at: Date.now(), wakeAt: info.nextRunAt }; running.delete(u.id); save(); }
+    } catch { seen(u.id); /* not running (or not reachable): nothing to put to sleep now */ }
+  }
+  // Wake up the ones with a routine coming.
+  for (const [uid, s] of Object.entries(db.sleeping)) {
+    if (s.wakeAt && s.wakeAt - Date.now() < 2 * 60_000) ensureEngine(uid).catch((e) => console.error('Despertar:', uid, e.message));
+  }
+}
+setInterval(() => sleepCycle().catch((e) => console.error('Dormir:', e.message)), Number(process.env.SLEEP_CHECK_MS) || 60_000).unref();
+
 // Plain HTTP proxy to an engine (streams both ways, so live events work).
 // Each request carries the user's plan limits (only the gateway can set this header: the engine trusts its token).
 const limitsHeader = (uid) => { const u = db.users.find((x) => x.id === uid); return u ? { 'x-opencrew-limits': JSON.stringify(limitsOf(u)) } : {}; };
-const proxy = (req, res, uid, path) => proxyTo(req, res, engineUrl(uid), engineToken(uid), path, limitsHeader(uid));
-function proxyTo(req, res, base, token, path, extra = {}) {
+const proxy = (req, res, uid, path) => proxyTo(req, res, engineUrl(uid), engineToken(uid), path, limitsHeader(uid), () => running.delete(uid));
+function proxyTo(req, res, base, token, path, extra = {}, onDown = () => {}) {
   const target = new URL(path, base);
   const headers = { ...req.headers, host: target.host, authorization: `Bearer ${token}` };
   delete headers.cookie;
@@ -112,7 +147,7 @@ function proxyTo(req, res, base, token, path, extra = {}) {
     res.writeHead(r.statusCode, h);
     r.pipe(res);
   });
-  up.on('error', (e) => { console.error('Proxy:', target.host, e.code || e.message); if (!res.headersSent) send(res, 502, { error: 'Tu espacio no responde ahora mismo' }); else res.end(); });
+  up.on('error', (e) => { onDown(); console.error('Proxy:', target.host, e.code || e.message); if (!res.headersSent) send(res, 502, { error: 'Tu espacio no responde ahora mismo' }); else res.end(); });
   req.pipe(up);
   // Only cut the engine side if the browser really went away (not when the request body ends).
   res.on('close', () => { if (!res.writableFinished) up.destroy(); });
@@ -127,7 +162,8 @@ const validEmail = (e) => /^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,}$/i.test(String
 async function auth(req, res, path) {
   const ip = ipOf(req);
   if (path === '/api/auth/state' && req.method === 'GET') {
-    return send(res, 200, { gateway: true, setupNeeded: !db.users.some((u) => u.role === 'owner'), user: publicUser(sessionUser(req)) });
+    const me = sessionUser(req);
+    return send(res, 200, { gateway: true, setupNeeded: !db.users.some((u) => u.role === 'owner'), user: publicUser(me), needsTerms: !!me && needsTerms(me) });
   }
   if (req.method !== 'POST' || !fromApp(req)) return send(res, 403, { error: 'Prohibido' });
   const b = await body(req);
@@ -167,6 +203,14 @@ async function auth(req, res, path) {
     db.users.push(user); inv.usedBy = user.id; inv.usedAt = Date.now();
     startSession(res, user, req); await save();
     return send(res, 200, { user: publicUser(user) });
+  }
+  // New version of the terms: accept them again before going on.
+  if (path === '/api/auth/accept') {
+    const user = sessionUser(req);
+    if (!user) return send(res, 401, { error: 'Inicia sesión' });
+    if (needsAccept()) return send(res, 400, { error: needsAccept() });
+    user.accepted = accepted; await save();
+    return send(res, 200, { ok: true });
   }
   if (path === '/api/auth/logout') {
     const sid = cookieOf(req).oc_sid;
@@ -229,7 +273,33 @@ async function account(req, res, path, user) {
 
 async function admin(req, res, path, user) {
   if (user?.role !== 'owner') return send(res, 403, { error: 'Solo el administrador' });
-  if (path === '/api/admin/users' && req.method === 'GET') return send(res, 200, { users: db.users.map((u) => ({ ...publicUser(u), disabled: !!u.disabled, planView: planView(u), aiCostEur: eur(db.aiStats?.[new Date().toISOString().slice(0, 7)]?.[u.id]?.cost || 0) })), invites: Object.values(db.invites).map(({ note, exp, usedBy, at }) => ({ note, exp, usedBy, at })) });
+  // Numbers to follow the beta: who signs up, who comes back, what the AI costs and what comes in.
+  if (path === '/api/admin/stats' && req.method === 'GET') {
+    const users = db.users.filter((u) => u.role !== 'owner');
+    const byPlan = {};
+    for (const u of users) { const p = planOf(u); byPlan[p] = (byPlan[p] || 0) + 1; }
+    const days = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10);
+      days.push({ day: d, signups: users.filter((u) => String(u.createdAt).slice(0, 10) === d).length });
+    }
+    const m = new Date().toISOString().slice(0, 7);
+    const ai = db.aiStats?.[m] || {};
+    const aiCost = Object.values(ai).reduce((t, r) => t + r.cost, 0);
+    const PRICE = { pro: 15, founder: 9 }; // € per month, VAT included
+    const revenue = users.reduce((t, u) => t + (PRICE[planOf(u)] || 0), 0);
+    const health = await readFile(`${DATA}health.json`, 'utf8').then(JSON.parse).catch(() => null);
+    return send(res, 200, {
+      health,
+      users: users.length, byPlan, days,
+      active7: users.filter((u) => Date.now() - (u.lastSeenAt || 0) < 7 * 864e5).length,
+      active1: users.filter((u) => Date.now() - (u.lastSeenAt || 0) < 864e5).length,
+      sleeping: Object.keys(db.sleeping || {}).length,
+      aiCostEur: eur(aiCost), aiCalls: Object.values(ai).reduce((t, r) => t + r.calls, 0),
+      revenueEur: revenue, revenueNetEur: Math.round(revenue / 1.21 * 0.95 * 100) / 100, // without VAT and payment fees (approx.)
+    });
+  }
+  if (path === '/api/admin/users' && req.method === 'GET') return send(res, 200, { users: db.users.map((u) => ({ ...publicUser(u), disabled: !!u.disabled, planView: planView(u), lastSeenAt: u.lastSeenAt, aiCostEur: eur(db.aiStats?.[new Date().toISOString().slice(0, 7)]?.[u.id]?.cost || 0) })), invites: Object.values(db.invites).map(({ note, exp, usedBy, at }) => ({ note, exp, usedBy, at })) });
   if (req.method !== 'POST' || !fromApp(req)) return send(res, 403, { error: 'Prohibido' });
   const b = await body(req);
   if (path === '/api/admin/invite') {
@@ -290,6 +360,7 @@ const server = http.createServer(async (req, res) => {
     if (path.startsWith('/api/admin/')) return await admin(req, res, path, user);
     if (path.startsWith('/api/account/')) return await account(req, res, path, user);
     if (!user) return send(res, 401, { error: 'Inicia sesión', login: true });
+    if (needsTerms(user)) return send(res, 403, { error: 'Han cambiado las condiciones: acéptalas para seguir', terms: true, login: true });
     if (req.method === 'POST' && !fromApp(req)) return send(res, 403, { error: 'Prohibido' });
     if (limited(`rpc:${user.id}`, 600, 60_000)) return send(res, 429, { error: 'Demasiadas peticiones seguidas. Espera un momento.' });
     await ensureEngine(user.id);

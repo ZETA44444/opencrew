@@ -48,13 +48,19 @@ function ensureNetwork() {
 // Whose computer is it? «opencrew-pc-<user>-<bot>» for users, «opencrew-pc-<bot>» for the owner.
 const ownerOf = (containerName) => (/^opencrew-pc-([a-f0-9]{12})-/.exec(containerName)?.[1]) || 'owner';
 async function checkQuota(botId) {
+  // Server full: wait in line (up to 3 minutes) for a computer to switch off.
+  for (let i = 0; ; i++) {
+    try { return await quotaOnce(botId); } catch (e) { if (!e.full || i >= 36) throw e; await new Promise((r) => setTimeout(r, 5000)); }
+  }
+}
+async function quotaOnce(botId) {
   const r = await run(['ps', '--filter', 'label=opencrew=computer', '--format', '{{.Names}}'], { timeoutMs: 15_000 });
   const running = r.out.split('\n').map((x) => x.trim()).filter(Boolean).filter((x) => x !== name(botId));
   const who = ownerOf(name(botId));
   const mine = running.filter((x) => ownerOf(x) === who).length;
   const max = who === 'owner' ? PER_OWNER : PER_USER;
   if (mine >= max) throw new Error(`Ya tienes ${mine} ordenadores de bots encendidos (máximo ${max} a la vez). Espera a que uno se apague solo (30 min sin uso) o reinícialo desde la configuración del bot.`);
-  if (running.length >= TOTAL) throw new Error('El servidor está al máximo de ordenadores de bots encendidos ahora mismo. Inténtalo en unos minutos.');
+  if (running.length >= TOTAL) throw Object.assign(new Error('El servidor está al máximo de ordenadores de bots encendidos ahora mismo. Inténtalo en unos minutos.'), { full: true });
 }
 
 async function ensure(botId) {

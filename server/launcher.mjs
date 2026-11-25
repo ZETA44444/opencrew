@@ -85,7 +85,14 @@ const OPS = {
   status: (b, id) => computer.status(id(b.botId)),
   remove: (b, id) => computer.remove(id(b.botId)),
 };
-const MASTER_OPS = { engineStart, engineRemove };
+// Puts an idle user's engine to sleep (its data stays; engineStart wakes it up again).
+async function engineStop(b) {
+  const t = String(b.tenant || '');
+  if (!/^[a-f0-9]{12}$/.test(t)) throw Object.assign(new Error('Usuario no válido'), { status: 400 });
+  await dockerRun(['stop', '-t', '20', `opencrew-engine-${t}`]);
+  return { stopped: true };
+}
+const MASTER_OPS = { engineStart, engineRemove, engineStop };
 
 const server = http.createServer(async (req, res) => {
   try {

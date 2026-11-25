@@ -135,6 +135,12 @@ export default function UsageModal({ bots, onClose }) {
               </tbody>
             </table>
           )}
+          {data?.computer?.limitHours != null && (
+            <>
+              <div className="section-title">Ordenador de los bots</div>
+              <div className="muted small">Este mes: <b>{data.computer.usedHours} h</b> de {data.computer.limitHours} h de tu plan (cuenta el tiempo en que un bot lo usa o tú miras su pantalla).</div>
+            </>
+          )}
           <div className="section-title">Precios en vivo</div>
           <div className="settings-actions">
             <span className="muted small">

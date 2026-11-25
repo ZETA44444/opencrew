@@ -20,7 +20,7 @@ const root = createRoot(document.getElementById('root'));
 (async () => {
   await startI18n().catch(() => {});
   const hosted = await detectHosted();
-  if (hosted && !hosted.user) {
+  if (hosted && (!hosted.user || hosted.needsTerms)) {
     const { default: Login } = await import('./components/Login.jsx');
     root.render(<ErrorBoundary><Login state={hosted} /><DialogHost /></ErrorBoundary>);
     return;

@@ -1,7 +1,7 @@
 // Tools for a bot's own «computer» on your server (terminal + browser). Only when the app runs on
 // your OpenCrew server and the bot has «Ordenador» switched on in its settings.
 import { now, save } from './store.js';
-import { checkComputerAllowed } from './limits.js';
+import { checkComputerAllowed, addComputerTime } from './limits.js';
 
 // Every use of the computer goes through pc(): it refuses when the plan doesn't include one.
 const pc = () => { checkComputerAllowed(); return globalThis.OPENCREW_COMPUTER; };
@@ -92,7 +92,8 @@ export async function runComputerTool(name, args, ctx) {
   if (!t) return `Herramienta desconocida: ${name}`;
   if (!computerAvailable()) return 'El ordenador de los bots solo funciona en tu servidor de OpenCrew.';
   if (!ctx?.bot?.computer) return 'Este bot no tiene ordenador. El usuario puede activarlo en la configuración del bot.';
-  try { return String(await t.run(args || {}, ctx)); } catch (e) { return `Error: ${e.message}`; }
+  const t0 = Date.now();
+  try { return String(await t.run(args || {}, ctx)); } catch (e) { return `Error: ${e.message}`; } finally { addComputerTime(Date.now() - t0); save(); } // time of real use
 }
 
 export function describeComputer(name, a = {}) {

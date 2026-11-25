@@ -403,6 +403,10 @@ server.on('upgrade', async (req, socket) => {
       else if (op === 9) socket.write(wsFrame(payload, 10));
     }
   });
+  // Watching the screen counts as computer time (a minute at a time).
+  const { addComputerTime } = await import('../src/core/limits.js');
+  const meter = setInterval(() => { addComputerTime(60_000); store.save(); }, 60_000);
+  socket.on('close', () => clearInterval(meter));
   socket.on('close', close);
   socket.on('error', close);
 });

@@ -4,7 +4,7 @@ import { getDb, getBot, newId, now, save, messagesOf, exportData, importData, st
 import { publicProviders, providerById, callModel, refreshModels, refreshAllModels, defaultModel } from './core/providers.js';
 import { runAgent, runGroup, getGroup, busy, stopBot } from './core/agent.js';
 import { markRetried } from './core/router.js';
-import { checkLimit } from './core/limits.js';
+import { checkLimit, computerUsageInfo } from './core/limits.js';
 import { broadcast, subscribe } from './core/events.js';
 import { computeNext, runRoutine, startScheduler, missed, resolveMissed } from './core/routines.js';
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
@@ -273,12 +273,21 @@ export const localApi = {
   refreshSuggestions: () => refreshSuggestions({ force: true }),
   dismissSuggestion,
 
+  // ---------- sleeping (server with accounts) ----------
+  // The gateway asks before putting an idle engine to sleep: never while a bot works or watchers must check
+  // things; and it wakes the engine up just before the next routine.
+  async sleepInfo() {
+    const active = (db().watchers || []).filter((w) => w.enabled !== false && w.type !== 'webhook').length;
+    const next = db().routines.filter((r) => r.enabled !== false && r.nextRunAt).map((r) => new Date(r.nextRunAt).getTime()).filter((t) => t > 0).sort((a, b) => a - b)[0] || null;
+    return { busy: busy.size > 0, watchers: active, nextRunAt: next };
+  },
+
   // ---------- usage & cost ----------
   async usage(days = 30) {
     const rows = usageRows(days);
     const prices = {};
     for (const r of rows) prices[`${r.provider}/${r.model}`] ??= priceFor(r.provider, r.model);
-    return { rows, prices, live: livePricesInfo() };
+    return { rows, prices, live: livePricesInfo(), computer: computerUsageInfo() };
   },
   // Live price list: download it again now (normally every 12 h on its own).
   async refreshPrices() { await refreshPrices({ force: true }); return livePricesInfo(); },

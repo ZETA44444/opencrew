@@ -40,6 +40,37 @@ function PlanBox({ plan }) {
   );
 }
 
+// Administrator: how the service is going (beta metrics).
+function AdminStats({ s }) {
+  const max = Math.max(1, ...s.days.map((d) => d.signups));
+  const PLAN = { trial: 'Prueba', pro: 'Pro', founder: 'Fundador', free: 'Gratis' };
+  return (
+    <>
+      <div className="section-title">Cómo va OpenCrew</div>
+      {s.health ? (
+        <div className={`banner small ${s.health.ok && Date.now() - s.health.at < 15 * 60_000 ? '' : 'error'}`}>
+          {Date.now() - s.health.at > 15 * 60_000 ? '⚠️ La comprobación del servidor no se ejecuta desde ' + new Date(s.health.at).toLocaleString('es-ES')
+            : s.health.ok ? `✅ Servidor bien · disco ${s.health.disk} % · memoria libre ${s.health.memFreeMb} MB · ${s.health.engines} espacios y ${s.health.computers} ordenadores encendidos`
+              : `⚠️ ${s.health.problems}`}
+        </div>
+      ) : <div className="muted small">La comprobación del servidor aún no ha dado datos.</div>}
+      <div className="usage-totals">
+        <div><span className="muted small">Usuarios</span><b>{s.users}</b></div>
+        <div><span className="muted small">Activos 7 días</span><b>{s.active7}</b></div>
+        <div><span className="muted small">Ingresos/mes (netos aprox.)</span><b>{money(s.revenueNetEur)}</b></div>
+        <div><span className="muted small">Coste de IA este mes</span><b>{money(s.aiCostEur)}</b></div>
+      </div>
+      <div className="muted small">
+        {Object.entries(s.byPlan).map(([p, n]) => `${PLAN[p] || p}: ${n}`).join(' · ') || 'Aún no hay usuarios'} · activos hoy: {s.active1} · espacios dormidos: {s.sleeping} · llamadas de IA este mes: {s.aiCalls}
+      </div>
+      <div className="signup-bars" title="Altas por día (últimos 30 días)">
+        {s.days.map((d) => <span key={d.day} title={`${d.day}: ${d.signups}`} style={{ height: `${Math.max(4, (d.signups / max) * 100)}%`, opacity: d.signups ? 1 : 0.25 }} />)}
+      </div>
+      <div className="muted small">Altas por día, últimos 30 días.</div>
+    </>
+  );
+}
+
 export default function AccountSection() {
   const me = hostedInfo()?.user;
   const [pw, setPw] = useState(null); // { current, password }
@@ -49,7 +80,8 @@ export default function AccountSection() {
   const [note, setNote] = useState('');
   const [del, setDel] = useState(null); // { password, confirm }
   const [plan, setPlan] = useState(null);
-  const loadAdmin = () => call('admin/users').then(setAdmin).catch(() => {});
+  const [stats, setStats] = useState(null);
+  const loadAdmin = () => { call('admin/users').then(setAdmin).catch(() => {}); call('admin/stats').then(setStats).catch(() => {}); };
   useEffect(() => { if (me?.role === 'owner') loadAdmin(); call('account/plan').then(setPlan).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (!me) return null;
 
@@ -100,6 +132,7 @@ export default function AccountSection() {
 
       {me.role === 'owner' && admin && (
         <>
+          {stats && <AdminStats s={stats} />}
           <div className="section-title">Usuarios e invitaciones</div>
           <div className="muted small">OpenCrew aún no está abierto a todo el mundo: solo entra quien tenga una invitación (vale 14 días y una sola vez).</div>
           <div className="key-input">
