@@ -84,8 +84,10 @@ function estimate(c, inputTokens, level, step) {
 
 function candidates() {
   // Skip models that failed as overloaded/quota in the last 10 minutes.
+  // Overloaded or out of quota: skip for 10 minutes. Retired by the provider («no longer available»): 30 days.
+  const skipFor = { saturado: 10 * 60_000, 'límite o cuota agotada': 10 * 60_000, 'modelo retirado': 30 * 864e5 };
   const recentBad = new Set(healthRows()
-    .filter((r) => r.lastError && ['saturado', 'límite o cuota agotada', 'modelo retirado'].includes(r.lastError.kind) && Date.now() - new Date(r.lastError.at) < 10 * 60_000 && (!r.lastOkAt || r.lastOkAt < r.lastError.at))
+    .filter((r) => r.lastError && skipFor[r.lastError.kind] && Date.now() - new Date(r.lastError.at) < skipFor[r.lastError.kind] && (!r.lastOkAt || r.lastOkAt < r.lastError.at))
     .map((r) => r.key));
   const out = [];
   for (const p of PROVIDERS) {
