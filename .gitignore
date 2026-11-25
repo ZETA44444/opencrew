@@ -11,3 +11,4 @@ server/.env
 server/data-puente/
 server/data-gateway/
 src/i18n/missing.json
+server/ai.env

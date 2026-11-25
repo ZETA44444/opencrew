@@ -29,7 +29,11 @@ services:
       context: ..
       dockerfile: gateway/Dockerfile
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - .env
+      # Company AI keys (server/poner-clave.sh): only this service gets them, never an engine.
+      - path: ai.env
+        required: false
     environment:
       - OWNER_ENGINE_URL=http://opencrew:8787
       - LAUNCHER_URL=http://launcher:8788

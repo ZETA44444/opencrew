@@ -31,7 +31,7 @@ se publica y se marca `[x]`. Lo que necesite algo del usuario (cuentas, pagos, d
 - [ ] M2.0d · Medir solos los modelos nuevos: cuando aparece uno con precio, pasarle el banco de pruebas en pequeño (presupuesto máximo fijo) y guardar su calidad, sin esperar a hacerlo a mano ⏸ claves de empresa
 - [ ] M2.0b · Pasar el banco de pruebas con las claves de empresa (calibrar la calidad real de cada modelo) y repetirlo cada mes o cuando cambien precios y modelos ⏸ claves de empresa
 - [ ] M2.0c · En la nube: el aprendizaje del enrutador se suma entre todos los usuarios en la pasarela (sin contenido, solo «tipo de tarea · modelo · bien/mal»), y un panel de ahorro (coste real frente a usar siempre el modelo grande)
-- [x] M2.1 · Proveedor de IA de OpenCrew por API con **cuatro proveedores**: Anthropic (Claude), Google (Gemini, servicio de pago), xAI (Grok) y OpenAI. Claves de empresa solo en la pasarela (nunca en el motor del usuario); el enrutador de M2.0 elige entre todos sus modelos el más barato que alcance la calidad de cada tarea. Hecho en código (gateway/ai.mjs): las claves de empresa van en el `.env` del servidor (`OC_AI_ANTHROPIC_KEY`, `OC_AI_GEMINI_KEY`, `OC_AI_OPENAI_KEY`, `OC_AI_XAI_KEY`); sin ellas no se ofrece nada ⏸ crear las cuentas y poner las claves
+- [x] M2.1 · Proveedor de IA de OpenCrew por API con **cuatro proveedores**: Anthropic (Claude), Google (Gemini, servicio de pago), xAI (Grok) y OpenAI. Claves de empresa solo en la pasarela (nunca en el motor del usuario); el enrutador de M2.0 elige entre todos sus modelos el más barato que alcance la calidad de cada tarea. Hecho en código (gateway/ai.mjs): las claves de empresa se ponen en el servidor (`server/poner-clave.sh`, que las guarda en `ai.env`, leído solo por la pasarela); sin ellas no se ofrece nada ⏸ crear las cuentas y poner las claves
 - [x] M2.2 · Créditos medidos por llamada en la pasarela (tokens × precio real), tope mensual por usuario, aviso al 80 % y parada al 100 %, recargas; el panel de Uso y coste muestra créditos restantes. Hecho: la pasarela lee los tokens de cada respuesta y cobra su coste real; aviso al 80 %, parada al 100 % con mensaje claro, recargas (por ahora el administrador las añade a mano)
 - [x] M2.3 · Planes en la pasarela: Prueba (7 días, 1 € de créditos), Pro (15 €, fundadores 9 €); límites por plan (bots, rutinas, vigilantes, horas de ordenador de bot, tamaño de archivos). Hecho: Prueba (7 días, ~1 €), Pro y Fundador (~5 € de IA al mes), Gratis (tus claves, 3 bots, sin ordenador); el administrador cambia planes y añade créditos en Ajustes → Cuenta. Falta medir las horas de ordenador (M3.6)
 - [x] M2.4 · Bienvenida con créditos incluidos: el usuario nuevo empieza sin pegar ninguna clave (la clave propia pasa a ser opcional). Hecho: con IA incluida la bienvenida se salta el paso de la clave; los proveedores salen como «incluido en tu plan»
@@ -68,6 +68,8 @@ se publica y se marca `[x]`. Lo que necesite algo del usuario (cuentas, pagos, d
 - [ ] M5.4 · Ajustar precio, créditos y límites con esos datos y abrir el registro
 
 ### Lo que tienes que hacer tú (en orden, cuando toque)
+
+Paso a paso, con enlaces y qué entregar: [docs/TAREAS.md](docs/TAREAS.md).
 
 1. Darte de alta como autónomo o sociedad (aparcado por ahora; sin esto no se puede cobrar ni completar los textos legales).
 2. Comprar el dominio y elegir proveedor de correo (M3.1, M3.2).

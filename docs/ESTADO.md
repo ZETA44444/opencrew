@@ -19,7 +19,7 @@ Auditoría y modelo de negocio: [AUDITORIA.md](AUDITORIA.md). Cómo repetir la a
 | Servicio | Qué hace |
 |---|---|
 | `caddy` | HTTPS, sirve la app (`server/web`, rama gh-pages) con CSP; `/api`, `/hooks`, `/oauth` → `gateway` |
-| `gateway` (`gateway/`) | Cuentas (18+ y condiciones aceptadas), sesiones (cookie), invitaciones, admin, planes y créditos; enruta a motores; IA de OpenCrew en `/ai/` (interna: claves de empresa `OC_AI_*_KEY` en `.env`, cobra el coste real de cada llamada) |
+| `gateway` (`gateway/`) | Cuentas (18+ y condiciones aceptadas), sesiones (cookie), invitaciones, admin, planes y créditos; enruta a motores; IA de OpenCrew en `/ai/` (interna: claves de empresa `OC_AI_*_KEY` en `server/ai.env`, solo la pasarela, con `server/poner-clave.sh`, cobra el coste real de cada llamada) |
 | `opencrew` (`server/index.mjs`) | Motor del dueño (usuario `owner`), sin privilegios, datos cifrados en `server/data` |
 | `opencrew-engine-<id>` | Motor aislado por usuario, creado por el lanzador (volumen `opencrew-data-<id>`) |
 | `launcher` (`server/launcher.mjs`) | Único con Docker: ordenadores de bots, sandbox, motores por usuario (operaciones fijas) |
