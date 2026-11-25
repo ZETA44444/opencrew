@@ -188,3 +188,21 @@ Lo quieren para investigar, redactar, prospectar, vigilar webs y automatizar rut
 3. **Precio:** ¿15 €/mes, con 9 € para fundadores?
 4. **Alta fiscal:** autónomo o sociedad (habla con un gestor) y cuenta en Paddle (o en Stripe Managed Payments).
 5. **Dominio** y **proveedor de correo** (B1 y el correo de B2).
+
+---
+
+## 5. Capacidad del servidor (medido el 25 nov 2026 en el KVM 2: 2 vCPU, 8 GB)
+
+| Pieza | Memoria |
+|---|---|
+| Servicios fijos (pasarela, motor del dueño, lanzador, Caddy) | ~60 MB en total |
+| Espacio de un usuario despierto (tras usarlo) | ~35 MB |
+| Ordenador de un bot navegando | ~370 MB (tope 1,5 GB) |
+
+- 20 espacios arrancados a la vez en 6 s; 200 peticiones simultáneas con respuesta mediana de 32 ms (p95: 52 ms).
+- Con ~7,2 GB libres: unos **150 usuarios despiertos a la vez** con 4 ordenadores de bot en uso normal, o unos
+  30 en el peor caso (4 ordenadores al tope de 1,5 GB). Como los espacios sin uso se duermen, eso da para
+  **varios cientos de usuarios registrados**.
+- El límite real son los ordenadores de los bots (4 a la vez en este servidor). Cuando haya cola a menudo o más
+  de ~150 usuarios activos a la vez, conviene pasar al KVM 4 (16 GB) o poner los ordenadores en un segundo servidor.
+

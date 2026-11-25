@@ -198,7 +198,11 @@ export async function importData(json) {
   const data = json?.data;
   if (json?.app !== 'opencrew' || !data?.bots) throw new Error('Este archivo no es una copia de seguridad de OpenCrew');
   const keys = db.keys;
+  // What the plan measured stays as it is (a backup can't reset the computer hours or change limits).
+  const keep = { computerUsage: db.computerUsage, planLimits: db.settings?.planLimits };
   db = fill(data);
   if (!Object.keys(db.keys).length) db.keys = keys; // keep current keys if the backup has none
+  db.computerUsage = keep.computerUsage;
+  if (keep.planLimits) db.settings.planLimits = keep.planLimits; else delete db.settings.planLimits
   return flush();
 }

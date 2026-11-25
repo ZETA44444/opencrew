@@ -21,7 +21,7 @@ rm -rf web.new && mkdir web.new && git -C .. archive origin/gh-pages | tar -x -C
 rm -rf web && mv web.new web
 docker pull node:22-alpine >/dev/null
 echo 'Preparando el ordenador de los bots…'
-docker build -q -t opencrew-computer computer >/dev/null
+docker build -q --pull -t opencrew-computer computer >/dev/null # --pull: latest security fixes of the base image
 # Firewall for the bots' computers, applied now and at every boot (after Docker).
 if [ ! -f /etc/systemd/system/opencrew-firewall.service ] || ! cmp -s "$PWD/firewall.sh" /usr/local/sbin/opencrew-firewall.sh; then
   sudo install -m 755 "$PWD/firewall.sh" /usr/local/sbin/opencrew-firewall.sh
@@ -36,6 +36,7 @@ if [ ! -f /etc/systemd/system/opencrew-health.timer ] || ! cmp -s "$PWD/healthch
   printf '[Unit]\nDescription=OpenCrew: health check every 5 minutes\n\n[Timer]\nOnBootSec=2min\nOnUnitActiveSec=5min\n\n[Install]\nWantedBy=timers.target\n' | sudo tee /etc/systemd/system/opencrew-health.timer >/dev/null
   sudo systemctl daemon-reload && sudo systemctl enable --now opencrew-health.timer >/dev/null 2>&1
 fi
+docker compose build -q --pull # latest base images (security fixes)
 docker compose up -d --build --remove-orphans
 # Caddy keeps the old Caddyfile after git replaces it: restart it so changes apply.
 docker compose restart caddy >/dev/null

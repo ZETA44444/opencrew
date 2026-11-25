@@ -403,7 +403,7 @@ server.on('upgrade', async (req, socket, head) => {
     const target = new URL(engineUrl(uid));
     const up = net.connect(Number(target.port) || 80, target.hostname, () => {
       const lines = [`${req.method} ${url.pathname}${url.search} HTTP/1.1`];
-      for (const [k, v] of Object.entries(req.headers)) if (k !== 'cookie') lines.push(`${k}: ${v}`);
+      for (const [k, v] of Object.entries(req.headers)) if (k !== 'cookie' && k !== 'x-opencrew-limits') lines.push(`${k}: ${v}`);
       up.write(`${lines.join('\r\n')}\r\n\r\n`);
       if (head?.length) up.write(head);
       up.pipe(socket); socket.pipe(up);

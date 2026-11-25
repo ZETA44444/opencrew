@@ -4,7 +4,7 @@ import { getDb, getBot, newId, now, save, messagesOf, exportData, importData, st
 import { publicProviders, providerById, callModel, refreshModels, refreshAllModels, defaultModel } from './core/providers.js';
 import { runAgent, runGroup, getGroup, busy, stopBot } from './core/agent.js';
 import { markRetried } from './core/router.js';
-import { checkLimit, computerUsageInfo } from './core/limits.js';
+import { checkLimit, computerUsageInfo, planLimits } from './core/limits.js';
 import { broadcast, subscribe } from './core/events.js';
 import { computeNext, runRoutine, startScheduler, missed, resolveMissed } from './core/routines.js';
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
@@ -408,7 +408,8 @@ export const localApi = {
   },
 
   async updateSettings(patch) {
-    Object.assign(db().settings, patch);
+    const { planLimits, ...rest } = patch || {}; // plan limits only come from the server's gateway
+    Object.assign(db().settings, rest);
     save();
     broadcast({ type: 'bots' });
     return clone(db().settings);
@@ -417,6 +418,12 @@ export const localApi = {
   async exportData(opts) { return exportData(opts); },
   storageInfo: async () => ({ kind: storageKind(), ...(await storageUsage()) }),
   async importData(json) {
+    // A backup can't bring in more than the plan allows.
+    const l = planLimits();
+    const d = json?.data || {};
+    for (const [k, n] of [['bots', (d.bots || []).filter((b) => b.role !== 'treasurer').length], ['routines', (d.routines || []).length], ['watchers', (d.watchers || []).length]]) {
+      if (l?.[k] != null && n > l[k]) throw new Error(`Esta copia tiene ${n} ${k === 'bots' ? 'bots' : k === 'routines' ? 'rutinas' : 'vigilantes'} y tu plan ${l.label || ''} permite ${l[k]}. Pásate a Pro o restaura una copia más pequeña.`);
+    }
     await importData(json);
     broadcast({ type: 'bots' });
   },

@@ -54,9 +54,9 @@ se publica y se marca `[x]`. Lo que necesite algo del usuario (cuentas, pagos, d
 
 ### M4 · Seguridad y cumplimiento antes de abrir
 
-- [ ] M4.1 · Repetir la auditoría con docs/AUDITORIA_PROMPT.md sobre la versión con pagos y corregir lo crítico
-- [ ] M4.2 · Actualizar dependencias y revisar avisos de seguridad (npm audit, imágenes de Docker)
-- [ ] M4.3 · Prueba de carga con ~50 usuarios simulados: memoria del servidor, tiempos de respuesta y cuándo hace falta un servidor mayor
+- [x] M4.1 · Repetir la auditoría con docs/AUDITORIA_PROMPT.md sobre la versión con pagos y corregir lo crítico. Hecho (25 nov): corregidos 5 puntos — llamadas de IA en paralelo limitadas por plan, precios con saltos bruscos ignorados, copias que no reinician las horas ni superan el plan, límites que solo pone la pasarela, cabecera de plan filtrada también en conexiones en directo
+- [x] M4.2 · Actualizar dependencias y revisar avisos de seguridad (npm audit, imágenes de Docker). Hecho: 0 vulnerabilidades (npm audit); dompurify y marked al día; el servidor descarga las imágenes base actualizadas en cada publicación; borrada la imagen vieja del Puente
+- [x] M4.3 · Prueba de carga con ~50 usuarios simulados: memoria del servidor, tiempos de respuesta y cuándo hace falta un servidor mayor. Hecho: 20 espacios a la vez, mediana 32 ms; ~35 MB por espacio y ~370 MB por ordenador navegando → ~150 usuarios despiertos a la vez en el KVM 2 (detalles en docs/LANZAMIENTO.md §5)
 - [ ] M4.4 · Registro de actividades de tratamiento (RGPD), contratos de encargado firmados (Anthropic, Google, xAI, OpenAI, Hostinger, Paddle, proveedor de correo) y procedimiento ante una brecha de datos (avisar en 72 h) ⏸ aceptar los DPA en cada proveedor
 - [ ] M4.5 · Textos legales definitivos: titular, NIF, dirección y contacto; revisión con asesor (M1.7) ⏸
 

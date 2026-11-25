@@ -3,7 +3,7 @@
 // 3) streams the answer back and 4) charges the real cost of the call (tokens × published price).
 // Only reachable from inside the server (Caddy doesn't route /ai), authenticated with a per-user key.
 import { readFile, writeFile } from 'node:fs/promises';
-import { downloadPriceLists, callCost, normModel } from '../src/core/pricelists.js';
+import { downloadPriceLists, callCost, normModel, guardPrices } from '../src/core/pricelists.js';
 
 // ---------- plans ----------
 // Credits are dollars of AI at cost (what the providers charge us). Shown to users in euros.
@@ -113,7 +113,11 @@ export function createAi({ db, save, hmac, same, data }) {
     try { prices = JSON.parse(await readFile(FILE, 'utf8')); } catch { /* first run */ }
     if (Date.now() - prices.at < 12 * 3600_000) return;
     const got = await downloadPriceLists(async (url) => { const r = await fetch(url, { signal: AbortSignal.timeout(30_000) }); if (!r.ok) throw new Error(`${r.status}`); return r.json(); });
-    if (Object.keys(got.models).length) { prices = { at: Date.now(), models: got.models }; await writeFile(FILE, JSON.stringify(prices)).catch(() => {}); }
+    if (Object.keys(got.models).length) {
+      const g = guardPrices(prices.models, got.models);
+      if (g.ignored.length) console.warn('Precios: cambio brusco ignorado en', g.ignored.slice(0, 10).join(', '));
+      prices = { at: Date.now(), models: g.models }; await writeFile(FILE, JSON.stringify(prices)).catch(() => {});
+    }
   };
   loadPrices().catch((e) => console.warn('Precios:', e.message));
   setInterval(() => loadPrices().catch(() => {}), 3600_000).unref();
@@ -140,6 +144,10 @@ export function createAi({ db, save, hmac, same, data }) {
   const json = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)); };
   const providerError = (res, code, message) => json(res, code, { error: { type: 'opencrew', message } });
 
+  // Calls in progress per user: credits are charged when each one ends, so many at once could go far over.
+  const inflight = new Map();
+  const MAX_PARALLEL = { trial: 2, free: 2, pro: 4, founder: 4, owner: 16 };
+
   async function handle(req, res, path) {
     // Never from the internet: Caddy adds X-Forwarded-For to everything it forwards.
     if (req.headers['x-forwarded-for']) return json(res, 404, { error: 'No encontrado' });
@@ -163,6 +171,12 @@ export function createAi({ db, save, hmac, same, data }) {
       return providerError(res, 402, id === 'free' ? 'Tu plan no incluye IA de OpenCrew: añade tu propia clave en Ajustes o pásate a Pro.'
         : id === 'trial' ? 'Te has quedado sin créditos de la prueba gratis. Pásate a Pro o añade tu propia clave en Ajustes.'
           : 'Te has quedado sin créditos de IA este mes. Puedes recargar o esperar al mes que viene (o usar tu propia clave).');
+    }
+    if (generating) {
+      const n = inflight.get(u.id) || 0;
+      if (n >= (MAX_PARALLEL[planOf(u)] || 2)) return providerError(res, 429, 'Demasiadas peticiones de IA a la vez. Espera a que terminen las que están en marcha.');
+      inflight.set(u.id, n + 1);
+      res.on('close', () => { const m = (inflight.get(u.id) || 1) - 1; if (m > 0) inflight.set(u.id, m); else inflight.delete(u.id); });
     }
     // Body: read it whole (images and PDFs travel inside), make sure the answer reports its usage.
     const chunks = [];

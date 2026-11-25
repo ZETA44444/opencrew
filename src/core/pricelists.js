@@ -63,6 +63,22 @@ export async function downloadPriceLists(fetchJson) {
   return { models, sources: { litellm: !!ll.value, openrouter: !!or.value }, errors };
 }
 
+// Prices don't jump overnight: if a model we already knew suddenly costs less than half or more than three
+// times as much, keep the old price (a wrong or tampered list must not change what we charge). New models
+// are taken as they come. Returns the merged table and the models whose new price was ignored.
+export function guardPrices(oldModels = {}, newModels = {}) {
+  const out = { ...newModels };
+  const ignored = [];
+  for (const [k, n] of Object.entries(newModels)) {
+    const o = oldModels[k];
+    if (!o || !(o.input > 0) || !(o.output > 0)) continue;
+    const odd = (a, b) => b < a * 0.5 || b > a * 3;
+    if (odd(o.input, n.input) || odd(o.output, n.output)) { out[k] = { ...o, held: true }; ignored.push(k); }
+  }
+  for (const [k, o] of Object.entries(oldModels)) if (!out[k]) out[k] = o; // a model missing today keeps yesterday's price
+  return { models: out, ignored };
+}
+
 // Cost in $ of one call. `input` is the whole prompt; part of it may have been read from / written to the
 // provider's cache. Very long prompts use the provider's higher price when it has one.
 export function callCost(p, { input = 0, output = 0, cacheRead = 0, cacheWrite = 0 }, provider = '') {

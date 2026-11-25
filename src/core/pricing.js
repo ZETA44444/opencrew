@@ -7,7 +7,7 @@
 import { getDb, save } from './store.js';
 import { broadcast } from './events.js';
 
-import { normModel, downloadPriceLists } from './pricelists.js';
+import { normModel, downloadPriceLists, guardPrices } from './pricelists.js';
 
 export { normModel };
 const EVERY = 12 * 3600_000;
@@ -27,7 +27,8 @@ export function refreshPrices({ force = false } = {}) {
   running ??= (async () => {
     const { models, sources, errors } = await downloadPriceLists(getJson);
     if (!Object.keys(models).length) throw new Error('No se han podido descargar los precios');
-    getDb().livePrices = { at: Date.now(), models, sources, ...(errors.length && { errors }) };
+    const g = guardPrices(live()?.models, models);
+    getDb().livePrices = { at: Date.now(), models: g.models, sources, ...(errors.length && { errors }), ...(g.ignored.length && { held: g.ignored }) };
     save();
     broadcast({ type: 'bots' });
     return Object.keys(models).length;
