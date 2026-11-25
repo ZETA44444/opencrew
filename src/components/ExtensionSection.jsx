@@ -16,7 +16,7 @@ export default function ExtensionSection() {
   return (
     <div className="key-row">
       <div className="key-head">
-        <strong>Tu navegador (extensión de OpenCrew)</strong>
+        <strong>Tu navegador (extensión de OpenCrew)</strong><span className="pill" title="Se instala a mano; versión de prueba">beta</span>
         {!serverMode ? <span className="pill">necesita tu servidor</span>
           : st?.connected ? <span className="pill ok">conectado · {st.info?.browser}</span>
           : st?.paired ? <span className="pill">emparejado · desconectado</span> : <span className="pill">sin emparejar</span>}

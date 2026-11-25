@@ -77,3 +77,7 @@ export async function startI18n() {
     }
   }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS });
 }
+
+// Legal pages in the app's language.
+const LEGAL = { condiciones: 'terms', privacidad: 'privacy', 'uso-aceptable': 'acceptable-use' };
+export const legalUrl = (name) => (getLang() === 'en' ? `./legal/en/${LEGAL[name]}.html` : `./legal/${name}.html`);

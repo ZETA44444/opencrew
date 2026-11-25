@@ -19,6 +19,9 @@ const LAUNCHER = (process.env.LAUNCHER_URL || 'http://launcher:8788').replace(/\
 const LAUNCHER_KEY = process.env.LAUNCHER_KEY || '';
 const SETUP_CODE = process.env.GATEWAY_SETUP_CODE || '';
 const HOST = process.env.OPENCREW_HOST || '';
+// Open sign-up (without invitation), with a daily cap. Off until account e-mails are verified (M3.2).
+const OPEN_SIGNUP = process.env.OPEN_SIGNUP === '1';
+const SIGNUPS_PER_DAY = Number(process.env.SIGNUPS_PER_DAY) || 20;
 if (MASTER.length !== 32 || OWNER_TOKEN.length < 24) { console.error('Faltan OPENCREW_SECRET_KEY u OPENCREW_TOKEN'); process.exit(1); }
 
 const hmac = (label) => createHmac('sha256', MASTER).update(label).digest('hex');
@@ -163,7 +166,7 @@ async function auth(req, res, path) {
   const ip = ipOf(req);
   if (path === '/api/auth/state' && req.method === 'GET') {
     const me = sessionUser(req);
-    return send(res, 200, { gateway: true, setupNeeded: !db.users.some((u) => u.role === 'owner'), user: publicUser(me), needsTerms: !!me && needsTerms(me) });
+    return send(res, 200, { gateway: true, setupNeeded: !db.users.some((u) => u.role === 'owner'), user: publicUser(me), needsTerms: !!me && needsTerms(me), openSignup: OPEN_SIGNUP });
   }
   if (req.method !== 'POST' || !fromApp(req)) return send(res, 403, { error: 'Prohibido' });
   const b = await body(req);
@@ -193,14 +196,19 @@ async function auth(req, res, path) {
   if (path === '/api/auth/signup') {
     if (limited(`signup:${ip}`, 10, 60 * 60_000)) return send(res, 429, { error: 'Demasiados intentos; espera un rato' });
     const code = String(b.invite || '').trim();
-    const inv = db.invites[createHash('sha256').update(code).digest('hex')];
-    if (!inv || inv.usedBy || inv.exp < Date.now()) return send(res, 403, { error: 'Hace falta una invitación válida (OpenCrew aún no está abierto a todo el mundo)' });
+    const inv = code ? db.invites[createHash('sha256').update(code).digest('hex')] : null;
+    const validInv = inv && !inv.usedBy && inv.exp >= Date.now();
+    if (!validInv && !OPEN_SIGNUP) return send(res, 403, { error: 'Hace falta una invitación válida (OpenCrew aún no está abierto a todo el mundo). Puedes apuntarte a la lista de espera.' });
+    const today = new Date().toISOString().slice(0, 10);
+    if (!validInv && db.users.filter((u) => String(u.createdAt).slice(0, 10) === today).length >= SIGNUPS_PER_DAY) return send(res, 429, { error: 'Hoy ya no quedan plazas. Apúntate a la lista de espera y te avisamos.' });
     if (!validEmail(email)) return send(res, 400, { error: 'Correo no válido' });
     if (db.users.some((u) => u.email === email)) return send(res, 409, { error: 'Ya hay una cuenta con ese correo' });
     if (needsAccept()) return send(res, 400, { error: needsAccept() });
     if (String(b.password || '').length < 10) return send(res, 400, { error: 'La contraseña debe tener al menos 10 caracteres' });
     const user = { id: randomBytes(6).toString('hex'), email, hash: await hashPassword(String(b.password)), role: 'user', plan: 'trial', trialEnds: Date.now() + PLANS.trial.days * 864e5, accepted, createdAt: new Date().toISOString() };
-    db.users.push(user); inv.usedBy = user.id; inv.usedAt = Date.now();
+    db.users.push(user);
+    if (validInv) { inv.usedBy = user.id; inv.usedAt = Date.now(); }
+    if (db.waitlist?.[email]) db.waitlist[email].joined = Date.now();
     startSession(res, user, req); await save();
     return send(res, 200, { user: publicUser(user) });
   }
@@ -210,6 +218,15 @@ async function auth(req, res, path) {
     if (!user) return send(res, 401, { error: 'Inicia sesión' });
     if (needsAccept()) return send(res, 400, { error: needsAccept() });
     user.accepted = accepted; await save();
+    return send(res, 200, { ok: true });
+  }
+  // Waiting list: anyone can leave their e-mail (and what they'd use it for); the administrator invites them.
+  if (path === '/api/auth/waitlist') {
+    if (limited(`waitlist:${ip}`, 5, 60 * 60_000)) return send(res, 429, { error: 'Demasiados intentos; espera un rato' });
+    if (!validEmail(email)) return send(res, 400, { error: 'Correo no válido' });
+    db.waitlist ??= {};
+    if (!db.waitlist[email] && Object.keys(db.waitlist).length < 5000) db.waitlist[email] = { at: Date.now(), use: String(b.use || '').slice(0, 200), lang: String(b.lang || '').slice(0, 5) };
+    await save();
     return send(res, 200, { ok: true });
   }
   if (path === '/api/auth/logout') {
@@ -299,12 +316,13 @@ async function admin(req, res, path, user) {
       revenueEur: revenue, revenueNetEur: Math.round(revenue / 1.21 * 0.95 * 100) / 100, // without VAT and payment fees (approx.)
     });
   }
-  if (path === '/api/admin/users' && req.method === 'GET') return send(res, 200, { users: db.users.map((u) => ({ ...publicUser(u), disabled: !!u.disabled, planView: planView(u), lastSeenAt: u.lastSeenAt, aiCostEur: eur(db.aiStats?.[new Date().toISOString().slice(0, 7)]?.[u.id]?.cost || 0) })), invites: Object.values(db.invites).map(({ note, exp, usedBy, at }) => ({ note, exp, usedBy, at })) });
+  if (path === '/api/admin/users' && req.method === 'GET') return send(res, 200, { waitlist: Object.entries(db.waitlist || {}).filter(([, w]) => !w.joined).map(([email, w]) => ({ email, ...w })).sort((a, b) => a.at - b.at), users: db.users.map((u) => ({ ...publicUser(u), disabled: !!u.disabled, planView: planView(u), lastSeenAt: u.lastSeenAt, aiCostEur: eur(db.aiStats?.[new Date().toISOString().slice(0, 7)]?.[u.id]?.cost || 0) })), invites: Object.values(db.invites).map(({ note, exp, usedBy, at }) => ({ note, exp, usedBy, at })) });
   if (req.method !== 'POST' || !fromApp(req)) return send(res, 403, { error: 'Prohibido' });
   const b = await body(req);
   if (path === '/api/admin/invite') {
     const code = randomBytes(9).toString('base64url');
     db.invites[createHash('sha256').update(code).digest('hex')] = { note: String(b.note || '').slice(0, 80), at: Date.now(), exp: Date.now() + 14 * 864e5 };
+    if (b.email && db.waitlist?.[b.email]) db.waitlist[b.email].invited = Date.now();
     await save();
     return send(res, 200, { code, url: `https://${HOST}/?invitacion=${code}` });
   }

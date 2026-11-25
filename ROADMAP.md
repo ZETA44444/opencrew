@@ -43,14 +43,14 @@ se publica y se marca `[x]`. Lo que necesite algo del usuario (cuentas, pagos, d
 
 - [ ] M3.1 · Dominio propio (B1) y cambiar en todo el proyecto la dirección provisional (sslip.io) ⏸ comprar dominio
 - [ ] M3.2 · Correo de la app: verificar la cuenta, recuperar la contraseña y avisos (créditos al 80 %, pago fallido) ⏸ elegir proveedor (p. ej. Resend) y configurar su DNS en el dominio
-- [ ] M3.3 · Registro abierto con lista de espera, invitaciones de fundador y límite de altas por día (protección contra abusos)
-- [ ] M3.4 · Si cambian las condiciones, pedir aceptarlas de nuevo al entrar (la versión aceptada ya se guarda)
-- [ ] M3.5 · Dormir los motores sin uso y despertarlos para sus rutinas y vigilantes (B3)
-- [ ] M3.6 · Cola y horas para los ordenadores de los bots (máx. 3 a la vez en el servidor actual), con aviso «en cola» al usuario
+- [x] M3.3 · Registro abierto con lista de espera, invitaciones de fundador y límite de altas por día (protección contra abusos). Hecho: lista de espera en la pantalla de entrada, el administrador invita con un clic; registro abierto con tope diario listo pero apagado (`OPEN_SIGNUP=1` en `.env`) hasta verificar correos (M3.2)
+- [x] M3.4 · Si cambian las condiciones, pedir aceptarlas de nuevo al entrar (la versión aceptada ya se guarda). Hecho: al entrar se piden de nuevo si cambia su versión (`TERMS_VERSION` en la pasarela)
+- [x] M3.5 · Dormir los motores sin uso y despertarlos para sus rutinas y vigilantes (B3). Hecho: 30 min sin uso → el espacio se duerme (no si un bot trabaja, tiene vigilantes o una rutina en 15 min); se despierta 2 min antes de su rutina, con un webhook o al volver el usuario
+- [x] M3.6 · Cola y horas para los ordenadores de los bots (máx. 3 a la vez en el servidor actual), con aviso «en cola» al usuario. Hecho: horas de uso real por mes según el plan (bot usándolo o tú mirando su pantalla) y cola de hasta 3 min si el servidor está lleno
 - [ ] M3.7 · Copias cifradas fuera del servidor y prueba real de restaurar una copia (A7) ⏸ elegir destino
-- [ ] M3.8 · Vigilancia: aviso al administrador si el servidor cae, se llena el disco o falla un servicio; registro de errores sin datos personales
-- [ ] M3.9 · Panel de administración: usuarios, plan, créditos gastados, coste real de IA por usuario y altas por día (sirve para medir la beta)
-- [ ] M3.10 · Funciones a medio camino en la nube: extensión y app de escritorio visibles como «beta» (instalación manual) o escondidas hasta F1/F2; textos legales también en inglés
+- [x] M3.8 · Vigilancia: aviso al administrador si el servidor cae, se llena el disco o falla un servicio; registro de errores sin datos personales. Hecho: comprobación cada 5 min (web, servicios, disco, memoria) visible en el panel del administrador; aviso al móvil al poner `ALERT_URL` en `.env` (p. ej. un tema de ntfy.sh) ⏸ elegir cómo recibir avisos
+- [x] M3.9 · Panel de administración: usuarios, plan, créditos gastados, coste real de IA por usuario y altas por día (sirve para medir la beta). Hecho: «Cómo va OpenCrew» con usuarios por plan, activos, altas por día, ingresos estimados, coste de IA y estado del servidor
+- [x] M3.10 · Funciones a medio camino en la nube: extensión y app de escritorio visibles como «beta» (instalación manual) o escondidas hasta F1/F2; textos legales también en inglés. Hecho: extensión y app de escritorio marcadas «beta»; textos legales también en inglés (se abren en el idioma de la app)
 
 ### M4 · Seguridad y cumplimiento antes de abrir
 

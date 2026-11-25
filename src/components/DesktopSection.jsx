@@ -17,7 +17,7 @@ export default function DesktopSection() {
   return (
     <div className="key-row">
       <div className="key-head">
-        <strong>Tu ordenador (app OpenCrew Escritorio)</strong>
+        <strong>Tu ordenador (app OpenCrew Escritorio)</strong><span className="pill" title="Se instala a mano; versión de prueba">beta</span>
         {!serverMode ? <span className="pill">necesita tu servidor</span>
           : st?.connected ? <span className="pill ok">conectado · {st.info?.browser}</span>
           : st?.paired ? <span className="pill">emparejado · desconectado</span> : <span className="pill">sin emparejar</span>}

@@ -140,6 +140,19 @@ export default function AccountSection() {
             <button className="btn small primary" onClick={async () => { const r = await call('admin/invite', { note }); setInvite(r); setNote(''); loadAdmin(); }}>Crear invitación</button>
           </div>
           {invite && <div className="hook-url"><code>{invite.url}</code><button className="btn small" onClick={() => navigator.clipboard?.writeText(invite.url)}>Copiar enlace</button></div>}
+          {admin.waitlist?.length > 0 && (
+            <>
+              <div className="muted small">Lista de espera ({admin.waitlist.length}): crea la invitación y mándale el enlace.</div>
+              <div className="always-list">
+                {admin.waitlist.slice(0, 50).map((w) => (
+                  <div key={w.email} className="mem-item">
+                    <span><b>{w.email}</b> · {new Date(w.at).toLocaleDateString('es-ES')}{w.use ? ` · «${w.use}»` : ''}{w.invited ? ' · invitado' : ''}</span>
+                    <button className="btn small" onClick={async () => { const r = await call('admin/invite', { note: w.email, email: w.email }); setInvite(r); loadAdmin(); }}>Invitar</button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           <div className="always-list">
             {admin.users.map((u) => (
               <div key={u.id} className="mem-item">

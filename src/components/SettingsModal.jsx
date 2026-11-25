@@ -3,7 +3,7 @@ import { api, serverMode } from '../api.js';
 import ServerSection from './ServerSection.jsx';
 import { isAdvanced } from '../uimode.js';
 import { ask } from '../dialog.jsx';
-import { getLang, setLang, LANGS } from '../i18n/index.js';
+import { getLang, setLang, LANGS, legalUrl } from '../i18n/index.js';
 import { hostedInfo } from '../remote.js';
 import { remoteConfig } from '../remote.js';
 import { voices as listVoices, speechSupported, dictationSupported, speak } from '../voice.js';
@@ -296,7 +296,7 @@ export default function SettingsModal({ providers, settings, services, sensitive
           </>}
 
           {tab === 'cuenta' && <>
-          <div className="muted small"><a className="link" href="./legal/condiciones.html" target="_blank" rel="noreferrer">Condiciones</a> · <a className="link" href="./legal/privacidad.html" target="_blank" rel="noreferrer">Privacidad</a> · <a className="link" href="./legal/uso-aceptable.html" target="_blank" rel="noreferrer">Uso aceptable</a></div>
+          <div className="muted small"><a className="link" href={legalUrl('condiciones')} target="_blank" rel="noreferrer">Condiciones</a> · <a className="link" href={legalUrl('privacidad')} target="_blank" rel="noreferrer">Privacidad</a> · <a className="link" href={legalUrl('uso-aceptable')} target="_blank" rel="noreferrer">Uso aceptable</a></div>
           <div className="section-title">Copia de seguridad</div>
           <div className="muted small">Tus bots, chats y rutinas viven en {serverMode ? 'tu servidor' : 'este navegador'}. Descarga una copia para no perderlos o para pasarlos a otro ordenador.</div>
           <div className="settings-actions">
