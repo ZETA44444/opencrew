@@ -1,9 +1,11 @@
 // Tools for a bot's own «computer» on your server (terminal + browser). Only when the app runs on
 // your OpenCrew server and the bot has «Ordenador» switched on in its settings.
 import { now, save } from './store.js';
+import { checkComputerAllowed } from './limits.js';
 
-const pc = () => globalThis.OPENCREW_COMPUTER;
-export const computerAvailable = () => !!pc();
+// Every use of the computer goes through pc(): it refuses when the plan doesn't include one.
+const pc = () => { checkComputerAllowed(); return globalThis.OPENCREW_COMPUTER; };
+export const computerAvailable = () => !!globalThis.OPENCREW_COMPUTER;
 const IMG = /\.(png|jpe?g|gif|webp|svg)$/i;
 const TEXT = /\.(txt|md|csv|json|html?|xml|js|mjs|ts|py|sh|css|ya?ml|log|sql|svg)$/i;
 

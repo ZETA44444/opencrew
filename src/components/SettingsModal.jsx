@@ -119,14 +119,14 @@ export default function SettingsModal({ providers, settings, services, sensitive
               <div key={p.id} className="key-row">
                 <div className="key-head">
                   <strong>{p.label}</strong>
-                  {p.hasKey ? <span className="pill ok">configurada</span> : <span className="pill">sin clave</span>}
+                  {p.included ? <span className="pill ok">incluido en tu plan</span> : p.hasKey ? <span className="pill ok">configurada</span> : <span className="pill">sin clave</span>}
                   <a href={p.keyUrl} target="_blank" rel="noreferrer" className="link small">Conseguir clave ↗</a>
                 </div>
                 <div className="key-input">
                   <input type="password" autoComplete="off" placeholder={p.hasKey ? '•••••••• (escribe para reemplazar)' : 'Pega tu API key'}
                     value={keys[p.id] || ''} onChange={(e) => setKeys({ ...keys, [p.id]: e.target.value })} />
                   <button className="btn small" onClick={() => test(p)} disabled={!p.hasKey && !keys[p.id]}>Probar</button>
-                  {p.hasKey && <button className="btn small ghost" onClick={() => remove(p)}>Quitar</button>}
+                  {p.hasKey && !p.included && <button className="btn small ghost" onClick={() => remove(p)}>Quitar</button>}
                 </div>
                 {p.id === 'gemini' && (
                   <details className="small muted">

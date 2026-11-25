@@ -6,6 +6,7 @@ import net from 'node:net';
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import { createHash, createHmac, timingSafeEqual, randomBytes, scrypt as scryptCb, createCipheriv, createDecipheriv } from 'node:crypto';
 import { promisify } from 'node:util';
+import { createAi, planOf, limitsOf, creditState, PLANS, EUR_PER_USD } from './ai.mjs';
 
 const scrypt = promisify(scryptCb);
 const TERMS_VERSION = '2026-11-24'; // version of the legal texts each account accepted (public/legal)
@@ -32,6 +33,9 @@ let db = { users: [], sessions: {}, invites: {} };
 try { db = { ...db, ...JSON.parse(unseal(await readFile(FILE, 'utf8'))) }; } catch (e) { if (e.code !== 'ENOENT') throw e; }
 let saving = Promise.resolve();
 const save = () => { saving = saving.then(async () => { await writeFile(`${FILE}.tmp`, seal(JSON.stringify(db)), { mode: 0o600 }); await rename(`${FILE}.tmp`, FILE); }).catch((e) => console.error('No se pudo guardar:', e.message)); return saving; };
+// OpenCrew's own AI (paid plans): credits, company keys and the internal /ai/ route (gateway/ai.mjs).
+const ai = createAi({ db, save, hmac: (l) => hmac(l), same: (a, b) => same(a, b), data: DATA });
+const AI_URL = process.env.OPENCREW_AI_URL_FOR_ENGINES || 'http://gateway:8786/ai';
 
 // ---------- passwords and sessions ----------
 async function hashPassword(pw) { const salt = randomBytes(16); const k = await scrypt(pw, salt, 64, { N: 16384, r: 8, p: 1 }); return `scrypt$${salt.toString('hex')}$${k.toString('hex')}`; }
@@ -57,7 +61,10 @@ function startSession(res, user, req) {
   save();
   res.setHeader('set-cookie', `oc_sid=${sid}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_DAYS * 86400}`);
 }
-const publicUser = (u) => u && { id: u.id, email: u.email, role: u.role, plan: u.plan, createdAt: u.createdAt };
+const publicUser = (u) => u && { id: u.id, email: u.email, role: u.role, plan: planOf(u), createdAt: u.createdAt };
+// Plan and credits as the user sees them (euros).
+const eur = (usd) => (usd == null || usd === Infinity ? null : Math.round(usd * EUR_PER_USD * 100) / 100);
+const planView = (u) => { const c = creditState(u); return { plan: c.plan, label: c.label, trialEnds: c.trialEnds, creditsEur: eur(c.allowance === Infinity ? null : c.allowance + c.topup), usedEur: eur(c.used), remainingEur: eur(c.remaining), warned: c.warned, limits: limitsOf(u) }; };
 
 // ---------- limits ----------
 const buckets = new Map();
@@ -75,7 +82,7 @@ async function ensureEngine(uid) {
   const job = (async () => {
     const r = await fetch(`${LAUNCHER}/engineStart`, {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-launcher-key': LAUNCHER_KEY },
-      body: JSON.stringify({ tenant: uid, token: engineToken(uid), secretKey: hmac(`engine-data:${uid}`), host: HOST }),
+      body: JSON.stringify({ tenant: uid, token: engineToken(uid), secretKey: hmac(`engine-data:${uid}`), host: HOST, aiUrl: AI_URL, aiKey: ai.keyFor(uid) }),
       signal: AbortSignal.timeout(60_000),
     });
     const j = await r.json().catch(() => ({}));
@@ -91,11 +98,15 @@ async function ensureEngine(uid) {
 }
 
 // Plain HTTP proxy to an engine (streams both ways, so live events work).
-const proxy = (req, res, uid, path) => proxyTo(req, res, engineUrl(uid), engineToken(uid), path);
-function proxyTo(req, res, base, token, path) {
+// Each request carries the user's plan limits (only the gateway can set this header: the engine trusts its token).
+const limitsHeader = (uid) => { const u = db.users.find((x) => x.id === uid); return u ? { 'x-opencrew-limits': JSON.stringify(limitsOf(u)) } : {}; };
+const proxy = (req, res, uid, path) => proxyTo(req, res, engineUrl(uid), engineToken(uid), path, limitsHeader(uid));
+function proxyTo(req, res, base, token, path, extra = {}) {
   const target = new URL(path, base);
   const headers = { ...req.headers, host: target.host, authorization: `Bearer ${token}` };
   delete headers.cookie;
+  delete headers['x-opencrew-limits'];
+  Object.assign(headers, extra);
   const up = http.request(target, { method: req.method, headers }, (r) => {
     const h = { ...r.headers }; delete h['set-cookie'];
     res.writeHead(r.statusCode, h);
@@ -152,7 +163,7 @@ async function auth(req, res, path) {
     if (db.users.some((u) => u.email === email)) return send(res, 409, { error: 'Ya hay una cuenta con ese correo' });
     if (needsAccept()) return send(res, 400, { error: needsAccept() });
     if (String(b.password || '').length < 10) return send(res, 400, { error: 'La contraseña debe tener al menos 10 caracteres' });
-    const user = { id: randomBytes(6).toString('hex'), email, hash: await hashPassword(String(b.password)), role: 'user', plan: 'free', accepted, createdAt: new Date().toISOString() };
+    const user = { id: randomBytes(6).toString('hex'), email, hash: await hashPassword(String(b.password)), role: 'user', plan: 'trial', trialEnds: Date.now() + PLANS.trial.days * 864e5, accepted, createdAt: new Date().toISOString() };
     db.users.push(user); inv.usedBy = user.id; inv.usedAt = Date.now();
     startSession(res, user, req); await save();
     return send(res, 200, { user: publicUser(user) });
@@ -194,6 +205,7 @@ async function removeUser(u) {
 }
 async function account(req, res, path, user) {
   if (!user) return send(res, 401, { error: 'Inicia sesión', login: true });
+  if (path === '/api/account/plan' && req.method === 'GET') return send(res, 200, planView(user));
   if (path === '/api/account/export' && req.method === 'GET') {
     await ensureEngine(user.id);
     const data = await engineCall(user.id, 'exportData', [{ includeKeys: false }]);
@@ -217,7 +229,7 @@ async function account(req, res, path, user) {
 
 async function admin(req, res, path, user) {
   if (user?.role !== 'owner') return send(res, 403, { error: 'Solo el administrador' });
-  if (path === '/api/admin/users' && req.method === 'GET') return send(res, 200, { users: db.users.map((u) => ({ ...publicUser(u), disabled: !!u.disabled })), invites: Object.values(db.invites).map(({ note, exp, usedBy, at }) => ({ note, exp, usedBy, at })) });
+  if (path === '/api/admin/users' && req.method === 'GET') return send(res, 200, { users: db.users.map((u) => ({ ...publicUser(u), disabled: !!u.disabled, planView: planView(u), aiCostEur: eur(db.aiStats?.[new Date().toISOString().slice(0, 7)]?.[u.id]?.cost || 0) })), invites: Object.values(db.invites).map(({ note, exp, usedBy, at }) => ({ note, exp, usedBy, at })) });
   if (req.method !== 'POST' || !fromApp(req)) return send(res, 403, { error: 'Prohibido' });
   const b = await body(req);
   if (path === '/api/admin/invite') {
@@ -225,6 +237,19 @@ async function admin(req, res, path, user) {
     db.invites[createHash('sha256').update(code).digest('hex')] = { note: String(b.note || '').slice(0, 80), at: Date.now(), exp: Date.now() + 14 * 864e5 };
     await save();
     return send(res, 200, { code, url: `https://${HOST}/?invitacion=${code}` });
+  }
+  // Until payments are connected (M2.5), the administrator sets plans and adds credits by hand.
+  if (path === '/api/admin/plan') {
+    const u = db.users.find((x) => x.id === b.id && x.role !== 'owner');
+    if (!u) return send(res, 404, { error: 'No encontrado' });
+    if (b.plan) {
+      if (!PLANS[b.plan] || b.plan === 'owner') return send(res, 400, { error: 'Plan no válido' });
+      u.plan = b.plan;
+      if (b.plan === 'trial') { u.trialEnds = Date.now() + PLANS.trial.days * 864e5; u.trialUsed = 0; }
+    }
+    if (b.topupEur) u.topup = Math.max(0, (u.topup || 0) + Number(b.topupEur) / EUR_PER_USD);
+    await save();
+    return send(res, 200, { ok: true, planView: planView(u) });
   }
   if (path === '/api/admin/delete') {
     const u = db.users.find((x) => x.id === b.id && x.role !== 'owner');
@@ -252,6 +277,7 @@ const server = http.createServer(async (req, res) => {
   const path = url.pathname;
   try {
     if (path === '/api/health') return send(res, 200, { ok: true, app: 'opencrew', gateway: true });
+    if (path.startsWith('/ai/')) return await ai.handle(req, res, path); // internal: engines → providers with OpenCrew's keys
     if (path.startsWith('/api/auth/')) return await auth(req, res, path);
     const hook = /^\/hooks\/([a-f0-9]{12})\/([\w-]{6,40})$/.exec(path);
     if (hook) { await ensureEngine(hook[1]); return proxy(req, res, hook[1], `/hooks/${hook[2]}${url.search}`); }

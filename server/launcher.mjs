@@ -47,6 +47,8 @@ async function engineStart(b) {
   const env = {
     OPENCREW_TOKEN: String(b.token), OPENCREW_SECRET_KEY: String(b.secretKey), OPENCREW_DATA: '/data/', OPENCREW_TENANT: t,
     OPENCREW_HOST: String(b.host || ''), LAUNCHER_URL: `http://launcher:${PORT}`, LAUNCHER_KEY: tenantKey(t), LAUNCHER_TENANT: t,
+    // OpenCrew's AI through the gateway (paid plans): its internal address and this user's key.
+    ...(/^oc_[a-f0-9]{12}_[a-f0-9]{64}$/.test(String(b.aiKey || '')) && /^http:\/\/[\w.-]+:\d+\/ai$/.test(String(b.aiUrl || '')) && { OPENCREW_AI_URL: String(b.aiUrl), OPENCREW_AI_KEY: String(b.aiKey) }),
   };
   if (!/^[0-9a-f]{32,}$/i.test(env.OPENCREW_TOKEN) || !/^[0-9a-f]{64}$/i.test(env.OPENCREW_SECRET_KEY)) throw Object.assign(new Error('Claves no válidas'), { status: 400 });
   // Secrets go through a file read by docker (--env-file from stdin isn't supported): pass them as -e on the command line of this container only.

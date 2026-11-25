@@ -5,7 +5,9 @@ export function humanizeError(e, providerLabel = 'El modelo') {
   const p = providerLabel.replace(/\s*\(.*\)$/, '');
   const detail = msg.replace(/\s*→.*$/s, '').slice(0, 300);
   if (e?.budget) return { title: 'Se ha alcanzado el límite de gasto', hint: msg, detail: '' };
-  if (/Falta la API key|sin clave/i.test(msg)) return { title: 'Este bot aún no tiene con qué pensar', hint: `Añade una clave de ${p} en Ajustes (la de Gemini es gratis) o cambia el bot a «Automático».`, detail: '' };
+  if (/Falta la API key|sin clave/i.test(msg)) return { title: 'Este bot aún no tiene con qué pensar', hint: `Añade una clave de ${p} en Ajustes o cambia el bot a «Automático».`, detail: '' };
+  // OpenCrew credits (paid plans): the gateway explains what to do.
+  if (status === 402 || /sin créditos|no incluye IA de OpenCrew/i.test(msg)) { globalThis.OPENCREW_AI?.refresh?.(); return { title: 'Te has quedado sin créditos de IA', hint: (msg.match(/(Te has quedado[^"}]*|Tu plan no incluye[^"}]*)/) || [])[1] || 'Recarga créditos, espera al mes que viene o añade tu propia clave en Ajustes.', detail: '' }; }
   if (status === 401 || status === 403) return { title: `${p} no acepta la clave`, hint: 'Revisa la clave en Ajustes (cópiala entera, sin espacios) o elige otro modelo para este bot.', detail };
   if (status === 429) return { title: `${p} ha llegado a su límite de uso`, hint: 'Es la cuota de tu clave o de tu plan. Espera unos minutos o cambia este bot a «Automático» para que use otro modelo.', detail };
   if (status === 404) return { title: 'Ese modelo ya no está disponible', hint: 'Elige otro modelo en el selector de abajo (o «Automático»).', detail };

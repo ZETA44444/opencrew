@@ -15,6 +15,7 @@ import { computerTools, runComputerTool, describeComputer } from './computer.js'
 import { userBrowserTools, runUserBrowserTool, describeUserBrowser } from './userbrowser.js';
 import { myDesktopTools, runMyDesktopTool, describeMyDesktop } from './mydesktop.js';
 import { TREASURER_TOOLS, TREASURER_TOOL_NAMES } from './treasurer.js';
+import { checkLimit } from './limits.js';
 
 const PALETTE = ['#7dd3fc', '#fca5a5', '#86efac', '#fcd34d', '#c4b5fd', '#f9a8d4', '#fdba74', '#e5e5e5'];
 const SHAPES = ['circle', 'square', 'diamond', 'hexagon', 'triangle'];
@@ -279,6 +280,7 @@ const ALL_TOOLS = {
       }
       const routine = { id: newId(), botId: bot.id, name: String(a.name).slice(0, 80), prompt: String(a.prompt), schedule, enabled: true, createdBy: ctx.bot.name, createdAt: now() };
       routine.nextRunAt = computeNext(routine);
+      try { checkLimit('routines'); } catch (e) { return e.message; }
       getDb().routines.push(routine);
       save();
       broadcast({ type: 'routines' });
@@ -341,6 +343,7 @@ const ALL_TOOLS = {
         color: pickOne(PALETTE, name), shape: pickOne(SHAPES, name + 'x'), provider, model, memory: [], starred: false,
         createdBy: ctx.bot.name, createdAt: now(),
       };
+      try { checkLimit('bots'); } catch (e) { return e.message; }
       getDb().bots.push(bot);
       save();
       broadcast({ type: 'bots' });

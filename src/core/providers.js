@@ -30,9 +30,17 @@ export const PROVIDERS = [
 
 export const providerById = (id) => PROVIDERS.find((p) => p.id === id);
 
+// OpenCrew's own AI (paid plans, only on an OpenCrew server): set by server/index.mjs as
+// { url, key, providers: Set }. Your own key always comes first and is never charged in credits.
+const ocAi = () => globalThis.OPENCREW_AI;
+export const usesOpenCrew = (providerId) => !getDb().keys[providerId] && !!ocAi()?.providers?.has(providerId);
 export function getKey(providerId) {
-  return getDb().keys[providerId] || '';
+  return getDb().keys[providerId] || (usesOpenCrew(providerId) ? ocAi().key : '');
 }
+// Where to send the calls: the provider itself, or the gateway, which adds OpenCrew's key and charges credits.
+const DIRECT = { anthropic: 'https://api.anthropic.com', gemini: 'https://generativelanguage.googleapis.com' };
+const apiBase = (providerId) => (usesOpenCrew(providerId) ? `${ocAi().url}/${providerId}` : DIRECT[providerId]);
+const openaiBase = (p) => (usesOpenCrew(p.id) ? `${ocAi().url}/${p.id}/v1` : p.baseUrl);
 
 // Models fetched live from each provider's API (so the list never goes stale).
 const liveModels = {};
@@ -47,7 +55,7 @@ export async function refreshModels(providerId) {
   let ids = [];
   try {
     if (p.kind === 'gemini') {
-      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', { headers: { 'x-goog-api-key': key }, signal: AbortSignal.timeout(15_000) });
+      const res = await fetch(`${apiBase('gemini')}/v1beta/models?pageSize=1000`, { headers: { 'x-goog-api-key': key }, signal: AbortSignal.timeout(15_000) });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error?.message || res.status);
       ids = (data.models || [])
@@ -55,12 +63,12 @@ export async function refreshModels(providerId) {
         .map((m) => m.name.replace(/^models\//, ''))
         .filter((id) => id.startsWith('gemini') && !SKIP_MODEL.test(id));
     } else if (p.kind === 'anthropic') {
-      const res = await fetch('https://api.anthropic.com/v1/models?limit=100', { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, signal: AbortSignal.timeout(15_000) });
+      const res = await fetch(`${apiBase('anthropic')}/v1/models?limit=100`, { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, signal: AbortSignal.timeout(15_000) });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error?.message || res.status);
       ids = (data.data || []).map((m) => m.id);
     } else {
-      const res = await fetch(`${p.baseUrl}/models`, { headers: key ? { authorization: `Bearer ${key}` } : {}, signal: AbortSignal.timeout(15_000) });
+      const res = await fetch(`${openaiBase(p)}/models`, { headers: key ? { authorization: `Bearer ${key}` } : {}, signal: AbortSignal.timeout(15_000) });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error?.message || res.status);
       ids = (data.data || []).map((m) => m.id).filter((id) => !SKIP_MODEL.test(id));
@@ -93,6 +101,7 @@ export function defaultModel(providerId) {
 export const publicProviders = () => PROVIDERS.map((p) => ({
   id: p.id, label: p.label, models: modelsOf(p.id), defaultModel: defaultModel(p.id), live: !!liveModels[p.id], keyUrl: p.keyUrl, noKey: !!p.noKey, bridge: !!p.bridge,
   hasKey: p.noKey ? true : !!getKey(p.id),
+  included: usesOpenCrew(p.id), // comes with your OpenCrew plan (no key needed)
   keySource: p.noKey ? null : getKey(p.id) ? 'app' : null,
 }));
 
@@ -223,7 +232,7 @@ async function callAnthropic({ model, apiKey, system, messages, tools, onText, s
   }
   const toolDefs = tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
   if (toolDefs.length) toolDefs[toolDefs.length - 1].cache_control = CACHE;
-  const res = await request('https://api.anthropic.com/v1/messages',
+  const res = await request(`${apiBase('anthropic')}/v1/messages`,
     { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
     {
       model, max_tokens: 8192, system: [{ type: 'text', text: system, cache_control: CACHE }], messages: out, stream: true,
@@ -277,7 +286,7 @@ async function callOpenAI({ provider, model, apiKey, system, messages, tools, on
   }
   const headers = apiKey ? { authorization: `Bearer ${apiKey}` } : {};
   if (provider.id === 'openrouter') headers['X-Title'] = 'OpenCrew';
-  const res = await request(`${provider.baseUrl}/chat/completions`, headers, {
+  const res = await request(`${openaiBase(provider)}/chat/completions`, headers, {
     model, messages: out, stream: true, stream_options: { include_usage: true },
     ...(tools.length && { tools: tools.map((t) => ({ type: 'function', function: t })) }),
     ...(tools.length && forceTool && { tool_choice: 'required' }),
@@ -350,7 +359,7 @@ async function callGemini({ model, apiKey, system, messages, tools, onText, sign
       else contents.push({ role: 'user', parts: [part] });
     }
   }
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
+  const url = `${apiBase('gemini')}/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
   const res = await request(url, { 'x-goog-api-key': apiKey }, {
     systemInstruction: { parts: [{ text: system }] },
     contents,

@@ -6,6 +6,7 @@ import { runAgent, busy, waitUntilFree } from './agent.js';
 import { notify } from './notify.js';
 import { safeFetch, assertPublicUrl } from './netguard.js';
 import { gmailList, googleConnected } from './google.js';
+import { checkLimit } from './limits.js';
 
 export const watchers = () => (getDb().watchers ??= []);
 const MIN_EVERY = { github: 5, web: 15, rss: 10, gmail: 5 };
@@ -162,6 +163,7 @@ export function startWatchers() {
 export function saveWatcher(input) {
   const list = watchers();
   const existing = input.id && list.find((x) => x.id === input.id);
+  if (!existing) checkLimit('watchers');
   const fields = ['botId', 'name', 'type', 'config', 'everyMin', 'prompt', 'enabled', 'filters'];
   const data = Object.fromEntries(fields.filter((k) => input[k] !== undefined).map((k) => [k, input[k]]));
   if (existing) {

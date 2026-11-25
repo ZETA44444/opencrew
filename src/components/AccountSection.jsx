@@ -11,6 +11,35 @@ const call = async (path, data) => {
   return j;
 };
 
+const money = (n) => (n == null ? '∞' : `${Number(n).toFixed(2).replace('.', ',')} €`);
+const PLAN_OPTIONS = [['trial', 'Prueba'], ['pro', 'Pro'], ['founder', 'Fundador'], ['free', 'Gratis (sus claves)']];
+
+// Your plan: what's included and how much AI credit is left (OpenCrew's own AI, charged at cost).
+function PlanBox({ plan }) {
+  const total = plan.creditsEur || 0;
+  const pct = total ? Math.min(100, (plan.usedEur / total) * 100) : 0;
+  const days = plan.trialEnds ? Math.max(0, Math.ceil((plan.trialEnds - Date.now()) / 864e5)) : null;
+  const l = plan.limits || {};
+  return (
+    <>
+      <div className="section-title">Tu plan</div>
+      <div className="key-row">
+        <div className="key-head"><strong>{plan.label}</strong>{days != null && <span className="pill">{days} {days === 1 ? 'día' : 'días'} de prueba</span>}</div>
+        {total > 0 ? (
+          <div className="quota">
+            <div className="quota-head"><span>Créditos de IA {plan.plan === 'trial' ? 'de la prueba' : 'de este mes'}</span><b>{money(plan.remainingEur)} de {money(total)}</b></div>
+            <div className="quota-bar"><div className={pct >= 100 ? 'hot' : pct >= 80 ? 'warm' : ''} style={{ width: `${pct}%` }} /></div>
+          </div>
+        ) : <div className="muted small">Tu plan no incluye IA de OpenCrew: usa tus propias claves de API (Ajustes → Modelos).</div>}
+        <div className="muted small">
+          Incluye: {l.bots == null ? 'bots ilimitados' : `hasta ${l.bots} bots`} · {l.routines == null ? 'rutinas ilimitadas' : `${l.routines} rutinas`} · {l.watchers == null ? 'vigilantes ilimitados' : `${l.watchers} vigilantes`} · {l.computerHours ? `ordenador de bot (${l.computerHours} h/mes)` : 'sin ordenador de bot'}.
+          Tus propias claves funcionan siempre y no gastan créditos.
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function AccountSection() {
   const me = hostedInfo()?.user;
   const [pw, setPw] = useState(null); // { current, password }
@@ -19,8 +48,9 @@ export default function AccountSection() {
   const [invite, setInvite] = useState(null);
   const [note, setNote] = useState('');
   const [del, setDel] = useState(null); // { password, confirm }
+  const [plan, setPlan] = useState(null);
   const loadAdmin = () => call('admin/users').then(setAdmin).catch(() => {});
-  useEffect(() => { if (me?.role === 'owner') loadAdmin(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (me?.role === 'owner') loadAdmin(); call('account/plan').then(setPlan).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (!me) return null;
 
   const changePw = async () => {
@@ -45,6 +75,8 @@ export default function AccountSection() {
           : <button className="btn small" onClick={() => setPw({ current: '', password: '' })}>Cambiar contraseña</button>}
         <button className="btn small ghost" onClick={logout}>Cerrar sesión</button>
       </div>
+
+      {plan && plan.plan !== 'owner' && <PlanBox plan={plan} />}
 
       <div className="section-title">Tus datos</div>
       <div className="muted small">Descarga una copia de todo lo tuyo (bots, chats, memoria, archivos, rutinas…) en un archivo. Tus claves de API no se incluyen.</div>
@@ -78,8 +110,13 @@ export default function AccountSection() {
           <div className="always-list">
             {admin.users.map((u) => (
               <div key={u.id} className="mem-item">
-                <span><b>{u.email}</b> · {u.role === 'owner' ? 'administrador' : `plan ${u.plan}`} · desde {new Date(u.createdAt).toLocaleDateString('es-ES')}{u.disabled ? ' · desactivado' : ''}</span>
+                <span><b>{u.email}</b> · {u.role === 'owner' ? 'administrador' : u.planView?.label || u.plan} · desde {new Date(u.createdAt).toLocaleDateString('es-ES')}{u.disabled ? ' · desactivado' : ''}
+                  {u.role !== 'owner' && <span className="muted small"> · IA este mes: {money(u.aiCostEur)}{u.planView?.remainingEur != null ? ` · le quedan ${money(u.planView.remainingEur)}` : ''}</span>}</span>
                 {u.role !== 'owner' && <span className="row-actions">
+                  <select className="small-select" value={u.plan} onChange={async (e) => { await call('admin/plan', { id: u.id, plan: e.target.value }); loadAdmin(); }}>
+                    {PLAN_OPTIONS.map(([id, l]) => <option key={id} value={id}>{l}</option>)}
+                  </select>
+                  <button className="btn small ghost" onClick={async () => { const v = await askText(`¿Cuántos euros de créditos de IA añades a ${u.email}?`, { placeholder: '5' }); if (v && Number(v) > 0) { await call('admin/plan', { id: u.id, topupEur: Number(v) }); loadAdmin(); } }}>+ Créditos</button>
                   <button className="btn small ghost" onClick={async () => { await call('admin/disable', { id: u.id, disabled: !u.disabled }); loadAdmin(); }}>{u.disabled ? 'Reactivar' : 'Desactivar'}</button>
                   <button className="btn small ghost danger" onClick={async () => { if (await askText(`Para borrar ${u.email} y todos sus datos, escribe BORRAR`, { expect: 'BORRAR', okLabel: 'Borrar' }) !== 'BORRAR') return; await call('admin/delete', { id: u.id }); loadAdmin(); }}>Borrar</button>
                 </span>}

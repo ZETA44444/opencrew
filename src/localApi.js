@@ -4,6 +4,7 @@ import { getDb, getBot, newId, now, save, messagesOf, exportData, importData, st
 import { publicProviders, providerById, callModel, refreshModels, refreshAllModels, defaultModel } from './core/providers.js';
 import { runAgent, runGroup, getGroup, busy, stopBot } from './core/agent.js';
 import { markRetried } from './core/router.js';
+import { checkLimit } from './core/limits.js';
 import { broadcast, subscribe } from './core/events.js';
 import { computeNext, runRoutine, startScheduler, missed, resolveMissed } from './core/routines.js';
 import { artifactsOf, TOOL_NAMES } from './core/tools.js';
@@ -148,6 +149,7 @@ export const localApi = {
   async createBot(input) {
     const b = pick(input || {}, BOT_FIELDS);
     if (!b.name?.trim()) throw new Error('El bot necesita un nombre');
+    checkLimit('bots');
     if (db().bots.some((x) => x.name.toLowerCase() === b.name.trim().toLowerCase())) throw new Error(`Ya existe un bot llamado ${b.name.trim()}. Elige otro nombre.`);
     const bot = {
       id: newId(), title: 'Asistente', description: '', instructions: '', color: '#e5e5e5', shape: 'circle',
@@ -415,6 +417,7 @@ export const localApi = {
     const r = pick(input || {}, ROUTINE_FIELDS);
     if (!getBot(r.botId)) throw new Error('Bot no encontrado');
     if (!r.name || !r.prompt) throw new Error('Falta nombre o instrucciones');
+    checkLimit('routines');
     const routine = { id: newId(), enabled: true, schedule: { type: 'daily', time: '08:00' }, ...r, createdAt: now() };
     routine.nextRunAt = computeNext(routine);
     db().routines.push(routine);

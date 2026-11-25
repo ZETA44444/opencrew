@@ -85,6 +85,43 @@ globalThis.OPENCREW_COMPUTER = computer;
 globalThis.OPENCREW_EXT = extension;
 globalThis.OPENCREW_DESKTOP = desktop;
 globalThis.OPENCREW_GOOGLE_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+
+// ---------- OpenCrew's AI and plan (only behind the OpenCrew gateway) ----------
+// The owner's engine shares the master key with the gateway and derives its own AI key; user engines get one.
+const AI_URL = (process.env.OPENCREW_AI_URL || '').replace(/\/$/, '');
+const AI_KEY = process.env.OPENCREW_AI_KEY || (AI_URL && !TENANT && /^[0-9a-f]{64}$/i.test(process.env.OPENCREW_SECRET_KEY || '')
+  ? `oc_owner_${createHmac('sha256', Buffer.from(process.env.OPENCREW_SECRET_KEY, 'hex')).update('ai-key:owner').digest('hex')}` : '');
+if (AI_URL && AI_KEY) {
+  globalThis.OPENCREW_AI = { url: AI_URL, key: AI_KEY, providers: new Set(), credits: null };
+  const refresh = async () => {
+    try {
+      const r = await fetch(`${AI_URL}/status`, { headers: { authorization: `Bearer ${AI_KEY}` }, signal: AbortSignal.timeout(10_000) });
+      if (!r.ok) return;
+      const j = await r.json();
+      const before = [...globalThis.OPENCREW_AI.providers].join();
+      Object.assign(globalThis.OPENCREW_AI, { providers: new Set(j.providers || []), credits: j.credits });
+      if (j.limits) planLimits(JSON.stringify(j.limits));
+      if (before !== (j.providers || []).join()) {
+        const { refreshModels } = await import('../src/core/providers.js');
+        for (const p of j.providers || []) await refreshModels(p).catch(() => {});
+        const { broadcast } = await import('../src/core/events.js');
+        broadcast({ type: 'bots' });
+      }
+    } catch { /* gateway restarting: try later */ }
+  };
+  globalThis.OPENCREW_AI.refresh = refresh;
+  refresh(); setInterval(refresh, 5 * 60_000).unref();
+}
+// Plan limits sent by the gateway with every request (bots, routines, watchers, computer hours).
+function planLimits(raw) {
+  try {
+    const l = JSON.parse(raw);
+    if (JSON.stringify(globalThis.OPENCREW_LIMITS) === JSON.stringify(l)) return;
+    globalThis.OPENCREW_LIMITS = l;
+    // Remembered for routines that run while nobody is connected.
+    import('../src/core/store.js').then((st) => st.ready.then(() => { st.getDb().settings.planLimits = l; st.save(); })).catch(() => {});
+  } catch { /* ignore */ }
+}
 globalThis.OPENCREW_PUBLIC_URL = (process.env.OPENCREW_PUBLIC_URL || (process.env.OPENCREW_HOST ? `https://${process.env.OPENCREW_HOST}` : `http://localhost:${PORT}`)).replace(/\/$/, '');
 
 process.on('unhandledRejection', (e) => console.error('Error sin capturar:', e));
@@ -186,7 +223,9 @@ async function handleHook(req, res, id, url) {
 }
 const authorized = (req) => {
   const m = /^Bearer (.+)$/.exec(req.headers.authorization || '');
-  return !!m && timingSafeEqual(hash(m[1]), hash(TOKEN));
+  const ok = !!m && timingSafeEqual(hash(m[1]), hash(TOKEN));
+  if (ok && req.headers['x-opencrew-limits']) planLimits(req.headers['x-opencrew-limits']);
+  return ok;
 };
 
 function cors(req, res) {

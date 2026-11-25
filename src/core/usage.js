@@ -2,6 +2,7 @@
 // million tokens) and you can edit them in «Uso y coste»; your provider's bill is the real number.
 import { getDb, save } from './store.js';
 import { livePrice } from './pricing.js';
+import { callCost } from './pricelists.js';
 
 // [pattern, input $/M, output $/M] — first match wins.
 const DEFAULT_PRICES = [
@@ -33,16 +34,7 @@ export function priceFor(provider, model) {
 // it 125 % (Anthropic's prompt caching prices).
 // With the live price list, the provider's own cache prices and its surcharge for very long prompts
 // (e.g. above 100.000 or 200.000 tokens) are used; otherwise the usual cache discounts.
-export const costOf = (provider, model, input, output, cacheRead = 0, cacheWrite = 0) => {
-  const p = priceFor(provider, model);
-  const long = p.long && input > p.long.tokens;
-  const pin = long ? p.long.input : p.input;
-  const pout = long ? p.long.output : p.output;
-  const rRead = p.cacheRead != null && p.input ? p.cacheRead / p.input : 0.1;
-  const rWrite = p.cacheWrite != null && p.input ? p.cacheWrite / p.input : provider === 'anthropic' ? 1.25 : 1;
-  const plain = Math.max(0, input - cacheRead - cacheWrite);
-  return ((plain + cacheRead * rRead + cacheWrite * rWrite) * pin + output * pout) / 1_000_000;
-};
+export const costOf = (provider, model, input, output, cacheRead = 0, cacheWrite = 0) => callCost(priceFor(provider, model), { input, output, cacheRead, cacheWrite }, provider);
 
 export function recordUsage({ botId, provider, model, input = 0, output = 0, cacheRead = 0, cacheWrite = 0 }) {
   if (!input && !output) return 0;
