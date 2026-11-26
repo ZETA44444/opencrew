@@ -14,6 +14,9 @@ IFS= read -rs value
 echo
 value="$(printf '%s' "$value" | tr -d '[:space:]')"
 [ -n "$value" ] || { echo "No has pegado nada. No se ha cambiado nada."; exit 1; }
+if [ "$name" = ALERT_URL ] && ! printf '%s' "$value" | grep -Eq '^https://[^/]+/.+'; then
+  echo "Falta la dirección completa. Tiene que ser https://ntfy.sh/ seguido de tu nombre, todo junto. No se ha cambiado nada."; exit 1
+fi
 umask 077
 touch "$file"
 { grep -v "^${name}=" "$file" || true; printf '%s=%s\n' "$name" "$value"; } > "$file.tmp"
